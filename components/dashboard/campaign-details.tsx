@@ -216,22 +216,41 @@ export function BudgetSplit({ spend, dayCount }: { spend: Record<string, number>
   const total = Object.values(spend).reduce((a, b) => a + b, 0);
   if (total === 0) return null;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
       {Object.entries(spend).map(([obj, val]) => {
         const p = (val / total) * 100;
         const pal = PALETTE[obj as keyof typeof PALETTE] || PALETTE.OUTROS;
+        const accentColor = obj === 'VENDAS' ? '#22c55e' : obj === 'LEADS' ? '#E8B14F' : '#A8B2C0';
         return (
-          <div key={obj} className={`p-6 rounded-[32px] border ${pal.border} ${pal.light} transition-all hover:shadow-lg group shadow-sm flex flex-col justify-between min-h-[140px]`}>
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${pal.text}`}>{obj}</p>
-                <p className={`text-[11px] font-black ${pal.text} px-2.5 py-1 bg-white rounded-lg border ${pal.border} shadow-sm`}>{p.toFixed(1)}%</p>
+          <div key={obj} style={{
+            background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.03) 50%, rgba(0,10,30,0.55) 100%)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+            boxShadow: '0 1px 0 rgba(255,255,255,0.10) inset, 0 20px 40px -8px rgba(0,0,0,0.5)',
+            borderRadius: 28,
+            padding: '28px 28px',
+            position: 'relative',
+            overflow: 'hidden',
+            minHeight: 155,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            transition: 'transform 0.2s',
+          }}
+            className="hover:scale-[1.01] group"
+          >
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', borderRadius: 28 }} />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-5">
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.2em', color: accentColor }}>{obj}</p>
+                <p style={{ fontSize: 11, fontWeight: 900, color: accentColor, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '3px 10px' }}>{p.toFixed(1)}%</p>
               </div>
-              <p className="font-headline font-black text-3xl text-slate-900 leading-none">{R(val)}</p>
+              <p style={{ fontFamily: 'var(--font-jakarta)', fontWeight: 900, fontSize: 'clamp(1.5rem,3vw,2rem)', lineHeight: 1, color: '#fff' }}>{R(val)}</p>
             </div>
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Média Diária:</p>
-              <p className="text-sm font-black text-slate-700">{R(val / dayCount)}</p>
+            <div className="relative z-10 flex items-center justify-between" style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em', color: '#A8B2C0' }}>Média Diária:</p>
+              <p style={{ fontSize: 14, fontWeight: 900, color: '#fff' }}>{R(val / dayCount)}</p>
             </div>
           </div>
         );

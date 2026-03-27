@@ -53,11 +53,11 @@ export default function ResumoPage() {
   ];
 
   const glossy: React.CSSProperties = {
-    background: 'linear-gradient(160deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 50%, rgba(0,10,30,0.65) 100%)',
-    border: '1px solid rgba(255,255,255,0.12)',
+    background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.034) 50%, rgba(0,10,30,0.55) 100%)',
+    border: '1px solid rgba(255,255,255,0.10)',
     backdropFilter: 'blur(24px) saturate(180%)',
     WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-    boxShadow: '0 1px 0 rgba(255,255,255,0.15) inset, 0 24px 48px -12px rgba(0,0,0,0.6)',
+    boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 24px 48px -12px rgba(0,0,0,0.5)',
     borderRadius: 24,
     position: 'relative',
     overflow: 'hidden',
@@ -97,7 +97,7 @@ export default function ResumoPage() {
           <main className="px-6 max-w-[1600px] mx-auto pb-20">
 
             {/* Period bar */}
-            <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-5 gap-3"
+            <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mt-[10px] mb-5 gap-3"
               style={{ ...glossy, borderRadius: 18 }}>
               <p className="font-bold" style={{ color: '#fff' }}>
                 Período: <span style={{ color: GOLD }}>{D(dateFrom)} → {D(dateTo)}</span>
