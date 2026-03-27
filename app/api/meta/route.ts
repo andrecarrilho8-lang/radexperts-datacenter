@@ -40,11 +40,14 @@ export async function GET(request: Request) {
       ? `&filtering=[{"field":"campaign.id","operator":"EQUAL","value":"${campaignId}"}]`
       : '';
 
+    const accountInsightFields = 'spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values,date_start';
+    const campaignInsightFields = insightFields;
+
     // ── Fetch data in parallel via HTTP ──
     const [summaryRes, campaignsRes, campInsightsRes, hotmartSales] = await Promise.all([
-      fetch(`${META_BASE}/${adAccountId}/insights?fields=${insightFields}&level=account&${dateRangeParam}&access_token=${accessToken}`).then(r => r.json()),
+      fetch(`${META_BASE}/${adAccountId}/insights?fields=${accountInsightFields}&level=account&${dateRangeParam}&access_token=${accessToken}`).then(r => r.json()),
       fetch(`${META_BASE}/${adAccountId}/campaigns?fields=id,name,status,effective_status,created_time,objective&limit=1000&access_token=${accessToken}`).then(r => r.json()),
-      fetch(`${META_BASE}/${adAccountId}/insights?fields=${insightFields}&level=campaign&limit=500&${dateRangeParam}${campaignFilterParam}&access_token=${accessToken}`).then(r => r.json()),
+      fetch(`${META_BASE}/${adAccountId}/insights?fields=${campaignInsightFields}&level=campaign&limit=500&${dateRangeParam}${campaignFilterParam}&access_token=${accessToken}`).then(r => r.json()),
       fetchHotmartSales(
         dSince ? `${dSince}T00:00:00-03:00` : '2026-01-01T00:00:00-03:00',
         dUntil ? `${dUntil}T23:59:59-03:00` : '2026-12-31T23:59:59-03:00'
