@@ -97,7 +97,7 @@ export default function ResumoPage() {
           <main className="px-6 max-w-[1600px] mx-auto pb-20">
 
             {/* Period bar */}
-            <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mt-[10px] mb-5 gap-3"
+            <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mt-[30px] mb-5 gap-3"
               style={{ ...glossy, borderRadius: 18 }}>
               <p className="font-bold" style={{ color: '#fff' }}>
                 Período: <span style={{ color: GOLD }}>{D(dateFrom)} → {D(dateTo)}</span>
