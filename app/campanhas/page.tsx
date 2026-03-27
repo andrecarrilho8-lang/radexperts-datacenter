@@ -10,6 +10,21 @@ import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { FeedbackModal } from '@/components/dashboard/feedback-modal';
 import { useRouter } from 'next/navigation';
 
+const GOLD   = '#E8B14F';
+const SILVER = '#A8B2C0';
+const NAVY   = '#001a35';
+
+const glossy: React.CSSProperties = {
+  background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.03) 50%, rgba(0,10,30,0.55) 100%)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  backdropFilter: 'blur(24px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.10) inset, 0 20px 40px -8px rgba(0,0,0,0.5)',
+  borderRadius: 28,
+  position: 'relative',
+  overflow: 'hidden',
+};
+
 export default function CampanhasPage() {
   const { dateFrom, dateTo } = useDashboard();
   const data = useDashboardData();
@@ -26,7 +41,7 @@ export default function CampanhasPage() {
     { tab: 'GERAL' as const },
     { tab: 'VENDAS' as const },
     { tab: 'LEADS' as const },
-    { tab: 'OUTROS' as const }
+    { tab: 'OUTROS' as const },
   ];
 
   const filtered = data.tableData
@@ -36,304 +51,349 @@ export default function CampanhasPage() {
   const PAGE_SIZE = 30;
   const paginated = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
-  const viewCampaignDetail = (camp: any) => {
-    router.push(`/campanhas/${camp.id}`);
+  const viewCampaignDetail = (camp: any) => router.push(`/campanhas/${camp.id}`);
+
+  const objAccent: Record<string, string> = {
+    VENDAS: '#22c55e',
+    LEADS:  GOLD,
+    OUTROS: SILVER,
+    GERAL:  SILVER,
   };
 
   return (
     <LoginWrapper>
-      <Navbar />
-      <div className="h-[80px]" />
-      <main className="px-6 max-w-[1600px] mx-auto pt-20">
-        
-        {/* Consolidated Summary */}
-        {selectedIds.size > 0 && (
-          <div className="mb-8 p-8 bg-gradient-to-br from-violet-600 to-indigo-700 rounded-[32px] text-white shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-white/10 rounded-full blur-3xl opacity-20" />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-4">
-                   <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                     <span className="material-symbols-outlined text-white text-3xl">analytics</span>
-                   </div>
-                   <div>
-                     <h3 className="text-2xl font-black tracking-tight mb-1">Resumo Consolidado</h3>
-                     <p className="text-white/60 text-[10px] font-black uppercase tracking-[0.2em]">{selectedIds.size} {selectedIds.size === 1 ? 'Campanha Selecionada' : 'Campanhas Selecionadas'}</p>
-                   </div>
-                </div>
-                <button onClick={() => setSelectedIds(new Set())} className="px-5 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10">Limpar Seleção</button>
-              </div>
-              
-              {(() => {
-                const selected = data.tableData.filter(c => selectedIds.has(c.id));
-                const totalSpend = selected.reduce((s, c) => s + (c.spend || 0), 0);
-                const totalRevenue = selected.reduce((s, c) => s + (c.revenue || 0), 0);
-                const totalSales = selected.reduce((s, c) => s + (c.purchases || 0), 0);
-                const totalLeads = selected.reduce((s, c) => s + (c.leads || 0), 0);
-                const obj = selected[0]?.objective;
+      <div style={{ minHeight: '100vh', background: NAVY }}>
+        <Navbar />
+        <div className="h-[80px]" />
+        <main className="px-6 max-w-[1600px] mx-auto pt-10 pb-24">
 
-                return (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div className="bg-white/5 rounded-2xl p-5 border border-white/10 backdrop-blur-md">
-                      <p className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">Total Investido</p>
-                      <p className="text-2xl font-black">{R(totalSpend)}</p>
+          {/* Consolidated Summary */}
+          {selectedIds.size > 0 && (() => {
+            const selected = data.tableData.filter(c => selectedIds.has(c.id));
+            const totalSpend   = selected.reduce((s, c) => s + (c.spend || 0), 0);
+            const totalRevenue = selected.reduce((s, c) => s + (c.revenue || 0), 0);
+            const totalSales   = selected.reduce((s, c) => s + (c.purchases || 0), 0);
+            const totalLeads   = selected.reduce((s, c) => s + (c.leads || 0), 0);
+            const obj = selected[0]?.objective;
+            return (
+              <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-300"
+                style={{ ...glossy, borderRadius: 32, padding: '32px' }}>
+                <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 32 }} />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                        style={{ background: `rgba(232,177,79,0.12)`, border: `1px solid rgba(232,177,79,0.25)` }}>
+                        <span className="material-symbols-outlined text-3xl" style={{ color: GOLD }}>analytics</span>
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black tracking-tight text-white mb-1">Resumo Consolidado</h3>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: SILVER }}>{selectedIds.size} {selectedIds.size === 1 ? 'Campanha Selecionada' : 'Campanhas Selecionadas'}</p>
+                      </div>
                     </div>
-                    {obj === 'VENDAS' ? (
-                      (() => {
-                        // Collect unique matched products across all selected campaigns
-                        const allMatchedProducts = new Set<string>();
-                        selected.forEach(c => (c.matchedProducts || []).forEach((p: string) => allMatchedProducts.add(p)));
-                        // Sum Hotmart sales for those products (deduped by transaction)
-                        const seenTxns = new Set<string>();
-                        let hmRevenue = 0;
-                        let hmQty = 0;
-                        (data.hotmartSales || []).forEach((s: any) => {
-                          const pName = s.product?.name || '';
-                          const txn = s.purchase?.transaction || '';
-                          if (allMatchedProducts.has(pName) && !seenTxns.has(txn)) {
-                            seenTxns.add(txn);
-                            hmRevenue += s.purchase?.price?.value || 0;
-                            hmQty += 1;
-                          }
-                        });
-                        return (
-                          <>
-                            <div className="bg-white/5 rounded-2xl p-5 border border-white/10 backdrop-blur-md">
-                              <p className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">Faturamento Hotmart</p>
-                              <p className="text-2xl font-black">{R(hmRevenue)}</p>
-                            </div>
-                            <div className="bg-orange-400/10 rounded-2xl p-5 border border-orange-400/20 backdrop-blur-md">
-                              <p className="text-[10px] uppercase font-bold text-orange-300/70 tracking-widest mb-1">Vendas Totais Hotmart</p>
-                              <p className="text-2xl font-black text-orange-300">{N(hmQty)}</p>
-                            </div>
-                            <div className="bg-emerald-400/10 rounded-2xl p-5 border border-emerald-400/20 backdrop-blur-md">
-                              <p className="text-[10px] uppercase font-bold text-emerald-300/70 tracking-widest mb-1">Vendas Totais Meta</p>
-                              <p className="text-2xl font-black text-emerald-300">{N(totalSales)}</p>
-                            </div>
-                          </>
-                        );
-                      })()
-                    ) : obj === 'LEADS' ? (
-                      <>
-                        <div className="bg-amber-400/10 rounded-2xl p-5 border border-amber-400/20 backdrop-blur-md">
-                          <p className="text-[10px] uppercase font-bold text-amber-300/70 tracking-widest mb-1">Leads Totais</p>
-                          <p className="text-2xl font-black text-amber-300">{N(totalLeads)}</p>
+                    <button onClick={() => setSelectedIds(new Set())}
+                      className="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
+                      Limpar Seleção
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '20px 24px' }}>
+                      <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: SILVER }}>Total Investido</p>
+                      <p className="text-2xl font-black text-white">{R(totalSpend)}</p>
+                    </div>
+                    {obj === 'VENDAS' ? (() => {
+                      const allMatchedProducts = new Set<string>();
+                      selected.forEach(c => (c.matchedProducts || []).forEach((p: string) => allMatchedProducts.add(p)));
+                      const seenTxns = new Set<string>(); let hmRevenue = 0; let hmQty = 0;
+                      (data.hotmartSales || []).forEach((s: any) => {
+                        const pName = s.product?.name || ''; const txn = s.purchase?.transaction || '';
+                        if (allMatchedProducts.has(pName) && !seenTxns.has(txn)) { seenTxns.add(txn); hmRevenue += s.purchase?.price?.value || 0; hmQty += 1; }
+                      });
+                      return (<>
+                        <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px' }}>
+                          <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: GOLD + 'aa' }}>Faturamento Hotmart</p>
+                          <p className="text-2xl font-black" style={{ color: GOLD }}>{R(hmRevenue)}</p>
                         </div>
-                        <div className="bg-sky-400/10 rounded-2xl p-5 border border-sky-400/20 backdrop-blur-md">
-                          <p className="text-[10px] uppercase font-bold text-sky-300/70 tracking-widest mb-1">CPL Médio</p>
-                          <p className="text-2xl font-black text-sky-300">{totalLeads > 0 ? R(totalSpend / totalLeads) : 'R$ 0,00'}</p>
+                        <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: '20px 24px' }}>
+                          <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: '#22c55eaa' }}>Vendas Meta</p>
+                          <p className="text-2xl font-black text-emerald-400">{N(totalSales)}</p>
                         </div>
-                        <div className="bg-white/5 rounded-2xl p-5 border border-white/10 backdrop-blur-md">
-                          <p className="text-[10px] uppercase font-bold text-white/50 tracking-widest mb-1">CTR Médio</p>
-                          <p className="text-2xl font-black">{P(selected.reduce((s,c)=>s+(c.ctr||0),0)/selected.length)}</p>
+                        <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '20px 24px' }}>
+                          <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: SILVER }}>CPA Médio</p>
+                          <p className="text-2xl font-black text-rose-400">{totalSales > 0 ? R(totalSpend / totalSales) : '—'}</p>
                         </div>
-                      </>
-                    ) : (
-                      <div className="bg-slate-400/10 rounded-2xl p-5 border border-slate-400/20 backdrop-blur-md col-span-3">
-                         <p className="text-[10px] uppercase font-bold text-slate-300/70 tracking-widest mb-1">Ações Totais</p>
-                         <p className="text-2xl font-black text-slate-300">{N(totalSales + totalLeads)}</p>
+                      </>);
+                    })() : obj === 'LEADS' ? (<>
+                      <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px' }}>
+                        <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: GOLD + 'aa' }}>Leads Totais</p>
+                        <p className="text-2xl font-black" style={{ color: GOLD }}>{N(totalLeads)}</p>
+                      </div>
+                      <div style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: 20, padding: '20px 24px' }}>
+                        <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: '#38bdf8aa' }}>CPL Médio</p>
+                        <p className="text-2xl font-black text-sky-400">{totalLeads > 0 ? R(totalSpend / totalLeads) : '—'}</p>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '20px 24px' }}>
+                        <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: SILVER }}>CTR Médio</p>
+                        <p className="text-2xl font-black text-white">{P(selected.reduce((s,c)=>s+(c.ctr||0),0)/selected.length)}</p>
+                      </div>
+                    </>) : (
+                      <div className="col-span-3" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '20px 24px' }}>
+                        <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: SILVER }}>Ações Totais</p>
+                        <p className="text-2xl font-black text-white">{N(totalSales + totalLeads)}</p>
                       </div>
                     )}
                   </div>
-                );
-              })()}
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-           <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-violet-600/10 text-violet-600 rounded-2xl flex items-center justify-center shadow-sm">
-                <span className="material-symbols-outlined text-[28px]">campaign</span>
-              </div>
-              <div>
-                <h2 className="font-headline font-black text-3xl text-slate-800 leading-tight">Minhas Campanhas</h2>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Análise detalhada de performance</p>
-              </div>
-           </div>
-
-           <div className="flex flex-wrap items-center gap-4">
-              <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-                {OBJ_TABS_DEF.map(item => (
-                  <button key={item.tab} onClick={() => { setCampTab(item.tab); setCurrentPage(0); }}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${campTab === item.tab ? 'bg-white text-violet-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
-                    {item.tab}
-                  </button>
-                ))}
-              </div>
-              <div className="relative group">
-                 <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg group-focus-within:text-violet-500">search</span>
-                 <input type="text" placeholder="Buscar campanha..." 
-                   value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setCurrentPage(0); }}
-                   className="bg-white border border-slate-200 rounded-2xl pl-12 pr-4 py-2.5 text-xs font-black uppercase tracking-widest focus:ring-4 ring-violet-500/10 outline-none w-[280px] transition-all shadow-sm" />
-              </div>
-           </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
-          {data.fastLoading ? Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="bg-slate-50 border border-slate-100 p-6 rounded-[32px] h-[180px] animate-pulse" />
-          )) : paginated.map((camp: any) => {
-            const pal = PALETTE[camp.objective as keyof typeof PALETTE] || PALETTE.OUTROS;
-            const isSelected = selectedIds.has(camp.id);
-            
-            const toggleItem = (e: React.MouseEvent) => {
-               e.stopPropagation();
-               setSelectedIds(prev => {
-                 const next = new Set(prev);
-                 if (next.has(camp.id)) {
-                   next.delete(camp.id);
-                 } else {
-                   const firstId = Array.from(next)[0];
-                   const firstCamp = data.tableData.find((c: any) => c.id === firstId);
-                   if (firstCamp && firstCamp.objective !== camp.objective) {
-                     alert(`Só é possível consolidar campanhas do mesmo tipo.\n\nSua seleção atual é do tipo ${firstCamp.objective}.`);
-                     return prev;
-                   }
-                   next.add(camp.id);
-                 }
-                 return next;
-               });
-            };
-
-            return (
-              <div key={camp.id} onClick={() => viewCampaignDetail(camp)}
-                   className={`group cursor-pointer bg-white border ${isSelected ? 'border-violet-600 ring-2 ring-violet-600/10' : 'border-slate-100 hover:border-violet-300'} p-6 rounded-[32px] shadow-sm hover:shadow-xl transition-all flex flex-col justify-between min-h-[180px] relative overflow-hidden`}>
-                <div className={`absolute top-0 left-0 w-1.5 h-full opacity-20 group-hover:opacity-100 transition-all ${pal.bg} ${isSelected ? 'opacity-100' : ''}`} />
-                <div className="relative">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div onClick={toggleItem} className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-violet-600 border-violet-600 shadow-lg shadow-violet-200' : 'border-slate-200 bg-slate-50'}`}>
-                        {isSelected && <span className="material-symbols-outlined text-white text-[16px] font-black">check</span>}
-                      </div>
-                      <StatusBadge status={camp.status} />
-                    </div>
-                    <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg ${pal.bg} text-white shadow-sm`}>{camp.objective}</span>
-                  </div>
-                   <h3 className="font-headline font-black text-slate-900 text-lg line-clamp-2 pr-4 mb-2 group-hover:text-violet-600 transition-colors leading-tight uppercase tracking-tight">{camp.name}</h3>
-                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                        <span className="material-symbols-outlined text-[14px]">calendar_month</span>
-                        {camp.createdTime ? `Criada em ${D(camp.createdTime)}` : 'Indisponível'}
-                      </div>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setFeedbackCamp(camp); }} 
-                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-black transition-all shadow-sm"
-                        title="Gerar Feedback"
-                      >
-                        <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
-                        <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
-                      </button>
-                   </div>
-                </div>
-
-                <div className="mt-6 pt-5 border-t border-slate-50 grid grid-cols-2 md:grid-cols-4 gap-4">
-                   <div>
-                      <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Gasto</p>
-                      <p className="font-black text-lg text-slate-900 leading-none">{R(camp.spend)}</p>
-                   </div>
-                   
-                   {camp.objective === 'VENDAS' ? (
-                      <>
-                        <div className="text-right md:text-left">
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Faturamento (H)</p>
-                           <p className={`font-black text-lg ${pal.text} leading-none`}>{R(camp.hotmartRevenue || 0)}</p>
-                        </div>
-                        <div>
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Vendas Meta</p>
-                           <p className="font-black text-lg text-slate-900 leading-none">{N(camp.purchases || 0)}</p>
-                        </div>
-                        <div className="text-right">
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">CPA Meta</p>
-                           <p className="font-black text-lg text-rose-500 leading-none">{camp.purchases > 0 ? R(camp.spend / camp.purchases) : '—'}</p>
-                        </div>
-                      </>
-                   ) : camp.objective === 'LEADS' ? (
-                      <>
-                        <div className="text-right md:text-left">
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Leads</p>
-                           <p className={`font-black text-lg ${pal.text} leading-none`}>{N(camp.leads)}</p>
-                        </div>
-                        <div>
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">CPL</p>
-                           <p className="font-black text-lg text-slate-900 leading-none">{R(camp.costPerLead)}</p>
-                        </div>
-                        <div className="text-right">
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">CTR</p>
-                           <p className="font-black text-lg text-slate-600 leading-none">{P(camp.ctr)}</p>
-                        </div>
-                      </>
-                   ) : (
-                      <>
-                        <div className="text-right md:text-left">
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Connect</p>
-                           <p className={`font-black text-lg ${pal.text} leading-none`}>{P(camp.connectRate)}</p>
-                        </div>
-                        <div>
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Visitas</p>
-                           <p className="font-black text-lg text-slate-900 leading-none">{N(camp.landingPageViews)}</p>
-                        </div>
-                        <div className="text-right">
-                           <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">CTR</p>
-                           <p className="font-black text-lg text-slate-600 leading-none">{P(camp.ctr)}</p>
-                        </div>
-                      </>
-                   )}
                 </div>
               </div>
             );
-          })}
-        </div>
+          })()}
 
-        {/* Pagination Grid */}
-        <div className="flex items-center justify-between pb-24">
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)' }}>
+                <span className="material-symbols-outlined text-[30px]" style={{ color: GOLD }}>campaign</span>
+              </div>
+              <div>
+                <h2 className="font-headline font-black text-4xl leading-tight">
+                  <span className="text-white">Minhas </span>
+                  <span style={{ color: GOLD }}>Campanhas</span>
+                </h2>
+                <p className="text-sm font-bold uppercase tracking-widest mt-1" style={{ color: SILVER }}>Análise detalhada de performance</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Filter label + tabs */}
+              <div className="flex items-center gap-3">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: SILVER }}>Filtrar por:</span>
+                <div className="flex p-1 rounded-xl gap-1"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  {OBJ_TABS_DEF.map(item => (
+                    <button key={item.tab} onClick={() => { setCampTab(item.tab); setCurrentPage(0); }}
+                      className="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                      style={campTab === item.tab
+                        ? { background: GOLD, color: NAVY, boxShadow: '0 2px 8px rgba(232,177,79,0.4)' }
+                        : { color: SILVER }}>
+                      {item.tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Search */}
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-lg" style={{ color: SILVER }}>search</span>
+                <input type="text" placeholder="Buscar campanha..."
+                  value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setCurrentPage(0); }}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 16,
+                    paddingLeft: 44, paddingRight: 16, paddingTop: 10, paddingBottom: 10,
+                    color: '#fff', outline: 'none', width: 280,
+                    fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em',
+                  }}
+                  className="transition-all focus:border-[#E8B14F]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Campaign Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+            {data.fastLoading ? Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} style={{ ...glossy, height: 180 }} className="animate-pulse" />
+            )) : paginated.map((camp: any) => {
+              const accentColor = objAccent[camp.objective] || SILVER;
+              const isSelected = selectedIds.has(camp.id);
+
+              const toggleItem = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                setSelectedIds(prev => {
+                  const next = new Set(prev);
+                  if (next.has(camp.id)) { next.delete(camp.id); }
+                  else {
+                    const firstId = Array.from(next)[0];
+                    const firstCamp = data.tableData.find((c: any) => c.id === firstId);
+                    if (firstCamp && firstCamp.objective !== camp.objective) {
+                      alert(`Só é possível consolidar campanhas do mesmo tipo.\n\nSua seleção atual é do tipo ${firstCamp.objective}.`);
+                      return prev;
+                    }
+                    next.add(camp.id);
+                  }
+                  return next;
+                });
+              };
+
+              return (
+                <div key={camp.id} onClick={() => viewCampaignDetail(camp)}
+                  style={{
+                    ...glossy,
+                    border: isSelected ? `1px solid ${GOLD}` : '1px solid rgba(255,255,255,0.10)',
+                    boxShadow: isSelected ? `0 0 0 2px rgba(232,177,79,0.2), 0 20px 40px -8px rgba(0,0,0,0.5)` : glossy.boxShadow,
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    padding: '24px',
+                    minHeight: 180,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                  className="group"
+                  onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.01)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                  <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 28 }} />
+                  {/* Accent bar */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, width: 4, height: '100%', background: accentColor, borderRadius: '28px 0 0 28px', opacity: isSelected ? 1 : 0.3, transition: 'opacity 0.2s' }} />
+
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-3">
+                        {/* Checkbox */}
+                        <div onClick={toggleItem}
+                          style={{
+                            width: 24, height: 24, borderRadius: 8,
+                            border: isSelected ? `2px solid ${GOLD}` : '2px solid rgba(255,255,255,0.2)',
+                            background: isSelected ? GOLD : 'rgba(255,255,255,0.05)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.2s',
+                          }}>
+                          {isSelected && <span className="material-symbols-outlined text-[14px] font-black" style={{ color: NAVY }}>check</span>}
+                        </div>
+                        <StatusBadge status={camp.status} />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg"
+                        style={{ background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}30` }}>
+                        {camp.objective}
+                      </span>
+                    </div>
+
+                    <h3 className="font-headline font-black text-lg line-clamp-2 pr-4 mb-2 leading-tight uppercase tracking-tight text-white">
+                      {camp.name}
+                    </h3>
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
+                        <span className="material-symbols-outlined text-[14px]">calendar_month</span>
+                        {camp.createdTime ? `Criada em ${D(camp.createdTime)}` : 'Indisponível'}
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); setFeedbackCamp(camp); }}
+                        className="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all"
+                        style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}
+                        title="Gerar Feedback">
+                        <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Metrics row */}
+                  <div className="relative z-10 mt-4 pt-4 grid grid-cols-2 md:grid-cols-4 gap-4"
+                    style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div>
+                      <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Gasto</p>
+                      <p className="font-black text-lg text-white leading-none">{R(camp.spend)}</p>
+                    </div>
+                    {camp.objective === 'VENDAS' ? (<>
+                      <div className="text-right md:text-left">
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Fat. (H)</p>
+                        <p className="font-black text-lg leading-none" style={{ color: GOLD }}>{R(camp.hotmartRevenue || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Vendas Meta</p>
+                        <p className="font-black text-lg text-emerald-400 leading-none">{N(camp.purchases || 0)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>CPA Meta</p>
+                        <p className="font-black text-lg text-rose-400 leading-none">{camp.purchases > 0 ? R(camp.spend / camp.purchases) : '—'}</p>
+                      </div>
+                    </>) : camp.objective === 'LEADS' ? (<>
+                      <div className="text-right md:text-left">
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Leads</p>
+                        <p className="font-black text-lg leading-none" style={{ color: GOLD }}>{N(camp.leads)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>CPL</p>
+                        <p className="font-black text-lg text-white leading-none">{R(camp.costPerLead)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>CTR</p>
+                        <p className="font-black text-lg text-white leading-none">{P(camp.ctr)}</p>
+                      </div>
+                    </>) : (<>
+                      <div className="text-right md:text-left">
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Connect</p>
+                        <p className="font-black text-lg text-white leading-none">{P(camp.connectRate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Visitas</p>
+                        <p className="font-black text-lg text-white leading-none">{N(camp.landingPageViews)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>CTR</p>
+                        <p className="font-black text-lg text-white leading-none">{P(camp.ctr)}</p>
+                      </div>
+                    </>)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>
               Mostrando {Math.min(currentPage * PAGE_SIZE + 1, filtered.length)} - {Math.min((currentPage + 1) * PAGE_SIZE, filtered.length)} de {filtered.length} campanhas
-           </p>
-           <div className="flex items-center gap-2">
-              <button 
-                disabled={currentPage === 0}
-                onClick={() => setCurrentPage(p => p - 1)}
-                className="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-violet-600 disabled:opacity-30 transition-all flex items-center justify-center shadow-sm"
-              >
+            </p>
+            <div className="flex items-center gap-2">
+              <button disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)}
+                className="w-12 h-12 rounded-2xl flex items-center justify-center disabled:opacity-30 transition-all"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
                 <span className="material-symbols-outlined">chevron_left</span>
               </button>
               <div className="flex gap-2">
-                 {Array.from({length: Math.ceil(filtered.length / PAGE_SIZE)}).slice(0, 10).map((_, idx) => (
-                   <button key={idx} onClick={() => setCurrentPage(idx)}
-                     className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xs font-black transition-all ${currentPage === idx ? 'bg-violet-600 text-white shadow-xl shadow-violet-200' : 'bg-white text-slate-400 border border-slate-100 hover:border-violet-200 hover:bg-slate-50'}`}>
-                     {idx + 1}
-                   </button>
-                 ))}
-                 {Math.ceil(filtered.length / PAGE_SIZE) > 10 && <span className="flex items-end pb-2 px-2 text-slate-400">...</span>}
+                {Array.from({ length: Math.ceil(filtered.length / PAGE_SIZE) }).slice(0, 10).map((_, idx) => (
+                  <button key={idx} onClick={() => setCurrentPage(idx)}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center text-xs font-black transition-all"
+                    style={currentPage === idx
+                      ? { background: GOLD, color: NAVY, boxShadow: '0 4px 16px rgba(232,177,79,0.4)' }
+                      : { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: SILVER }}>
+                    {idx + 1}
+                  </button>
+                ))}
+                {Math.ceil(filtered.length / PAGE_SIZE) > 10 && <span className="flex items-end pb-2 px-2" style={{ color: SILVER }}>...</span>}
               </div>
-              <button 
-                disabled={currentPage >= Math.ceil(filtered.length / PAGE_SIZE) - 1}
-                onClick={() => setCurrentPage(p => p + 1)}
-                className="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-slate-400 hover:text-violet-600 disabled:opacity-30 transition-all flex items-center justify-center shadow-sm"
-              >
+              <button disabled={currentPage >= Math.ceil(filtered.length / PAGE_SIZE) - 1} onClick={() => setCurrentPage(p => p + 1)}
+                className="w-12 h-12 rounded-2xl flex items-center justify-center disabled:opacity-30 transition-all"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
                 <span className="material-symbols-outlined">chevron_right</span>
               </button>
-           </div>
-        </div>
-      </main>
+            </div>
+          </div>
+
+        </main>
+      </div>
 
       {feedbackCamp && (
         <FeedbackModal camp={feedbackCamp} ctx={{ dateFrom, dateTo }} onClose={() => setFeedbackCamp(null)} />
       )}
 
       {niceAlert && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-[4px] animate-in fade-in duration-300">
-          <div className="bg-white rounded-[40px] p-10 max-w-[420px] w-full shadow-[0_40px_100px_rgba(0,0,0,0.4)] border border-white animate-in zoom-in-95 slide-in-from-bottom-2 duration-300">
-            <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-[28px] flex items-center justify-center mb-8 mx-auto shadow-inner">
-              <span className="material-symbols-outlined text-4xl font-black">warning</span>
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+          <div style={{ ...glossy, borderRadius: 40, padding: 40, maxWidth: 420, width: '100%' }}>
+            <div className="w-20 h-20 rounded-[28px] flex items-center justify-center mb-8 mx-auto"
+              style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <span className="material-symbols-outlined text-4xl">warning</span>
             </div>
-            <h3 className="text-2xl font-headline font-black text-slate-900 text-center mb-4 tracking-tight">{niceAlert.title}</h3>
-            <p className="text-slate-500 text-center text-[13px] font-medium leading-relaxed mb-10 px-4">{niceAlert.message}</p>
-            <button 
-              onClick={() => setNiceAlert(null)}
-              className="w-full bg-[#0f172a] text-white font-black uppercase tracking-[0.2em] text-[10px] py-5 rounded-[20px] hover:bg-black transition-all shadow-xl active:scale-[0.98] border border-white/10"
-            >
+            <h3 className="text-2xl font-headline font-black text-white text-center mb-4 tracking-tight">{niceAlert.title}</h3>
+            <p className="text-center text-[13px] font-medium leading-relaxed mb-10 px-4" style={{ color: SILVER }}>{niceAlert.message}</p>
+            <button onClick={() => setNiceAlert(null)} className="w-full font-black uppercase tracking-[0.2em] text-[10px] py-5 rounded-[20px] transition-all"
+              style={{ background: GOLD, color: NAVY }}>
               Entendido
             </button>
           </div>
