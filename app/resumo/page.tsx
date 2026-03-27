@@ -87,9 +87,9 @@ export default function ResumoPage() {
             style={{ height: '35%', background: `linear-gradient(to bottom, transparent, ${NAVY})` }} />
 
           {/* CONTENT over the image */}
-          <div className="absolute inset-0 z-10 px-6 max-w-[1600px] mx-auto pt-10 pb-16 flex flex-col justify-center" style={{ maxWidth: '100%' }}>
+          <div className="absolute inset-0 z-10 w-full px-6 pt-6 pb-4" style={{ maxWidth: '100vw' }}>
             {/* Period bar */}
-            <div className="p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-8 gap-3"
+            <div className="max-w-[1600px] mx-auto"><div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-4 gap-3"
               style={{ ...glossy, borderRadius: 18 }}>
               <p className="font-bold" style={{ color: '#fff' }}>
                 Período: <span style={{ color: GOLD }}>{D(dateFrom)} → {D(dateTo)}</span>
@@ -109,11 +109,11 @@ export default function ResumoPage() {
             </div>
 
             {/* BIG KPIs */}
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <section className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
               {data.fastLoading
                 ? Array.from({ length: 3 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : bigKpis.map((c, i) => (
-                  <div key={i} style={{ ...glossy, minHeight: 180, padding: 32 }}
+                  <div key={i} style={{ ...glossy, minHeight: 140, padding: '20px 24px' }}
                     className="flex flex-col justify-between group hover:scale-[1.01] transition-transform">
                     {/* shine overlay */}
                     <div className="absolute inset-0 pointer-events-none" style={{
@@ -125,7 +125,7 @@ export default function ResumoPage() {
                         <span className="material-symbols-outlined text-[20px]" style={{ color: c.accent }}>{c.icon}</span>
                         <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: c.accent }}>{c.label}</p>
                       </div>
-                      <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>{c.sublabel}</p>
+                      <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: SILVER }}>{c.sublabel}</p>
                       <p className="font-black font-headline leading-none tracking-tighter text-white" style={{ fontSize: 'clamp(2rem,4vw,3.5rem)' }}>{c.value}</p>
                     </div>
                   </div>
@@ -134,11 +134,11 @@ export default function ResumoPage() {
             </section>
 
             {/* SMALL KPIs */}
-            <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <section className="max-w-[1600px] mx-auto grid grid-cols-2 lg:grid-cols-4 gap-3">
               {data.fastLoading
                 ? Array.from({ length: 4 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : smallKpis.map((c, i) => (
-                  <div key={i} style={{ ...glossy, padding: 24 }} className="flex flex-col gap-2 group hover:scale-[1.01] transition-transform">
+                  <div key={i} style={{ ...glossy, padding: '16px 20px' }} className="flex flex-col gap-1 group hover:scale-[1.01] transition-transform">
                     <div className="absolute inset-0 pointer-events-none" style={{
                       background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)',
                       borderRadius: 20,
@@ -152,14 +152,14 @@ export default function ResumoPage() {
                 ))
               }
             </section>
-          </div>
+            </div></div>
         </div>
 
         {/* ── REST OF CONTENT on solid navy ── */}
-        <main className="px-6 max-w-[1600px] mx-auto">
+        <main className="px-6 max-w-[1600px] mx-auto mt-4">
 
           {/* Budget Split */}
-          <div className="flex items-center gap-5 mb-6 mt-4">
+          <div className="flex items-center gap-5 mb-3 mt-2">
             <div className="flex items-center gap-3">
               <div className="w-1.5 h-10 rounded-full" style={{ background: `linear-gradient(to bottom, ${GOLD}, rgba(232,177,79,0.3))` }} />
               <div>
