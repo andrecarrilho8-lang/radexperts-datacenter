@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDashboard } from '@/app/lib/context';
-import { R, N, D, P, PALETTE } from '@/app/lib/utils';
+import { R, N, D, P } from '@/app/lib/utils';
 import { createPortal } from 'react-dom';
 import { StatCard } from '@/components/ui/cards';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -12,57 +12,68 @@ import { TopAdCard, AdsInsights, CampaignPagesSection, CampaignAdsTable } from '
 import { LifetimeCampaignChart } from '@/components/dashboard/LifetimeCampaignChart';
 import Link from 'next/link';
 
+const GOLD   = '#E8B14F';
+const SILVER = '#A8B2C0';
+const NAVY   = '#001a35';
+
+const glossy: React.CSSProperties = {
+  background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.03) 50%, rgba(0,10,30,0.55) 100%)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  backdropFilter: 'blur(24px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 24px 48px -12px rgba(0,0,0,0.5)',
+  borderRadius: 28,
+  position: 'relative',
+  overflow: 'hidden',
+};
+
+const shine: React.CSSProperties = {
+  background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, transparent 40%)',
+  position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 28,
+};
+
 export function CampaignDetailView({ id }: { id: string }) {
   const { dateFrom, dateTo, userRole } = useDashboard();
-  const [campDetail, setCampDetail] = useState<any | null>(null);
+  const [campDetail, setCampDetail]     = useState<any | null>(null);
   const [campDetailAds, setCampDetailAds] = useState<any[]>([]);
   const [campDetailAdSets, setCampDetailAdSets] = useState<any[]>([]);
-  const [campHotmart, setCampHotmart] = useState({ revenue: 0, purchases: 0, matchedProducts: [] as string[], loading: false });
-  const [loading, setLoading] = useState(true);
+  const [campHotmart, setCampHotmart]   = useState({ revenue: 0, purchases: 0, matchedProducts: [] as string[], loading: false });
+  const [loading, setLoading]           = useState(true);
   const [adSetsLoading, setAdSetsLoading] = useState(false);
   const [selectedAdSetId, setSelectedAdSetId] = useState<string | null>(null);
-  const [relatedOpen, setRelatedOpen] = useState(false);
+  const [relatedOpen, setRelatedOpen]   = useState(false);
   const [relatedCamps, setRelatedCamps] = useState<{ id: string; name: string; status: string }[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const relatedRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  
-  const [tooltipAd, setTooltipAd] = useState<any | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number, y: number } | null>(null);
+
+  const [tooltipAd, setTooltipAd]   = useState<any | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const tooltipTimer = useRef<any>(null);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch Basic Info + Initial Metrics
-      const res = await fetch(`/api/meta/campaign/${id}?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+      const res  = await fetch(`/api/meta/campaign/${id}?dateFrom=${dateFrom}&dateTo=${dateTo}`);
       const data = await res.json();
       setCampDetail(data);
 
-      // 2. Fetch Ad Sets
       setAdSetsLoading(true);
-      const asRes = await fetch(`/api/meta/campaign/${id}/adsets?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+      const asRes  = await fetch(`/api/meta/campaign/${id}/adsets?dateFrom=${dateFrom}&dateTo=${dateTo}`);
       const asData = await asRes.json();
       setCampDetailAdSets(asData.adsets || []);
       setAdSetsLoading(false);
 
-      // 3. Fetch Top Ads
       const adSetFilter = selectedAdSetId ? `&adset_id=${selectedAdSetId}` : '';
-      const adsRes = await fetch(`/api/meta/campaign/${id}/topAds?dateFrom=${dateFrom}&dateTo=${dateTo}&objective=${data.objective}${adSetFilter}`);
+      const adsRes  = await fetch(`/api/meta/campaign/${id}/topAds?dateFrom=${dateFrom}&dateTo=${dateTo}&objective=${data.objective}${adSetFilter}`);
       const adsData = await adsRes.json();
       setCampDetailAds(adsData.topAds || []);
 
-      // 4. Fetch Hotmart if VENDAS and user has TOTAL access
       if (data.objective === 'VENDAS' && userRole === 'TOTAL') {
         setCampHotmart(p => ({ ...p, loading: true }));
-        const hRes = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}`);
+        const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}`);
         const hData = await hRes.json();
-        setCampHotmart({ 
-          revenue: hData.revenue || 0, 
-          purchases: hData.purchases || 0, 
-          matchedProducts: hData.matchedProducts || [],
-          loading: false 
-        });
+        setCampHotmart({ revenue: hData.revenue || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], loading: false });
       }
     } catch (e) {
       console.error(e);
@@ -73,7 +84,6 @@ export function CampaignDetailView({ id }: { id: string }) {
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
-  // Load related campaigns with weighted bracket-position scoring
   useEffect(() => {
     if (!campDetail?.name) return;
     setRelatedLoading(true);
@@ -82,371 +92,331 @@ export function CampaignDetailView({ id }: { id: string }) {
       .then((list: any[]) => {
         if (!Array.isArray(list)) { setRelatedLoading(false); return; }
         const currentName = campDetail.name as string;
-
-        // Extract [TOKEN] by position: pos0=AC(ignore), pos1=year, pos2=city(5x), pos3=obj, pos4=strategy
         const bracketTokens: { token: string; pos: number }[] = [];
         let bIdx = 0;
         const bracketRe = /\[([^\]]+)\]/g;
         let bm;
-        while ((bm = bracketRe.exec(currentName)) !== null) {
-          bracketTokens.push({ token: bm[1].toLowerCase(), pos: bIdx++ });
-        }
-
-        // Free-text words outside brackets (>= 3 chars)
-        const freeTokens = currentName
-          .replace(/\[[^\]]*\]/g, ' ')
-          .toLowerCase()
-          .split(/[\s\-_(),./]+/)
-          .map(t => t.trim())
-          .filter(t => t.length >= 3);
-
+        while ((bm = bracketRe.exec(currentName)) !== null) { bracketTokens.push({ token: bm[1].toLowerCase(), pos: bIdx++ }); }
+        const freeTokens = currentName.replace(/\[[^\]]*\]/g, ' ').toLowerCase().split(/[\s\-_(),./]+/).map(t => t.trim()).filter(t => t.length >= 3);
         const scoreCandidate = (name: string): number => {
-          const cn = name.toLowerCase();
-          let score = 0;
-          for (const { token, pos } of bracketTokens) {
-            if (pos === 0) continue;
-            const weight = pos === 2 ? 5 : 1;
-            if (cn.includes(token)) score += weight;
-          }
-          for (const t of freeTokens) {
-            if (cn.includes(t)) score += 0.3;
-          }
+          const cn = name.toLowerCase(); let score = 0;
+          for (const { token, pos } of bracketTokens) { if (pos === 0) continue; if (cn.includes(token)) score += pos === 2 ? 5 : 1; }
+          for (const t of freeTokens) { if (cn.includes(t)) score += 0.3; }
           return score;
         };
-
-        const scored = list
-          .filter(c => c?.id && c.id !== id && c?.name)
+        const scored = list.filter(c => c?.id && c.id !== id && c?.name)
           .map(c => ({ id: c.id, name: c.name, status: c.status || '', score: scoreCandidate(c.name) }))
-          .filter(c => c.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 10);
-
+          .filter(c => c.score > 0).sort((a, b) => b.score - a.score).slice(0, 10);
         setRelatedCamps(scored);
         setRelatedLoading(false);
-      })
-      .catch(() => setRelatedLoading(false));
+      }).catch(() => setRelatedLoading(false));
   }, [campDetail?.name, id]);
 
-  // Close dropdown on outside click
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (relatedRef.current && !relatedRef.current.contains(e.target as Node)) {
-        setRelatedOpen(false);
-      }
-    };
+    const handler = (e: MouseEvent) => { if (relatedRef.current && !relatedRef.current.contains(e.target as Node)) setRelatedOpen(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const openTooltip = (e: React.MouseEvent, ad: any) => {
-    if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
-    setTooltipPos({ x: e.clientX, y: e.clientY });
-    setTooltipAd(ad);
-  };
-  const moveTooltip = (e: React.MouseEvent) => {
-    if (tooltipAd) setTooltipPos({ x: e.clientX, y: e.clientY });
-  };
-  const closeTooltip = () => {
-    tooltipTimer.current = setTimeout(() => {
-      setTooltipAd(null);
-      setTooltipPos(null);
-    }, 150);
-  };
-  const keepTooltip = () => {
-    if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
-  };
+  const openTooltip  = (e: React.MouseEvent, ad: any) => { if (tooltipTimer.current) clearTimeout(tooltipTimer.current); setTooltipPos({ x: e.clientX, y: e.clientY }); setTooltipAd(ad); };
+  const moveTooltip  = (e: React.MouseEvent) => { if (tooltipAd) setTooltipPos({ x: e.clientX, y: e.clientY }); };
+  const closeTooltip = () => { tooltipTimer.current = setTimeout(() => { setTooltipAd(null); setTooltipPos(null); }, 150); };
+  const keepTooltip  = () => { if (tooltipTimer.current) clearTimeout(tooltipTimer.current); };
 
-  if (loading && !campDetail) return <div className="p-12 text-center font-bold text-slate-400">Carregando detalhes...</div>;
-  if (!campDetail) return <div className="p-12 text-center font-bold text-red-500">Campanha não encontrada.</div>;
+  if (loading && !campDetail) return (
+    <div className="p-12 text-center font-bold" style={{ color: SILVER }}>
+      <span className="material-symbols-outlined animate-spin text-4xl block mb-4" style={{ color: GOLD }}>sync</span>
+      Carregando detalhes...
+    </div>
+  );
+  if (!campDetail) return <div className="p-12 text-center font-bold text-rose-400">Campanha não encontrada.</div>;
 
   const m = selectedAdSetId ? (campDetailAdSets.find(as => as.id === selectedAdSetId) || campDetail) : campDetail;
   const isVendas = campDetail.objective === 'VENDAS';
-  const isLeads = campDetail.objective === 'LEADS';
   const roi = m.spend > 0 ? (isVendas ? (campHotmart.revenue / m.spend) : 0) : 0;
 
+  const objAccent = isVendas ? '#22c55e' : GOLD;
+
   return (
-    <div className="animate-in fade-in duration-300">
+    <div className="animate-in fade-in duration-300" style={{ minHeight: '100vh' }}>
+      {/* Top bar */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-8 gap-4 print:hidden">
         <div className="flex items-center gap-3">
-          <Link href="/campanhas" className="px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm rounded-xl transition-all shadow-sm flex items-center gap-2 border border-slate-200 hover:border-violet-400">
+          <Link href="/campanhas"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
             <span className="material-symbols-outlined text-lg">arrow_back</span>
             Voltar para lista
           </Link>
 
-          {/* Related Campaigns Dropdown â€” always shown after detail loads */}
+          {/* Related */}
           <div className="relative" ref={relatedRef}>
-            <button
-              onClick={() => setRelatedOpen(o => !o)}
-              disabled={relatedLoading}
-              className="px-4 py-2.5 bg-white hover:bg-violet-50 text-slate-700 hover:text-violet-700 font-bold text-sm rounded-xl transition-all shadow-sm flex items-center gap-2 border border-slate-200 hover:border-violet-400 disabled:opacity-60"
-            >
+            <button onClick={() => setRelatedOpen(o => !o)} disabled={relatedLoading}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-60"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
               {relatedLoading
-                ? <span className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
-                : <span className="material-symbols-outlined text-[18px] text-violet-500">swap_horiz</span>
-              }
+                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: GOLD }} />
+                : <span className="material-symbols-outlined text-[18px]" style={{ color: GOLD }}>swap_horiz</span>}
               Campanhas Relacionadas
               {!relatedLoading && <span className={`material-symbols-outlined text-[16px] transition-transform ${relatedOpen ? 'rotate-180' : ''}`}>expand_more</span>}
             </button>
-
             {relatedOpen && (
-              <div className="absolute top-full left-0 mt-2 w-[440px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-100 bg-violet-50 flex items-center justify-between">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-violet-600">Campanhas com nome similar</p>
-                  {relatedCamps.length > 0 && <span className="text-[10px] font-bold text-violet-400">{relatedCamps.length} encontradas</span>}
+              <div className="absolute top-full left-0 mt-2 w-[440px] rounded-2xl shadow-2xl z-50 overflow-hidden"
+                style={{ ...glossy, borderRadius: 16 }}>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(232,177,79,0.06)' }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Campanhas com nome similar</p>
+                  {relatedCamps.length > 0 && <span className="text-[10px] font-bold" style={{ color: SILVER }}>{relatedCamps.length} encontradas</span>}
                 </div>
                 <div className="max-h-80 overflow-y-auto">
-                  {relatedCamps.length === 0 ? (
-                    <div className="px-4 py-6 text-center text-slate-400 text-sm font-bold">Nenhuma campanha similar encontrada</div>
-                  ) : relatedCamps.map(c => (
-                    <button
-                      key={c.id}
-                      onClick={() => { setRelatedOpen(false); router.push(`/campanhas/${c.id}`); }}
-                      className="w-full text-left px-4 py-3 hover:bg-violet-50 transition-colors flex items-center gap-3 border-b border-slate-50 last:border-0 group"
-                    >
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.status === 'ACTIVE' ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-                      <span className="text-sm font-bold text-slate-800 leading-snug flex-1">{c.name}</span>
-                      <span className="material-symbols-outlined text-[14px] text-slate-300 group-hover:text-violet-400 transition-colors">arrow_forward</span>
-                    </button>
-                  ))}
+                  {relatedCamps.length === 0
+                    ? <div className="px-4 py-6 text-center text-sm font-bold" style={{ color: SILVER }}>Nenhuma campanha similar encontrada</div>
+                    : relatedCamps.map(c => (
+                      <button key={c.id} onClick={() => { setRelatedOpen(false); router.push(`/campanhas/${c.id}`); }}
+                        className="w-full text-left px-4 py-3 flex items-center gap-3 group transition-all"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.06)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${c.status === 'ACTIVE' ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                        <span className="text-sm font-bold flex-1 text-white leading-snug">{c.name}</span>
+                        <span className="material-symbols-outlined text-[14px]" style={{ color: SILVER }}>arrow_forward</span>
+                      </button>
+                    ))}
                 </div>
               </div>
             )}
           </div>
         </div>
-        <button onClick={() => window.print()} className="px-5 py-2.5 bg-slate-900 hover:bg-black text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95">
+        <button onClick={() => window.print()}
+          className="px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2"
+          style={{ background: GOLD, color: NAVY, boxShadow: '0 4px 16px rgba(232,177,79,0.4)' }}>
           <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
           Salvar Relatório PDF
         </button>
       </div>
-      
-      <div className="bg-white border border-slate-100 rounded-[32px] p-8 shadow-sm mb-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-          <span className="material-symbols-outlined text-[100px] text-slate-200">monitoring</span>
-        </div>
+
+      {/* Campaign header card */}
+      <div style={{ ...glossy, padding: '32px', marginBottom: 24 }}>
+        <div style={shine} />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-4 mb-3">
               <StatusBadge status={campDetail.status} />
-              <span className={`text-xs font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg ${PALETTE[campDetail.objective as keyof typeof PALETTE]?.bg || 'bg-slate-500'} shadow-sm text-white`}>{campDetail.objective}</span>
+              <span className="text-xs font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg"
+                style={{ background: `${objAccent}18`, color: objAccent, border: `1px solid ${objAccent}30` }}>
+                {campDetail.objective}
+              </span>
             </div>
-            <h2 className="font-headline font-black text-4xl text-slate-900 break-words">{campDetail.name}</h2>
-            <div className="mt-4 space-y-2 text-sm text-slate-500 font-bold flex flex-col gap-1">
-              <p className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-blue-500 text-[22px]">calendar_month</span> Período Analisado: <span className="text-blue-600">{D(dateFrom)} até {D(dateTo)}</span>
+            <h2 className="font-headline font-black text-3xl lg:text-4xl text-white break-words">{campDetail.name}</h2>
+            <div className="mt-4 space-y-2 flex flex-col gap-1">
+              <p className="flex items-center gap-2 text-sm font-bold" style={{ color: SILVER }}>
+                <span className="material-symbols-outlined text-[22px]" style={{ color: GOLD }}>calendar_month</span>
+                Período: <span style={{ color: GOLD }}>{D(dateFrom)} até {D(dateTo)}</span>
               </p>
               {campDetail.createdTime && (
-                <p className="flex items-center gap-2 text-slate-400">
-                  <span className="material-symbols-outlined text-slate-300 text-[20px]">history</span> 
-                  Criada em <span className="text-slate-600">{D(campDetail.createdTime)}</span>
-                  <span className="mx-1 text-slate-200">•</span>
-                  Há <span className="text-blue-500 font-black">{Math.max(1, Math.round((new Date().getTime() - new Date(campDetail.createdTime).getTime()) / 86400000) + 1)} dias</span>
+                <p className="flex items-center gap-2 text-sm font-bold" style={{ color: SILVER }}>
+                  <span className="material-symbols-outlined text-[20px]" style={{ color: SILVER }}>history</span>
+                  Criada em <span style={{ color: '#fff' }}>{D(campDetail.createdTime)}</span>
+                  <span className="mx-1" style={{ color: SILVER }}>•</span>
+                  Há <span className="font-black" style={{ color: GOLD }}>{Math.max(1, Math.round((new Date().getTime() - new Date(campDetail.createdTime).getTime()) / 86400000) + 1)} dias</span>
                 </p>
               )}
             </div>
           </div>
-          
-          {/* Strategic Insight */}
-          <div className="flex gap-4">
-            {(() => {
-              let insight = { title: 'Desempenho Estável', text: 'Campanha rodando dentro da normalidade.', icon: 'check_circle', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' };
-              if (isVendas && m.spend > 0) {
-                if (roi > 3) insight = { title: 'Excelente!', text: `Retorno de ${roi.toFixed(1)}x. Mantenha os criativos!`, icon: 'rocket_launch', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' };
-                else if (roi > 0 && roi < 1.5) insight = { title: 'Atenção (ROAS Baixo)', text: 'Custo elevado. Avalie melhorias nas páginas.', icon: 'warning', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' };
-              }
-              return (
-                <div className={`p-4 rounded-2xl border flex items-start gap-3 max-w-[320px] shadow-sm ${insight.bg}`}>
-                  <span className={`material-symbols-outlined ${insight.color}`}>{insight.icon}</span>
-                  <div>
-                    <p className={`font-bold text-sm mb-0.5 ${insight.color}`}>{insight.title}</p>
-                    <p className={`text-[11px] ${insight.color} opacity-80 font-semibold leading-snug`}>{insight.text}</p>
-                  </div>
+          {/* Insight badge */}
+          {(() => {
+            let insight = { title: 'Desempenho Estável', text: 'Campanha rodando dentro da normalidade.', icon: 'check_circle', color: '#38bdf8' };
+            if (isVendas && m.spend > 0) {
+              if (roi > 3) insight = { title: 'Excelente!', text: `Retorno de ${roi.toFixed(1)}x. Mantenha os criativos!`, icon: 'rocket_launch', color: '#22c55e' };
+              else if (roi > 0 && roi < 1.5) insight = { title: 'Atenção (ROAS Baixo)', text: 'Custo elevado. Avalie melhorias.', icon: 'warning', color: '#ef4444' };
+            }
+            return (
+              <div className="flex items-start gap-3 max-w-[320px] p-4 rounded-2xl"
+                style={{ background: `${insight.color}10`, border: `1px solid ${insight.color}30` }}>
+                <span className="material-symbols-outlined" style={{ color: insight.color }}>{insight.icon}</span>
+                <div>
+                  <p className="font-bold text-sm mb-0.5" style={{ color: insight.color }}>{insight.title}</p>
+                  <p className="text-[11px] font-semibold leading-snug" style={{ color: insight.color, opacity: 0.8 }}>{insight.text}</p>
                 </div>
-              );
-            })()}
-          </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
-      <div className="mb-12">
-        {selectedAdSetId && (
-          <div className="flex items-center justify-between bg-violet-50 border border-violet-100 p-4 rounded-2xl mb-6">
-            <p className="text-sm font-bold text-violet-800 flex items-center gap-2">
-              <span className="material-symbols-outlined text-violet-500">filter_alt</span>
-              Filtrando por Conjunto: <span className="underline">{campDetailAdSets.find(as => as.id === selectedAdSetId)?.name}</span>
-            </p>
-            <button onClick={() => setSelectedAdSetId(null)} className="text-xs font-black uppercase text-violet-600 bg-white px-3 py-1.5 rounded-lg border border-violet-200 shadow-sm">Limpar Filtro</button>
+      {/* AdSet filter bar */}
+      {selectedAdSetId && (
+        <div className="flex items-center justify-between p-4 rounded-2xl mb-6"
+          style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)' }}>
+          <p className="text-sm font-bold flex items-center gap-2" style={{ color: GOLD }}>
+            <span className="material-symbols-outlined" style={{ color: GOLD }}>filter_alt</span>
+            Filtrando por Conjunto: <span className="underline">{campDetailAdSets.find(as => as.id === selectedAdSetId)?.name}</span>
+          </p>
+          <button onClick={() => setSelectedAdSetId(null)}
+            className="text-xs font-black uppercase px-3 py-1.5 rounded-lg"
+            style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
+            Limpar Filtro
+          </button>
+        </div>
+      )}
+
+      {/* Big KPI boxes */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div style={{ ...glossy, padding: '32px', minHeight: 160, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={shine} />
+          <p className="text-xs uppercase font-bold tracking-widest relative z-10" style={{ color: SILVER }}>Investimento Meta</p>
+          <p className="font-headline font-black text-4xl lg:text-5xl text-white relative z-10">{R(m.spend)}</p>
+        </div>
+        {isVendas ? (
+          <div style={{ ...glossy, padding: '32px', minHeight: 160, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'linear-gradient(160deg, rgba(34,197,94,0.12) 0%, rgba(0,10,30,0.55) 100%)', border: '1px solid rgba(34,197,94,0.2)' }}>
+            <div style={shine} />
+            <p className="text-[10px] font-black tracking-widest mb-1 uppercase relative z-10" style={{ color: '#22c55ecc' }}>Número de Vendas</p>
+            <p className="font-headline font-black text-4xl lg:text-5xl text-emerald-400 relative z-10">{N(m.purchases || 0)}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest mt-2 relative z-10" style={{ color: '#22c55e88' }}>registradas pelo pixel Meta</p>
+          </div>
+        ) : (
+          <div style={{ ...glossy, padding: '32px', minHeight: 160, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: `linear-gradient(160deg, rgba(232,177,79,0.12) 0%, rgba(0,10,30,0.55) 100%)`, border: `1px solid rgba(232,177,79,0.2)` }}>
+            <div style={shine} />
+            <p className="text-xs uppercase font-bold tracking-widest relative z-10" style={{ color: GOLD + 'cc' }}>Leads Captação</p>
+            <p className="font-headline font-black text-4xl lg:text-5xl relative z-10" style={{ color: GOLD }}>{N(m.leads)}</p>
           </div>
         )}
+      </div>
 
-        {/* BIG BOXES */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {/* Investimento Meta */}
-          <div className="bg-white border border-slate-200 rounded-[32px] p-8 shadow-sm flex flex-col justify-between min-h-[160px]">
-            <p className="text-xs uppercase font-bold text-slate-400 tracking-widest mb-1">Investimento Meta</p>
-            <p className="font-headline font-black text-4xl lg:text-5xl text-slate-900">{R(m.spend)}</p>
-          </div>
-          {isVendas ? (
-            /* Número de Vendas (pixel) */
-            <div className="bg-violet-50 border border-violet-100 rounded-[32px] p-8 text-violet-900 shadow-sm flex flex-col justify-between min-h-[160px]">
-              <p className="text-[10px] font-black text-violet-600 tracking-widest mb-1 uppercase">Número de Vendas</p>
-              <p className="font-headline font-black text-4xl lg:text-5xl">{N(m.purchases || 0)}</p>
-              <p className="text-[10px] font-bold text-violet-400 uppercase tracking-widest mt-2">registradas pelo pixel Meta</p>
-            </div>
-          ) : (
-            <div className="bg-amber-50 border border-amber-100 rounded-[32px] p-8 text-amber-900 shadow-sm flex flex-col justify-between min-h-[160px]">
-              <p className="text-xs uppercase font-bold text-amber-600 tracking-widest mb-1">Leads Captação</p>
-              <p className="font-headline font-black text-4xl lg:text-5xl">{N(m.leads)}</p>
-            </div>
-          )}
-        </div>
+      {/* Small KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <StatCard icon="ads_click" label="CTR Geral" value={P(m.ctr)} color="blue" />
+        <StatCard icon="query_stats" label="Connect Rate" value={P(m.connectRate)} color={m.connectRate > 70 ? 'emerald' : m.connectRate < 50 ? 'rose' : 'slate'} />
+        {isVendas ? (<>
+          <StatCard icon="shopping_basket" label="Checkout Rate" value={P(m.checkoutRate || (m.landingPageViews > 0 ? (m.checkouts / m.landingPageViews * 100) : 0))} color="orange" />
+          <StatCard icon="receipt_long" label="Purchase Rate" value={P(m.checkouts > 0 ? (m.purchases / m.checkouts * 100) : 0)} color="amber" />
+        </>) : (<>
+          <StatCard icon="account_circle" label="Custo Lead" value={R(m.costPerLead)} color="amber" />
+          <StatCard icon="trending_up" label="Taxa Conv" value={P(m.leadsRate || 0)} color="orange" />
+        </>)}
+      </div>
 
-        {/* SMALL BOXES */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <StatCard icon="ads_click" label="CTR Geral" value={P(m.ctr)} color="blue" />
-          <StatCard icon="query_stats" label="Connect Rate" value={P(m.connectRate)} color={m.connectRate > 70 ? 'emerald' : m.connectRate < 50 ? 'rose' : 'slate'} />
-          {isVendas ? (
-            <>
-              <StatCard icon="shopping_basket" label="Checkout Rate" value={P(m.checkoutRate || (m.landingPageViews > 0 ? (m.checkouts / m.landingPageViews * 100) : 0))} color="orange" />
-              <StatCard icon="receipt_long" label="Purchase Rate" value={P(m.checkouts > 0 ? (m.purchases / m.checkouts * 100) : 0)} color="violet" />
-            </>
-          ) : (
-            <>
-              <StatCard icon="account_circle" label="Custo Lead" value={R(m.costPerLead)} color="amber" />
-              <StatCard icon="trending_up" label="Taxa Conv" value={P(m.leadsRate || 0)} color="orange" />
-            </>
-          )}
-        </div>
-
-        {/* HOTMART CARD – only for VENDAS + TOTAL role */}
-        {isVendas && userRole === 'TOTAL' && (
-          <div className="border-2 border-orange-400 rounded-[32px] p-8 shadow-sm mb-4" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' }}>
-            {/* Header: Hotmart Logo + loading indicator */}
+      {/* Hotmart */}
+      {isVendas && userRole === 'TOTAL' && (
+        <div style={{ ...glossy, padding: '32px', marginBottom: 16, background: 'linear-gradient(160deg, rgba(232,120,13,0.1) 0%, rgba(0,10,30,0.55) 100%)', border: '1px solid rgba(232,120,13,0.25)', borderRadius: 28 }}>
+          <div style={shine} />
+          <div className="relative z-10">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                {/* Hotmart flame SVG */}
                 <svg width="36" height="36" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M50 0C50 0 85 28 85 62C85 81.8 69.3 98 50 98C30.7 98 15 81.8 15 62C15 28 50 0 50 0Z" fill="#E8380D"/>
                   <circle cx="50" cy="72" r="18" fill="white"/>
                 </svg>
-                <span className="font-black text-2xl tracking-tight text-slate-900">hotmart</span>
-                {campHotmart.loading && <span className="w-2 h-2 bg-orange-400 rounded-full animate-ping ml-1"/>}
+                <span className="font-black text-2xl tracking-tight text-white">hotmart</span>
+                {campHotmart.loading && <span className="w-2 h-2 rounded-full animate-ping ml-1" style={{ background: '#E8380D' }} />}
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-orange-500 bg-orange-100 px-3 py-1.5 rounded-lg border border-orange-200">Período Analisado</span>
+              <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg"
+                style={{ color: '#E8380D', background: 'rgba(232,56,13,0.1)', border: '1px solid rgba(232,56,13,0.2)' }}>Período Analisado</span>
             </div>
-
-            {/* Data */}
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <p className="text-[11px] uppercase font-bold text-slate-500 tracking-widest mb-2">Vendas no Período</p>
-                <p className="font-headline font-black text-4xl lg:text-5xl text-slate-900">{N(campHotmart.purchases || 0)}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">transações confirmadas</p>
+                <p className="text-[11px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Vendas no Período</p>
+                <p className="font-headline font-black text-4xl lg:text-5xl text-white">{N(campHotmart.purchases || 0)}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: SILVER }}>transações confirmadas</p>
               </div>
               <div>
-                <p className="text-[11px] uppercase font-bold text-slate-500 tracking-widest mb-2">Faturamento no Período</p>
-                <p className="font-headline font-black text-4xl lg:text-5xl text-slate-900">{R(campHotmart.revenue || 0)}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">receita total Hotmart</p>
+                <p className="text-[11px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Faturamento no Período</p>
+                <p className="font-headline font-black text-4xl lg:text-5xl" style={{ color: GOLD }}>{R(campHotmart.revenue || 0)}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: SILVER }}>receita total Hotmart</p>
               </div>
             </div>
           </div>
-        )}
-
-        <LifetimeCampaignChart campaignId={id} type={isVendas ? 'VENDAS' : 'LEADS'} />
-        
-        <h3 className="font-headline font-bold text-2xl text-slate-800 mb-6 flex items-center gap-2">
-           <span className="material-symbols-outlined text-violet-500 text-[28px]">account_tree</span>
-           Conjuntos de Anúncios
-        </h3>
-        <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden mb-12 shadow-sm">
-           <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                 <tr>
-                    <th className="py-4 px-6 text-[10px] font-black uppercase text-slate-400">Conjunto</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase text-slate-400">Gasto</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase text-slate-400 text-right">Resultados</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase text-slate-400 text-right">CTR</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase text-slate-400 text-right">Connect</th>
-                 </tr>
-              </thead>
-              <tbody>
-                 {adSetsLoading ? <tr><td colSpan={5} className="p-8 text-center animate-pulse">Carregando conjuntos...</td></tr> : campDetailAdSets.map(as => (
-                    <tr key={as.id} onClick={() => setSelectedAdSetId(as.id)} className={`border-b border-slate-50 cursor-pointer hover:bg-slate-50 transition-colors ${selectedAdSetId === as.id ? 'bg-violet-50' : ''}`}>
-                       <td className="py-4 px-6 font-bold text-xs truncate">{as.name}</td>
-                       <td className="py-4 px-4 font-black text-sm">{R(as.spend)}</td>
-                       <td className="py-4 px-4 font-black text-sm text-right text-violet-600">{isVendas ? N(as.purchases) : N(as.leads)}</td>
-                       <td className="py-4 px-4 font-black text-sm text-right text-slate-500">{P(as.ctr)}</td>
-                       <td className="py-4 px-4 font-black text-sm text-right text-slate-400">{P(as.connectRate)}</td>
-                    </tr>
-                 ))}
-              </tbody>
-           </table>
         </div>
+      )}
 
-        <h3 className="font-headline font-bold text-2xl text-slate-800 mb-6 flex items-center gap-2">
-           <span className="material-symbols-outlined text-amber-500 text-[28px]">stars</span>
-           Destaques dos Criativos
-        </h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-16">
-          {campDetailAds.slice(0, 4).map((ad, i) => (
-            <TopAdCard key={ad.id} ad={ad} type={isVendas ? 'VENDAS' : 'LEADS'} rank={i + 1} hideCampaign onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />
-          ))}
-        </div>
+      <LifetimeCampaignChart campaignId={id} type={isVendas ? 'VENDAS' : 'LEADS'} />
 
-        <AdsInsights ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} />
-        <CampaignPagesSection ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} />
-        <CampaignAdsTable ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />
+      {/* AdSets table */}
+      <h3 className="font-headline font-bold text-2xl text-white mb-6 flex items-center gap-2">
+        <span className="material-symbols-outlined text-[28px]" style={{ color: GOLD }}>account_tree</span>
+        Conjuntos de Anúncios
+      </h3>
+      <div className="rounded-3xl overflow-hidden mb-12" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <table className="w-full text-left">
+          <thead style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
+            <tr>
+              <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Conjunto</th>
+              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto</th>
+              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Resultados</th>
+              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>CTR</th>
+              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Connect</th>
+            </tr>
+          </thead>
+          <tbody>
+            {adSetsLoading
+              ? <tr><td colSpan={5} className="p-8 text-center font-bold animate-pulse" style={{ color: SILVER }}>Carregando conjuntos...</td></tr>
+              : campDetailAdSets.map(as => (
+                <tr key={as.id} onClick={() => setSelectedAdSetId(as.id)}
+                  className="cursor-pointer transition-colors"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: selectedAdSetId === as.id ? 'rgba(232,177,79,0.06)' : 'transparent' }}
+                  onMouseEnter={e => { if(selectedAdSetId !== as.id) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = selectedAdSetId === as.id ? 'rgba(232,177,79,0.06)' : 'transparent'; }}>
+                  <td className="py-4 px-6 font-bold text-xs truncate text-white">{as.name}</td>
+                  <td className="py-4 px-4 font-black text-sm text-white">{R(as.spend)}</td>
+                  <td className="py-4 px-4 font-black text-sm text-right" style={{ color: GOLD }}>{isVendas ? N(as.purchases) : N(as.leads)}</td>
+                  <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{P(as.ctr)}</td>
+                  <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{P(as.connectRate)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
       </div>
 
+      <h3 className="font-headline font-bold text-2xl text-white mb-6 flex items-center gap-3">
+        <span className="material-symbols-outlined text-[28px]" style={{ color: GOLD }}>stars</span>
+        Destaques dos Criativos
+      </h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-16">
+        {campDetailAds.length === 0 && !loading
+          ? Array.from({ length: 2 }).map((_, i) => <SkeletonAdCard key={i} />)
+          : campDetailAds.slice(0, 4).map((ad, i) => (
+            <TopAdCard key={ad.id} ad={ad} type={isVendas ? 'VENDAS' : 'LEADS'} rank={i + 1} hideCampaign onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />
+          ))}
+      </div>
+
+      <AdsInsights ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} />
+      <CampaignPagesSection ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} />
+      <CampaignAdsTable ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />
+
+      {/* Tooltip */}
       {tooltipAd && tooltipPos && typeof window !== 'undefined' && createPortal(
-        <div 
-          style={{ position: 'fixed', top: tooltipPos.y - 12, left: tooltipPos.x + 20 }}
-          className="z-[99999] pointer-events-auto transform -translate-y-full w-[300px] bg-white text-slate-800 rounded-[24px] shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200"
-          onMouseEnter={keepTooltip}
-          onMouseLeave={closeTooltip}
-        >
+        <div
+          style={{ position: 'fixed', top: tooltipPos.y - 12, left: tooltipPos.x + 20, ...glossy, width: 300, zIndex: 99999, borderRadius: 24 }}
+          className="pointer-events-auto transform -translate-y-full animate-in zoom-in-95 duration-200"
+          onMouseEnter={keepTooltip} onMouseLeave={closeTooltip}>
+          <div style={shine} />
           <div className="relative aspect-video rounded-t-[24px] overflow-hidden">
-            {tooltipAd.thumbnailUrl ? (
-              <img src={tooltipAd.thumbnailUrl} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-slate-50 flex items-center justify-center">
-                <span className="material-symbols-outlined text-slate-300 text-3xl">image</span>
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent" />
+            {tooltipAd.thumbnailUrl
+              ? <img src={tooltipAd.thumbnailUrl} className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.05)' }}><span className="material-symbols-outlined text-3xl" style={{ color: SILVER }}>image</span></div>}
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,10,30,0.8), transparent)' }} />
             <div className="absolute bottom-3 left-4 right-4">
-               <p className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-0.5">Criativo</p>
-               <p className="text-slate-900 font-bold text-sm truncate uppercase tracking-tight">{tooltipAd.name}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: GOLD }}>Criativo</p>
+              <p className="text-white font-bold text-sm truncate uppercase tracking-tight">{tooltipAd.name}</p>
             </div>
           </div>
-
-          <div className="p-5">
-            {tooltipAd.body ? (
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 mb-4 overflow-y-auto max-h-[100px] custom-scrollbar">
-                <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                  {tooltipAd.body}
-                </p>
-              </div>
-            ) : (
-              <div className="mb-4 text-center py-4 border-2 border-dashed border-slate-100 rounded-xl bg-slate-50">
-                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Sem descrição no Meta</p>
-              </div>
-            )}
-
+          <div className="p-5 relative z-10">
+            {tooltipAd.body
+              ? <div className="rounded-xl p-3 mb-4 overflow-y-auto max-h-[100px]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-[11px] leading-relaxed font-medium" style={{ color: SILVER }}>{tooltipAd.body}</p>
+                </div>
+              : <div className="mb-4 text-center py-4 rounded-xl" style={{ border: '2px dashed rgba(255,255,255,0.1)' }}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Sem descrição no Meta</p>
+                </div>}
             <div className="flex flex-col gap-2">
-              <a 
-                href={tooltipAd.landingPageUrl || tooltipAd.displayUrl || tooltipAd.instagramPermalink || tooltipAd.adsManagerLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-black uppercase tracking-[0.15em] text-[10px] py-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg"
-              >
+              <a href={tooltipAd.landingPageUrl || tooltipAd.instagramPermalink || tooltipAd.adsManagerLink} target="_blank" rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 font-black uppercase tracking-[0.15em] text-[10px] py-4 rounded-xl transition-all"
+                style={{ background: GOLD, color: NAVY, boxShadow: '0 4px 12px rgba(232,177,79,0.4)' }}>
                 <span className="material-symbols-outlined text-[16px]">language</span>
                 Página de Destino
               </a>
-              <a 
-                href={tooltipAd.instagramPermalink || tooltipAd.adsManagerLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 bg-slate-50 text-slate-600 font-black uppercase tracking-[0.15em] text-[10px] py-3.5 rounded-xl hover:bg-slate-100 transition-all border border-slate-200"
-              >
+              <a href={tooltipAd.instagramPermalink || tooltipAd.adsManagerLink} target="_blank" rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 font-black uppercase tracking-[0.15em] text-[10px] py-3.5 rounded-xl transition-all"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
                 <span className="material-symbols-outlined text-[14px]">ads_click</span>
                 Prévia no Instagram
               </a>

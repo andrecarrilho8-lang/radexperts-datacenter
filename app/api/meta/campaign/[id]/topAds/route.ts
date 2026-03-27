@@ -1,123 +1,94 @@
 import { NextResponse } from 'next/server';
-import { getCache, setCache, initSDK, parseMetrics, AD_INSIGHT_FIELDS } from '@/app/lib/metaApi';
+import { getCache, setCache, parseMetrics } from '@/app/lib/metaApi';
+
+const BASE = 'https://graph.facebook.com/v19.0';
+const AD_FIELDS = 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values';
+const CREATIVE_FIELDS = 'id,effective_status,instagram_permalink_url,effective_instagram_story_id,preview_shareable_link,creative{id,object_story_id,thumbnail_url,image_url,body,object_story_spec,asset_feed_spec}';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const campaignId = (await params).id;
   const { searchParams } = new URL(request.url);
-  const dateFrom = searchParams.get('dateFrom');
-  const dateTo = searchParams.get('dateTo');
-  const objective = searchParams.get('objective') || 'VENDAS';
-  
-  if (!campaignId) return NextResponse.json({ error: 'Missing campaign id' }, { status: 400 });
+  const dateFrom   = searchParams.get('dateFrom');
+  const dateTo     = searchParams.get('dateTo');
+  const objective  = searchParams.get('objective') || 'VENDAS';
+  const force      = searchParams.get('force') === '1';
 
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+  const accessToken = process.env.META_ACCESS_TOKEN!;
+  const adAccountId = process.env.META_AD_ACCOUNT_ID!;
   if (!accessToken || !adAccountId)
     return NextResponse.json({ error: 'Missing credentials' }, { status: 500 });
 
   const cacheKey = `topAds|${campaignId}|${dateFrom}|${dateTo}`;
-  const force = searchParams.get('force') === '1';
   if (!force) {
     const cached = getCache(cacheKey);
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
   }
 
   try {
-    const { AdAccount } = initSDK(accessToken);
-    const account = new AdAccount(adAccountId);
     const rawAccountId = adAccountId.replace('act_', '');
+    const timeRange = dateFrom && dateTo ? { since: dateFrom, until: dateTo } : undefined;
 
-    const dateRange = dateFrom && dateTo
-      ? { time_range: { since: dateFrom, until: dateTo } }
-      : { date_preset: 'last_30d' };
-
-    const adParams: any = {
+    // Ad insights
+    const p = new URLSearchParams({
+      access_token: accessToken,
+      fields: AD_FIELDS,
       level: 'ad',
-      limit: 100,
-      ...dateRange,
-      filtering: [{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }],
-    };
-
-    const adInsights = await account.getInsights(AD_INSIGHT_FIELDS, adParams);
-
-    const parsedAds = adInsights.map((data: any) => {
-      const m = parseMetrics(data);
-      return {
-        id: data.ad_id || '',
-        name: data.ad_name || '',
-        campaignId,
-        adsManagerLink: `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${adAccountId.replace('act_', '')}&selected_ad_ids=${data.ad_id}`,
-        ...m,
-      };
+      limit: '100',
+      sort: '["spend_descending"]',
+      filtering: JSON.stringify([{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]),
+      ...(timeRange ? { time_range: JSON.stringify(timeRange) } : { date_preset: 'last_30d' }),
     });
 
-    let topAds = [];
-    if (objective === 'LEADS') {
-      topAds = parsedAds.sort((a: any, b: any) => b.leads - a.leads).slice(0, 10);
-    } else {
-      // Vendas or Outros (default to purchases)
-      topAds = parsedAds.sort((a: any, b: any) => b.purchases - a.purchases).slice(0, 10);
-    }
+    const insRes = await fetch(`${BASE}/${adAccountId}/insights?${p}`);
+    const insJson = await insRes.json();
+    if (insJson.error) throw new Error(insJson.error.message);
 
+    const parsedAds = (insJson.data || []).map((d: any) => ({
+      id: d.ad_id || '',
+      name: d.ad_name || '',
+      campaignId,
+      adsManagerLink: `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${rawAccountId}&selected_ad_ids=${d.ad_id}`,
+      ...parseMetrics(d),
+    })).filter((a: any) => a.id);
+
+    let topAds = objective === 'LEADS'
+      ? parsedAds.sort((a: any, b: any) => b.leads - a.leads).slice(0, 10)
+      : parsedAds.sort((a: any, b: any) => b.purchases - a.purchases).slice(0, 10);
+
+    // Fetch creatives
     const priorityIds = topAds.map((a: any) => a.id).filter(Boolean);
     if (priorityIds.length > 0) {
       try {
-        const adsWithCreative = await account.getAds(
-          ['id', 'effective_status', 'instagram_permalink_url', 'effective_instagram_story_id', 'preview_shareable_link', 'creative{id,object_story_id,thumbnail_url,image_url,body,object_story_spec,asset_feed_spec}'],
-          { filtering: [{ field: 'id', operator: 'IN', value: priorityIds }], limit: 12 }
-        );
-        const thumbMap: Record<string, string> = {};
-        const igMap: Record<string, string> = {};
-        const urlMap: Record<string, string> = {};
-        const bodyMap: Record<string, string> = {};
-        const statusMap: Record<string, string> = {};
+        const cp = new URLSearchParams({
+          access_token: accessToken,
+          fields: CREATIVE_FIELDS,
+          filtering: JSON.stringify([{ field: 'id', operator: 'IN', value: priorityIds }]),
+          limit: '12',
+        });
+        const crRes = await fetch(`${BASE}/${adAccountId}/ads?${cp}`);
+        const crJson = await crRes.json();
 
-        for (const ad of adsWithCreative) {
+        const thumbMap: Record<string, string> = {};
+        const igMap:    Record<string, string> = {};
+        const urlMap:   Record<string, string> = {};
+        const bodyMap:  Record<string, string> = {};
+        const statusMap:Record<string, string> = {};
+
+        for (const ad of (crJson.data || [])) {
           const c = ad.creative || {};
           if (ad.effective_status) statusMap[ad.id] = ad.effective_status;
           const thumb = c.image_url || c.thumbnail_url || c.object_story_spec?.video_data?.image_url || c.object_story_spec?.link_data?.image_url || '';
           if (thumb) thumbMap[ad.id] = thumb;
-          
-          const body = c.body || 
-                       c.object_story_spec?.link_data?.message || 
-                       c.object_story_spec?.video_data?.message || 
-                       c.asset_feed_spec?.bodies?.[0]?.text || 
-                       c.object_story_spec?.link_data?.description || '';
+          const body = c.body || c.object_story_spec?.link_data?.message || c.object_story_spec?.video_data?.message || c.asset_feed_spec?.bodies?.[0]?.text || '';
           if (body) bodyMap[ad.id] = body;
-          
-          // Ordem de preferência para link do Instagram
+          const spec = c.object_story_spec || {};
+          const lpUrl = spec.link_data?.link || spec.video_data?.call_to_action?.value?.link || spec.link_data?.call_to_action?.value?.link || spec.link_data?.child_attachments?.[0]?.link || '';
+          if (lpUrl) urlMap[ad.id] = lpUrl;
           let igLink = ad.instagram_permalink_url || ad.preview_shareable_link;
           if (!igLink && ad.effective_instagram_story_id) igLink = `https://www.instagram.com/reels/${ad.effective_instagram_story_id}/`;
-          
-          if (!igLink && c.object_story_id) {
-             const parts = c.object_story_id.split('_');
-             if (parts.length === 2 && parts[1].length > 10) igLink = `https://www.instagram.com/p/${parts[1]}/`;
-          }
+          if (!igLink && c.object_story_id) { const parts = c.object_story_id.split('_'); if (parts.length === 2) igLink = `https://www.instagram.com/p/${parts[1]}/`; }
           if (!igLink) igLink = `https://www.facebook.com/ads/experience/preview/?ad_id=${ad.id}&platform=INSTAGRAM`;
           if (igLink) igMap[ad.id] = igLink;
-
-          // Extração da Página de Destino (Landing Page) Real
-          let lpUrl = '';
-          const spec = c.object_story_spec || {};
-          
-          // 1. Link Data (Imagens/Carrossel)
-          if (spec.link_data?.link) {
-            lpUrl = spec.link_data.link;
-          } 
-          // 2. Video Data / Call to Action
-          else if (spec.video_data?.call_to_action?.value?.link) {
-            lpUrl = spec.video_data.call_to_action.value.link;
-          }
-          // 3. Fallback Link Data Call to Action
-          else if (spec.link_data?.call_to_action?.value?.link) {
-            lpUrl = spec.link_data.call_to_action.value.link;
-          }
-          // 4. Se for carrossel antigo
-          else if (spec.link_data?.child_attachments?.[0]?.link) {
-            lpUrl = spec.link_data.child_attachments[0].link;
-          }
-
-          if (lpUrl) urlMap[ad.id] = lpUrl;
         }
 
         for (const ad of topAds as any[]) {
@@ -127,9 +98,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           if (bodyMap[ad.id])   ad.body = bodyMap[ad.id];
           if (statusMap[ad.id]) ad.adStatus = statusMap[ad.id];
         }
-      } catch (e) {
-        console.warn('[/topAds] Instagram link fetch skipped:', (e as any).message);
-      }
+      } catch (e) { console.warn('[topAds] creatives skipped:', (e as any).message); }
     }
 
     const result = { topAds };
@@ -137,7 +106,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json(result);
 
   } catch (error: any) {
-    console.error('[/api/meta/campaign/[id]/topAds] Error:', error?.response?.error || error.message);
-    return NextResponse.json({ error: 'Meta topAds API error' }, { status: 500 });
+    console.error('[topAds] Error:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

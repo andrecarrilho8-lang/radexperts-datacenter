@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getCache, setCache, initSDK, parseMetrics, INSIGHT_FIELDS } from '@/app/lib/metaApi';
+import { getCache, setCache, parseMetrics } from '@/app/lib/metaApi';
+
+const BASE = 'https://graph.facebook.com/v19.0';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: campaignId } = await params;
   const { searchParams } = new URL(request.url);
   const dateFrom = searchParams.get('dateFrom');
-  const dateTo = searchParams.get('dateTo');
-  const force = searchParams.get('force') === '1';
+  const dateTo   = searchParams.get('dateTo');
+  const force    = searchParams.get('force') === '1';
 
-  if (!campaignId) return NextResponse.json({ error: 'Missing campaign id' }, { status: 400 });
-
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+  const accessToken = process.env.META_ACCESS_TOKEN!;
+  const adAccountId = process.env.META_AD_ACCOUNT_ID!;
   if (!accessToken || !adAccountId)
     return NextResponse.json({ error: 'Missing credentials' }, { status: 500 });
 
@@ -22,50 +22,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   try {
-    const { AdAccount } = initSDK(accessToken);
-    const account = new AdAccount(adAccountId);
+    const timeRange = dateFrom && dateTo ? { since: dateFrom, until: dateTo } : undefined;
+    const fields = 'adset_id,adset_name,spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values';
 
-    const dateRange = dateFrom && dateTo
-      ? { time_range: { since: dateFrom, until: dateTo } }
-      : { date_preset: 'last_30d' };
-
-    const adsetParams: any = {
+    const p = new URLSearchParams({
+      access_token: accessToken,
+      fields,
       level: 'adset',
-      limit: 50,
-      ...dateRange,
-      filtering: [{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }],
-    };
-
-    const fields = [
-      'adset_id', 
-      'adset_name', 
-      'spend', 
-      'impressions', 
-      'clicks', 
-      'outbound_clicks', 
-      'cpc', 
-      'ctr', 
-      'actions', 
-      'action_values'
-    ];
-
-    const adsetInsights = await account.getInsights(fields, adsetParams);
-
-    const results = adsetInsights.map((data: any) => {
-      const m = parseMetrics(data);
-      return {
-        id:   data.adset_id || '',
-        name: data.adset_name || '',
-        ...m,
-      };
+      limit: '50',
+      filtering: JSON.stringify([{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]),
+      ...(timeRange ? { time_range: JSON.stringify(timeRange) } : { date_preset: 'last_30d' }),
     });
 
-    const body = { adsets: results };
+    const res = await fetch(`${BASE}/${adAccountId}/insights?${p}`);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+
+    const adsets = (json.data || []).map((d: any) => ({
+      id:   d.adset_id || '',
+      name: d.adset_name || '',
+      ...parseMetrics(d),
+    }));
+
+    const body = { adsets };
     setCache(cacheKey, body);
     return NextResponse.json(body);
 
   } catch (error: any) {
-    console.error('[/api/meta/campaign/[id]/adsets] Error:', error?.response?.error || error.message);
-    return NextResponse.json({ error: 'Meta adsets API error' }, { status: 500 });
+    console.error('[adsets] Error:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

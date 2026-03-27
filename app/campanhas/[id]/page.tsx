@@ -12,11 +12,13 @@ export default function CampaignDetailPage() {
 
   return (
     <LoginWrapper>
-      <Navbar />
-      <div className="h-[80px]" />
-      <main className="px-6 max-w-[1600px] mx-auto pt-20 pb-20">
-        <CampaignDetailView id={id} />
-      </main>
+      <div style={{ minHeight: '100vh', background: '#001a35' }}>
+        <Navbar />
+        <div className="h-[80px]" />
+        <main className="px-6 max-w-[1600px] mx-auto pt-10 pb-20">
+          <CampaignDetailView id={id} />
+        </main>
+      </div>
     </LoginWrapper>
   );
 }
