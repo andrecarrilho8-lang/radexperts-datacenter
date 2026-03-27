@@ -69,56 +69,55 @@ export default function ResumoPage() {
         <Navbar />
         <div className="h-[80px]" />
 
-        {/* ── HERO background image ── */}
-        <div className="relative w-full pb-6"
-          style={{
-            backgroundImage: 'url(/rad.jpg)',
-            backgroundSize: '100% auto',
-            backgroundPosition: 'top center',
-            backgroundRepeat: 'no-repeat',
-            backgroundColor: '#000',
-          }}>
-          {/* dark overlay */}
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
-          {/* gradient fade to navy at bottom */}
-          <div className="absolute bottom-0 left-0 w-full pointer-events-none"
-            style={{ height: '50%', background: `linear-gradient(to bottom, transparent, ${NAVY})` }} />
+        {/* ── HERO: imagem completa abaixo, conteúdo sobreposto ── */}
+        <div style={{ position: 'relative', background: '#000' }}>
+          {/* A IMAGEM define a altura do container — aparece inteira */}
+          <img
+            src="/rad.jpg"
+            alt=""
+            style={{ display: 'block', width: '100%', height: 'auto', opacity: 0.5 }}
+          />
+          {/* overlay escuro */}
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,10,0.35)' }} />
+          {/* gradiente no fundo da imagem */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, width: '100%', height: '40%', pointerEvents: 'none',
+            background: `linear-gradient(to bottom, transparent, ${NAVY})`,
+          }} />
 
-          {/* CONTENT — relative, sets container height */}
-          <div className="relative z-10 w-full px-6 pt-5">
+          {/* CONTEÚDO sobreposto no topo — position absolute */}
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', padding: '20px 24px 0' }}>
             {/* Period bar */}
-            <div className="max-w-[1600px] mx-auto"><div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-4 gap-3"
-              style={{ ...glossy, borderRadius: 18 }}>
-              <p className="font-bold" style={{ color: '#fff' }}>
-                Período: <span style={{ color: GOLD }}>{D(dateFrom)} → {D(dateTo)}</span>
-                {data.fastLoading && <span className="ml-3 animate-pulse" style={{ color: GOLD }}>Atualizando…</span>}
-              </p>
-              <div className="flex items-center gap-3">
-                {data.lastUpdate && !data.fastLoading && (
-                  <span style={{ color: SILVER }}>Última atualização: <span className="font-black" style={{ color: '#fff' }}>{data.lastUpdate}</span></span>
-                )}
-                <button onClick={data.refresh}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-bold text-xs"
-                  style={{ border: `1px solid rgba(232,177,79,0.3)`, color: GOLD, background: 'rgba(232,177,79,0.08)' }}>
-                  <span className={`material-symbols-outlined text-sm ${data.fastLoading ? 'animate-spin' : ''}`}>sync</span>
-                  Atualizar
-                </button>
+            <div style={{ maxWidth: 1600, margin: '0 auto' }}>
+              <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-[20px] gap-3"
+                style={{ ...glossy, borderRadius: 18 }}>
+                <p className="font-bold" style={{ color: '#fff' }}>
+                  Período: <span style={{ color: GOLD }}>{D(dateFrom)} → {D(dateTo)}</span>
+                  {data.fastLoading && <span className="ml-3 animate-pulse" style={{ color: GOLD }}>Atualizando…</span>}
+                </p>
+                <div className="flex items-center gap-3">
+                  {data.lastUpdate && !data.fastLoading && (
+                    <span style={{ color: SILVER }}>Última atualização: <span className="font-black" style={{ color: '#fff' }}>{data.lastUpdate}</span></span>
+                  )}
+                  <button onClick={data.refresh}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-bold text-xs"
+                    style={{ border: `1px solid rgba(232,177,79,0.3)`, color: GOLD, background: 'rgba(232,177,79,0.08)' }}>
+                    <span className={`material-symbols-outlined text-sm ${data.fastLoading ? 'animate-spin' : ''}`}>sync</span>
+                    Atualizar
+                  </button>
+                </div>
               </div>
-            </div>
             </div>
 
             {/* BIG KPIs */}
-            <section className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+            <section style={{ maxWidth: 1600, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}
+              className="grid-cols-1 md:grid-cols-3">
               {data.fastLoading
                 ? Array.from({ length: 3 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : bigKpis.map((c, i) => (
                   <div key={i} style={{ ...glossy, minHeight: 140, padding: '20px 24px' }}
                     className="flex flex-col justify-between group hover:scale-[1.01] transition-transform">
-                    {/* shine overlay */}
-                    <div className="absolute inset-0 pointer-events-none" style={{
-                      background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, transparent 40%)',
-                      borderRadius: 24,
-                    }} />
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 40%)', borderRadius: 24 }} />
                     <div className="relative z-10">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="material-symbols-outlined text-[20px]" style={{ color: c.accent }}>{c.icon}</span>
@@ -133,15 +132,13 @@ export default function ResumoPage() {
             </section>
 
             {/* SMALL KPIs */}
-            <section className="max-w-[1600px] mx-auto grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <section style={{ maxWidth: 1600, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}
+              className="grid-cols-2 lg:grid-cols-4">
               {data.fastLoading
                 ? Array.from({ length: 4 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : smallKpis.map((c, i) => (
                   <div key={i} style={{ ...glossy, padding: '16px 20px' }} className="flex flex-col gap-1 group hover:scale-[1.01] transition-transform">
-                    <div className="absolute inset-0 pointer-events-none" style={{
-                      background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)',
-                      borderRadius: 20,
-                    }} />
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 40%)', borderRadius: 20 }} />
                     <div className="relative z-10 flex items-center gap-2 mb-1">
                       <span className="material-symbols-outlined text-[18px]" style={{ color: c.accent }}>{c.icon}</span>
                       <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{c.label}</p>
@@ -155,7 +152,7 @@ export default function ResumoPage() {
         </div>
 
         {/* ── REST OF CONTENT on solid navy ── */}
-        <main className="px-6 max-w-[1600px] mx-auto mt-4">
+        <main className="px-6 max-w-[1600px] mx-auto mt-0">
 
           {/* Budget Split */}
           <div className="flex items-center gap-5 mb-3 mt-2">
