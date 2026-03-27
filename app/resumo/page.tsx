@@ -40,16 +40,16 @@ export default function ResumoPage() {
   const cpl      = spendLeads  / (o.leads     || 1);
 
   const bigKpis = [
-    { label: 'Total Investido',     sublabel: 'via Meta Ads',          value: R(o.spend),           icon: 'paid',         accent: GOLD },
-    { label: 'Total de Vendas Meta',sublabel: 'registradas pelo pixel', value: N(o.purchases || 0),  icon: 'shopping_cart', accent: '#22c55e' },
-    { label: 'Custo por Venda',     sublabel: 'CPA Meta (pixel)',       value: R(cpvMeta),           icon: 'price_check',  accent: '#ef4444' },
+    { label: 'Total Investido',      sublabel: 'via Meta Ads',          value: R(o.spend),          icon: 'paid',          accent: GOLD },
+    { label: 'Total de Vendas Meta', sublabel: 'registradas pelo pixel', value: N(o.purchases || 0), icon: 'shopping_cart', accent: '#22c55e' },
+    { label: 'Custo por Venda',      sublabel: 'CPA Meta (pixel)',       value: R(cpvMeta),          icon: 'price_check',   accent: '#ef4444' },
   ];
 
   const smallKpis = [
-    { label: 'Leads Captados', value: N(o.leads),          icon: 'person_add',  accent: '#22c55e' },
-    { label: 'Custo por Lead', value: R(cpl),              icon: 'money_off',   accent: GOLD },
-    { label: 'Impressões',     value: N(o.impressions||0), icon: 'visibility',  accent: SILVER },
-    { label: 'CPM',            value: R(cpm),              icon: 'bar_chart',   accent: SILVER },
+    { label: 'Leads Captados', value: N(o.leads),          icon: 'person_add', accent: '#22c55e' },
+    { label: 'Custo por Lead', value: R(cpl),              icon: 'money_off',  accent: GOLD },
+    { label: 'Impressões',     value: N(o.impressions||0), icon: 'visibility', accent: SILVER },
+    { label: 'CPM',            value: R(cpm),              icon: 'bar_chart',  accent: SILVER },
   ];
 
   const glossy: React.CSSProperties = {
@@ -65,53 +65,59 @@ export default function ResumoPage() {
 
   return (
     <LoginWrapper>
-      <div className="min-h-screen pb-20" style={{ background: NAVY }}>
-        <Navbar />
-        <div className="h-[80px]" />
+      {/*
+        OUTER DIV: a imagem é o background-image.
+        Ela NÃO ocupa espaço — fica atrás de todo o conteúdo.
+        O conteúdo flui normalmente em z-index 1.
+      */}
+      <div style={{
+        position: 'relative',
+        minHeight: '100vh',
+        backgroundColor: NAVY,
+        backgroundImage: 'url(/rad.jpg)',
+        backgroundSize: '100% auto',
+        backgroundPosition: 'top center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'scroll',
+      }}>
+        {/* Overlay escuro semitransparente */}
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)', pointerEvents: 'none', zIndex: 0 }} />
+        {/* Gradiente: imagem dissolve para navy conforme scroll */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: '110vw',
+          background: `linear-gradient(to bottom, transparent 50%, ${NAVY} 88%)`,
+          pointerEvents: 'none', zIndex: 0,
+        }} />
 
-        {/* ── HERO: imagem completa abaixo, conteúdo sobreposto ── */}
-        <div style={{ position: 'relative', background: '#000' }}>
-          {/* A IMAGEM define a altura do container — aparece inteira */}
-          <img
-            src="/rad.jpg"
-            alt=""
-            style={{ display: 'block', width: '100%', height: 'auto', opacity: 0.5 }}
-          />
-          {/* overlay escuro */}
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,10,0.35)' }} />
-          {/* gradiente no fundo da imagem */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, width: '100%', height: '40%', pointerEvents: 'none',
-            background: `linear-gradient(to bottom, transparent, ${NAVY})`,
-          }} />
+        {/* Conteúdo em fluxo normal — fica POR CIMA da imagem */}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <Navbar />
+          <div className="h-[80px]" />
 
-          {/* CONTEÚDO sobreposto no topo — position absolute */}
-          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', padding: '20px 24px 0' }}>
+          <main className="px-6 max-w-[1600px] mx-auto pb-20">
+
             {/* Period bar */}
-            <div style={{ maxWidth: 1600, margin: '0 auto' }}>
-              <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-[20px] gap-3"
-                style={{ ...glossy, borderRadius: 18 }}>
-                <p className="font-bold" style={{ color: '#fff' }}>
-                  Período: <span style={{ color: GOLD }}>{D(dateFrom)} → {D(dateTo)}</span>
-                  {data.fastLoading && <span className="ml-3 animate-pulse" style={{ color: GOLD }}>Atualizando…</span>}
-                </p>
-                <div className="flex items-center gap-3">
-                  {data.lastUpdate && !data.fastLoading && (
-                    <span style={{ color: SILVER }}>Última atualização: <span className="font-black" style={{ color: '#fff' }}>{data.lastUpdate}</span></span>
-                  )}
-                  <button onClick={data.refresh}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-bold text-xs"
-                    style={{ border: `1px solid rgba(232,177,79,0.3)`, color: GOLD, background: 'rgba(232,177,79,0.08)' }}>
-                    <span className={`material-symbols-outlined text-sm ${data.fastLoading ? 'animate-spin' : ''}`}>sync</span>
-                    Atualizar
-                  </button>
-                </div>
+            <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-5 gap-3"
+              style={{ ...glossy, borderRadius: 18 }}>
+              <p className="font-bold" style={{ color: '#fff' }}>
+                Período: <span style={{ color: GOLD }}>{D(dateFrom)} → {D(dateTo)}</span>
+                {data.fastLoading && <span className="ml-3 animate-pulse" style={{ color: GOLD }}>Atualizando…</span>}
+              </p>
+              <div className="flex items-center gap-3">
+                {data.lastUpdate && !data.fastLoading && (
+                  <span style={{ color: SILVER }}>Última atualização: <span className="font-black" style={{ color: '#fff' }}>{data.lastUpdate}</span></span>
+                )}
+                <button onClick={data.refresh}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-bold text-xs"
+                  style={{ border: `1px solid rgba(232,177,79,0.3)`, color: GOLD, background: 'rgba(232,177,79,0.08)' }}>
+                  <span className={`material-symbols-outlined text-sm ${data.fastLoading ? 'animate-spin' : ''}`}>sync</span>
+                  Atualizar
+                </button>
               </div>
             </div>
 
             {/* BIG KPIs */}
-            <section style={{ maxWidth: 1600, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 20 }}
-              className="grid-cols-1 md:grid-cols-3">
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               {data.fastLoading
                 ? Array.from({ length: 3 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : bigKpis.map((c, i) => (
@@ -132,8 +138,7 @@ export default function ResumoPage() {
             </section>
 
             {/* SMALL KPIs */}
-            <section style={{ maxWidth: 1600, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}
-              className="grid-cols-2 lg:grid-cols-4">
+            <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {data.fastLoading
                 ? Array.from({ length: 4 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : smallKpis.map((c, i) => (
@@ -148,169 +153,163 @@ export default function ResumoPage() {
                 ))
               }
             </section>
-          </div>
-        </div>
 
-        {/* ── REST OF CONTENT on solid navy ── */}
-        <main className="px-6 max-w-[1600px] mx-auto mt-0">
-
-          {/* Budget Split */}
-          <div className="flex items-center gap-5 mb-3 mt-2">
-            <div className="flex items-center gap-3">
-              <div className="w-1.5 h-10 rounded-full" style={{ background: `linear-gradient(to bottom, ${GOLD}, rgba(232,177,79,0.3))` }} />
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: SILVER }}>Distribuição</p>
-                <p className="text-lg font-black text-white leading-tight">Divisão do Orçamento</p>
-              </div>
-            </div>
-            <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, rgba(232,177,79,0.3), transparent)` }} />
-          </div>
-
-          {!data.fastLoading && <BudgetSplit spend={data.spendByObjective} dayCount={dayCount} />}
-
-          {/* Chart */}
-          <div className="rounded-[28px] p-8 mb-8" style={{ ...glossy, borderRadius: 28 }}>
-            <div className="absolute inset-0 pointer-events-none" style={{
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 30%)',
-              borderRadius: 28,
-            }} />
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-10">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center border"
-                  style={{ background: 'rgba(232,177,79,0.1)', borderColor: 'rgba(232,177,79,0.2)', color: GOLD }}>
-                  <span className="material-symbols-outlined text-[28px]">query_stats</span>
-                </div>
+            {/* Budget Split */}
+            <div className="flex items-center gap-5 mb-3 mt-2">
+              <div className="flex items-center gap-3">
+                <div className="w-1.5 h-10 rounded-full" style={{ background: `linear-gradient(to bottom, ${GOLD}, rgba(232,177,79,0.3))` }} />
                 <div>
-                  <h3 className="font-headline font-black text-xl text-white">Evolução de Performance</h3>
-                  <p className="text-xs font-bold uppercase tracking-widest" style={{ color: SILVER }}>Análise interativa do período</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: SILVER }}>Distribuição</p>
+                  <p className="text-lg font-black text-white leading-tight">Divisão do Orçamento</p>
                 </div>
               </div>
-              <div className="flex gap-3">
-                {[{ color: GOLD, label: 'Investimento' }, { color: '#22c55e', label: 'Vendas' }, { color: '#38bdf8', label: 'Leads' }].map(l => (
-                  <div key={l.label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
-                    style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)' }}>
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
-                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{l.label}</span>
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, rgba(232,177,79,0.3), transparent)` }} />
+            </div>
+
+            {!data.fastLoading && <BudgetSplit spend={data.spendByObjective} dayCount={dayCount} />}
+
+            {/* Chart */}
+            <div className="rounded-[28px] p-8 mb-8" style={{ ...glossy, borderRadius: 28 }}>
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 30%)', borderRadius: 28 }} />
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center border"
+                    style={{ background: 'rgba(232,177,79,0.1)', borderColor: 'rgba(232,177,79,0.2)', color: GOLD }}>
+                    <span className="material-symbols-outlined text-[28px]">query_stats</span>
                   </div>
-                ))}
+                  <div>
+                    <h3 className="font-headline font-black text-xl text-white">Evolução de Performance</h3>
+                    <p className="text-xs font-bold uppercase tracking-widest" style={{ color: SILVER }}>Análise interativa do período</p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  {[{ color: GOLD, label: 'Investimento' }, { color: '#22c55e', label: 'Vendas' }, { color: '#38bdf8', label: 'Leads' }].map(l => (
+                    <div key={l.label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
+                      style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)' }}>
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
+                      <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="relative z-10 min-h-[300px]">
-              {data.chartLoading
-                ? <div className="h-[300px] flex items-center justify-center" style={{ color: SILVER }}>Carregando gráfico...</div>
-                : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={data.chartData}>
-                      <defs>
-                        <linearGradient id="gS" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={GOLD} stopOpacity={0.25} /><stop offset="95%" stopColor={GOLD} stopOpacity={0} /></linearGradient>
-                        <linearGradient id="gV" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient>
-                        <linearGradient id="gL" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#38bdf8" stopOpacity={0.2} /><stop offset="95%" stopColor="#38bdf8" stopOpacity={0} /></linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: SILVER, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: SILVER, fontWeight: 700 }} />
-                      <Tooltip contentStyle={{ borderRadius: 16, border: '1px solid rgba(232,177,79,0.2)', background: 'rgba(0,26,53,0.95)', backdropFilter: 'blur(20px)', color: '#fff', fontSize: 12 }} />
-                      <Area type="monotone" dataKey="Leads"        stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#gL)" />
-                      <Area type="monotone" dataKey="Vendas"       stroke="#22c55e" strokeWidth={2} fillOpacity={1} fill="url(#gV)" />
-                      <Area type="monotone" dataKey="Investimento" stroke={GOLD}    strokeWidth={3} fillOpacity={1} fill="url(#gS)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )
-              }
-            </div>
-          </div>
-
-          {/* Campaign Table */}
-          {!data.fastLoading && (
-            <CampaignTable campaigns={data.tableData} loading={data.fastLoading} ctx={{ dateFrom, dateTo, setFeedbackCamp }} />
-          )}
-
-          {feedbackCamp && (
-            <FeedbackModal camp={feedbackCamp} ctx={{ dateFrom, dateTo }} onClose={() => setFeedbackCamp(null)} />
-          )}
-
-          {/* Top Ads */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-24 mt-8">
-            <div>
-              <h3 className="font-headline font-bold text-xl text-white mb-5 flex items-center gap-3">
-                <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
-                  style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>🛒</span>
-                Top Anúncios de Vendas
-              </h3>
-              <div className="flex flex-col gap-4">
+              <div className="relative z-10 min-h-[300px]">
                 {data.chartLoading
-                  ? Array.from({ length: 2 }).map((_, i) => <SkeletonAdCard key={i} />)
-                  : data.topSalesAds.map((ad: any, i: number) => <TopAdCard key={i} ad={ad} type="VENDAS" rank={i + 1} onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />)
+                  ? <div className="h-[300px] flex items-center justify-center" style={{ color: SILVER }}>Carregando gráfico...</div>
+                  : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={data.chartData}>
+                        <defs>
+                          <linearGradient id="gS" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={GOLD} stopOpacity={0.25} /><stop offset="95%" stopColor={GOLD} stopOpacity={0} /></linearGradient>
+                          <linearGradient id="gV" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient>
+                          <linearGradient id="gL" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#38bdf8" stopOpacity={0.2} /><stop offset="95%" stopColor="#38bdf8" stopOpacity={0} /></linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: SILVER, fontWeight: 700 }} axisLine={false} tickLine={false} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: SILVER, fontWeight: 700 }} />
+                        <Tooltip contentStyle={{ borderRadius: 16, border: '1px solid rgba(232,177,79,0.2)', background: 'rgba(0,26,53,0.95)', backdropFilter: 'blur(20px)', color: '#fff', fontSize: 12 }} />
+                        <Area type="monotone" dataKey="Leads"        stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#gL)" />
+                        <Area type="monotone" dataKey="Vendas"       stroke="#22c55e" strokeWidth={2} fillOpacity={1} fill="url(#gV)" />
+                        <Area type="monotone" dataKey="Investimento" stroke={GOLD}    strokeWidth={3} fillOpacity={1} fill="url(#gS)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )
                 }
               </div>
             </div>
-            <div>
-              <h3 className="font-headline font-bold text-xl text-white mb-5 flex items-center gap-3">
-                <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
-                  style={{ background: 'rgba(232,177,79,0.15)', border: `1px solid rgba(232,177,79,0.3)` }}>🎯</span>
-                Top Anúncios de Captação
-              </h3>
-              <div className="flex flex-col gap-4">
-                {data.chartLoading
-                  ? Array.from({ length: 2 }).map((_, i) => <SkeletonAdCard key={i} />)
-                  : data.topLeadsAds.map((ad: any, i: number) => <TopAdCard key={i} ad={ad} type="LEADS" rank={i + 1} onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />)
-                }
-              </div>
-            </div>
-          </div>
-        </main>
 
-        {/* Ad Tooltip Portal */}
-        {tooltipAd && tooltipPos && typeof window !== 'undefined' && createPortal(
-          <div
-            style={{ position: 'fixed', top: tooltipPos.y - 12, left: tooltipPos.x + 20, background: 'rgba(0,10,30,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(232,177,79,0.2)', boxShadow: '0 32px 64px rgba(0,0,0,0.8)' }}
-            className="z-[99999] pointer-events-auto transform -translate-y-full w-[300px] rounded-[24px] shadow-2xl animate-in zoom-in-95 duration-200"
-            onMouseEnter={keepTooltip}
-            onMouseLeave={closeTooltip}
-          >
-            <div className="relative aspect-video rounded-t-[24px] overflow-hidden">
-              {tooltipAd.thumbnailUrl
-                ? <img src={tooltipAd.thumbnailUrl} className="w-full h-full object-cover" />
-                : <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                    <span className="material-symbols-outlined text-3xl" style={{ color: SILVER }}>image</span>
-                  </div>
-              }
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,10,30,0.9), transparent)' }} />
-              <div className="absolute bottom-3 left-4 right-4">
-                <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: GOLD }}>Criativo</p>
-                <p className="font-bold text-sm truncate uppercase tracking-tight text-white">{tooltipAd.name}</p>
+            {/* Campaign Table */}
+            {!data.fastLoading && (
+              <CampaignTable campaigns={data.tableData} loading={data.fastLoading} ctx={{ dateFrom, dateTo, setFeedbackCamp }} />
+            )}
+
+            {feedbackCamp && (
+              <FeedbackModal camp={feedbackCamp} ctx={{ dateFrom, dateTo }} onClose={() => setFeedbackCamp(null)} />
+            )}
+
+            {/* Top Ads */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-24 mt-8">
+              <div>
+                <h3 className="font-headline font-bold text-xl text-white mb-5 flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
+                    style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>🛒</span>
+                  Top Anúncios de Vendas
+                </h3>
+                <div className="flex flex-col gap-4">
+                  {data.chartLoading
+                    ? Array.from({ length: 2 }).map((_, i) => <SkeletonAdCard key={i} />)
+                    : data.topSalesAds.map((ad: any, i: number) => <TopAdCard key={i} ad={ad} type="VENDAS" rank={i + 1} onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />)
+                  }
+                </div>
+              </div>
+              <div>
+                <h3 className="font-headline font-bold text-xl text-white mb-5 flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
+                    style={{ background: 'rgba(232,177,79,0.15)', border: `1px solid rgba(232,177,79,0.3)` }}>🎯</span>
+                  Top Anúncios de Captação
+                </h3>
+                <div className="flex flex-col gap-4">
+                  {data.chartLoading
+                    ? Array.from({ length: 2 }).map((_, i) => <SkeletonAdCard key={i} />)
+                    : data.topLeadsAds.map((ad: any, i: number) => <TopAdCard key={i} ad={ad} type="LEADS" rank={i + 1} onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />)
+                  }
+                </div>
               </div>
             </div>
-            <div className="p-5">
-              {tooltipAd.body
-                ? <div className="rounded-xl p-3 border mb-4 overflow-y-auto max-h-[100px]"
-                    style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }}>
-                    <p className="text-[11px] leading-relaxed font-medium" style={{ color: SILVER }}>{tooltipAd.body}</p>
-                  </div>
-                : <div className="mb-4 text-center py-4 border-2 border-dashed rounded-xl"
-                    style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
-                    <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Sem descrição no Meta</p>
-                  </div>
-              }
-              <div className="flex flex-col gap-2">
-                <a href={tooltipAd.landingPageUrl || tooltipAd.instagramPermalink || tooltipAd.adsManagerLink}
-                  target="_blank" rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 font-black uppercase tracking-[0.15em] text-[10px] py-4 rounded-xl transition-all btn-gold">
-                  <span className="material-symbols-outlined text-[16px]">language</span>
-                  Página de Destino
-                </a>
-                <a href={tooltipAd.instagramPermalink || tooltipAd.adsManagerLink}
-                  target="_blank" rel="noopener noreferrer"
-                  className="w-full flex items-center justify-center gap-2 font-black uppercase tracking-[0.15em] text-[10px] py-3.5 rounded-xl transition-all border"
-                  style={{ background: 'rgba(255,255,255,0.05)', color: SILVER, borderColor: 'rgba(255,255,255,0.1)' }}>
-                  <span className="material-symbols-outlined text-[14px]">ads_click</span>
-                  Prévia no Instagram
-                </a>
+
+          </main>
+
+          {/* Ad Tooltip Portal */}
+          {tooltipAd && tooltipPos && typeof window !== 'undefined' && createPortal(
+            <div
+              style={{ position: 'fixed', top: tooltipPos.y - 12, left: tooltipPos.x + 20, background: 'rgba(0,10,30,0.95)', backdropFilter: 'blur(24px)', border: '1px solid rgba(232,177,79,0.2)', boxShadow: '0 32px 64px rgba(0,0,0,0.8)' }}
+              className="z-[99999] pointer-events-auto transform -translate-y-full w-[300px] rounded-[24px] shadow-2xl animate-in zoom-in-95 duration-200"
+              onMouseEnter={keepTooltip}
+              onMouseLeave={closeTooltip}
+            >
+              <div className="relative aspect-video rounded-t-[24px] overflow-hidden">
+                {tooltipAd.thumbnailUrl
+                  ? <img src={tooltipAd.thumbnailUrl} className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                      <span className="material-symbols-outlined text-3xl" style={{ color: SILVER }}>image</span>
+                    </div>
+                }
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(0,10,30,0.9), transparent)' }} />
+                <div className="absolute bottom-3 left-4 right-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: GOLD }}>Criativo</p>
+                  <p className="font-bold text-sm truncate uppercase tracking-tight text-white">{tooltipAd.name}</p>
+                </div>
               </div>
-            </div>
-          </div>,
-          document.body
-        )}
+              <div className="p-5">
+                {tooltipAd.body
+                  ? <div className="rounded-xl p-3 border mb-4 overflow-y-auto max-h-[100px]"
+                      style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)' }}>
+                      <p className="text-[11px] leading-relaxed font-medium" style={{ color: SILVER }}>{tooltipAd.body}</p>
+                    </div>
+                  : <div className="mb-4 text-center py-4 border-2 border-dashed rounded-xl"
+                      style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)' }}>
+                      <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Sem descrição no Meta</p>
+                    </div>
+                }
+                <div className="flex flex-col gap-2">
+                  <a href={tooltipAd.landingPageUrl || tooltipAd.instagramPermalink || tooltipAd.adsManagerLink}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 font-black uppercase tracking-[0.15em] text-[10px] py-4 rounded-xl transition-all btn-gold">
+                    <span className="material-symbols-outlined text-[16px]">language</span>
+                    Página de Destino
+                  </a>
+                  <a href={tooltipAd.instagramPermalink || tooltipAd.adsManagerLink}
+                    target="_blank" rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-2 font-black uppercase tracking-[0.15em] text-[10px] py-3.5 rounded-xl transition-all border"
+                    style={{ background: 'rgba(255,255,255,0.05)', color: SILVER, borderColor: 'rgba(255,255,255,0.1)' }}>
+                    <span className="material-symbols-outlined text-[14px]">ads_click</span>
+                    Prévia no Instagram
+                  </a>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+        </div>
       </div>
     </LoginWrapper>
   );
