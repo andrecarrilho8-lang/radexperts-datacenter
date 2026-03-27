@@ -174,21 +174,21 @@ export function CampaignPagesSection({ ads, type }: { ads: any[], type: 'VENDAS'
 
     return (
         <div className="mb-12">
-            <h3 className="font-headline font-bold text-2xl text-slate-800 mb-6 flex items-center gap-2">
-                <span className="material-symbols-outlined text-blue-500 text-[28px]">web_asset</span>
+            <h3 className="font-headline font-bold text-2xl text-white mb-6 flex items-center gap-3">
+                <span className="material-symbols-outlined text-[28px]" style={{ color: '#E8B14F' }}>web_asset</span>
                 Páginas de Destino
-                <span className="text-xs text-slate-400 font-normal ml-2">({pageList.length} URLs rastreadas via anúncios)</span>
+                <span className="text-xs font-normal ml-2" style={{ color: '#A8B2C0' }}>({pageList.length} URLs rastreadas via anúncios)</span>
             </h3>
-            <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="rounded-[28px] overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-50 border-b border-slate-100">
+                        <thead style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
                             <tr>
-                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-slate-400">Link da página</th>
-                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-slate-400 text-right">Gasto</th>
-                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-slate-400 text-right">Connect Rate</th>
-                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-slate-400 text-right">Resultados</th>
-                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-slate-400 text-right">Custo/Result.</th>
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest" style={{ color: '#A8B2C0' }}>Link da página</th>
+                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Gasto</th>
+                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Connect Rate</th>
+                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Resultados</th>
+                                <th className="py-4 px-4 text-xs font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Custo/Result.</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -196,26 +196,28 @@ export function CampaignPagesSection({ ads, type }: { ads: any[], type: 'VENDAS'
                                 const connect = p.outbound > 0 ? (p.lpv / p.outbound * 100) : 0;
                                 const isRealUrl = p.url.startsWith('http');
                                 return (
-                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50 transition-colors ${i === 0 && p.results > 0 ? 'bg-emerald-50/20' : ''}`}>
+                                    <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                         <td className="py-5 px-6">
                                             <div className="flex items-center gap-3">
                                                 <div className="min-w-0">
-                                                    <p className="font-bold text-slate-800 text-sm truncate max-w-md" title={p.url}>{isRealUrl ? p.url.replace(/^https?:\/\//, '') : p.url}</p>
-                                                    {isRealUrl && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-blue-500 uppercase tracking-widest hover:underline flex items-center gap-1 mt-0.5"><span className="material-symbols-outlined text-[12px]">open_in_new</span>Abrir Site</a>}
+                                                    <p className="font-bold text-white text-sm truncate max-w-md" title={p.url}>{isRealUrl ? p.url.replace(/^https?:\/\//, '') : p.url}</p>
+                                                    {isRealUrl && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold uppercase tracking-widest hover:underline flex items-center gap-1 mt-0.5" style={{ color: '#E8B14F' }}><span className="material-symbols-outlined text-[12px]">open_in_new</span>Abrir Site</a>}
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-5 px-4 font-black text-slate-700 text-sm text-right">{R(p.spend)}</td>
+                                        <td className="py-5 px-4 font-black text-white text-sm text-right">{R(p.spend)}</td>
                                         <td className="py-5 px-4 text-right">
-                                            <span className={`font-black text-sm ${connect > 70 ? 'text-emerald-600' : connect < 50 ? 'text-rose-600' : 'text-slate-800'}`}>{P(connect)}</span>
+                                            <span className={`font-black text-sm ${connect > 70 ? 'text-emerald-400' : connect < 50 ? 'text-rose-400' : 'text-white'}`}>{P(connect)}</span>
                                         </td>
                                         <td className="py-5 px-4 text-right">
                                             <div className="flex flex-col items-end">
-                                              <span className="font-black text-slate-900 text-sm">{N(p.results)}</span>
-                                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{type === 'VENDAS' ? 'VENDAS' : 'LEADS'}</span>
+                                              <span className="font-black text-white text-sm">{N(p.results)}</span>
+                                              <span className="text-[10px] font-bold uppercase tracking-tighter" style={{ color: '#A8B2C0' }}>{type === 'VENDAS' ? 'VENDAS' : 'LEADS'}</span>
                                             </div>
                                         </td>
-                                        <td className="py-5 px-4 font-black text-slate-700 text-sm text-right">{R(p.spend / (p.results || 1))}</td>
+                                        <td className="py-5 px-4 font-black text-white text-sm text-right">{R(p.spend / (p.results || 1))}</td>
                                     </tr>
                                 );
                             })}
@@ -279,28 +281,26 @@ export function CampaignAdsTable({ ads, type, onHover, onMove, onLeave }: { ads:
   
   return (
     <div className="mb-12">
-      <h3 className="font-headline font-bold text-2xl text-slate-800 mb-6 flex items-center gap-2">
-        <span className="material-symbols-outlined text-orange-500 text-[28px]">ads_click</span>
+      <h3 className="font-headline font-bold text-2xl text-white mb-6 flex items-center gap-3">
+        <span className="material-symbols-outlined text-[28px]" style={{ color: '#E8B14F' }}>ads_click</span>
         Lista de Todos os Anúncios
-        <span className="text-xs text-slate-400 font-normal ml-2">({ads.length} criativos ativos no período)</span>
+        <span className="text-xs font-normal ml-2" style={{ color: '#A8B2C0' }}>({ads.length} criativos ativos no período)</span>
       </h3>
-      <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+      <div className="rounded-[28px] overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-100">
+            <thead style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
               <tr>
-                <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Anúncio</th>
-                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Gasto</th>
-                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">CTR</th>
-                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Connect</th>
-                {type === 'VENDAS' && (
-                  <>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Checkout</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Purchase</th>
-                  </>
-                )}
-                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Resultados</th>
-                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Custo/Result.</th>
+                <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest" style={{ color: '#A8B2C0' }}>Anúncio</th>
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Gasto</th>
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>CTR</th>
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Connect</th>
+                {type === 'VENDAS' && (<>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Checkout</th>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Purchase</th>
+                </>)}
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Resultados</th>
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: '#A8B2C0' }}>Custo/Result.</th>
               </tr>
             </thead>
             <tbody>
@@ -309,53 +309,53 @@ export function CampaignAdsTable({ ads, type, onHover, onMove, onLeave }: { ads:
                 const results = isVendas ? (ad.purchases || 0) : (ad.leads || 0);
                 const cost = results > 0 ? ad.spend / results : ad.spend;
                 return (
-                  <tr key={ad.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors group">
+                  <tr key={ad.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
-                        {/* Status indicator */}
                         <div className="flex flex-col items-center gap-1 flex-shrink-0">
                           <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                            ad.adStatus === 'ACTIVE' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-slate-300'
+                            ad.adStatus === 'ACTIVE' ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-slate-600'
                           }`} title={ad.adStatus === 'ACTIVE' ? 'Ativo' : 'Pausado'} />
                         </div>
-                        <div 
-                          className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-slate-100 bg-slate-50 cursor-help"
+                        <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 cursor-help"
+                          style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)' }}
                           onMouseEnter={(e) => onHover && onHover(e, ad)}
                           onMouseMove={(e) => onMove && onMove(e)}
-                          onMouseLeave={() => onLeave && onLeave()}
-                        >
-                          {ad.thumbnailUrl ? <img src={ad.thumbnailUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><span className="material-symbols-outlined text-sm">image</span></div>}
+                          onMouseLeave={() => onLeave && onLeave()}>
+                          {ad.thumbnailUrl ? <img src={ad.thumbnailUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center" style={{ color: '#A8B2C0' }}><span className="material-symbols-outlined text-sm">image</span></div>}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-800 text-sm truncate max-w-xs">{ad.name}</p>
+                          <p className="font-bold text-white text-sm truncate max-w-xs">{ad.name}</p>
                           {ad.adStatus && (
                             <span className={`text-[8px] font-black uppercase tracking-widest ${
-                              ad.adStatus === 'ACTIVE' ? 'text-emerald-600' : 'text-slate-400'
+                              ad.adStatus === 'ACTIVE' ? 'text-emerald-400' : 'text-slate-500'
                             }`}>{ad.adStatus === 'ACTIVE' ? '● Ativo' : '○ Pausado'}</span>
                           )}
-                          <a href={ad.instagramPermalink || ad.adsManagerLink} target="_blank" rel="noopener noreferrer" className="text-[9px] font-black text-blue-500 uppercase tracking-widest hover:underline flex items-center gap-1 mt-0.5">
+                          <a href={ad.instagramPermalink || ad.adsManagerLink} target="_blank" rel="noopener noreferrer"
+                            className="text-[9px] font-black uppercase tracking-widest hover:underline flex items-center gap-1 mt-0.5"
+                            style={{ color: '#E8B14F' }}>
                             <span className="material-symbols-outlined text-[11px]">open_in_new</span>
                             Ver Anúncio
                           </a>
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-4 font-black text-slate-900 text-sm text-right">{R(ad.spend)}</td>
-                    <td className="py-4 px-4 font-black text-slate-700 text-sm text-right">{P(ad.ctr)}</td>
-                    <td className="py-4 px-4 font-black text-slate-600 text-sm text-right">{P(ad.connectRate)}</td>
-                    {isVendas && (
-                      <>
-                        <td className="py-4 px-4 font-black text-orange-500 text-sm text-right">{P(ad.landingPageViews > 0 ? (ad.checkouts / ad.landingPageViews * 100) : 0)}</td>
-                        <td className="py-4 px-4 font-black text-violet-600 text-sm text-right">{P(ad.checkouts > 0 ? (ad.purchases / ad.checkouts * 100) : 0)}</td>
-                      </>
-                    )}
+                    <td className="py-4 px-4 font-black text-white text-sm text-right">{R(ad.spend)}</td>
+                    <td className="py-4 px-4 font-black text-sm text-right" style={{ color: '#A8B2C0' }}>{P(ad.ctr)}</td>
+                    <td className="py-4 px-4 font-black text-sm text-right" style={{ color: '#A8B2C0' }}>{P(ad.connectRate)}</td>
+                    {isVendas && (<>
+                      <td className="py-4 px-4 font-black text-orange-400 text-sm text-right">{P(ad.landingPageViews > 0 ? (ad.checkouts / ad.landingPageViews * 100) : 0)}</td>
+                      <td className="py-4 px-4 font-black text-sm text-right" style={{ color: '#E8B14F' }}>{P(ad.checkouts > 0 ? (ad.purchases / ad.checkouts * 100) : 0)}</td>
+                    </>)}
                     <td className="py-4 px-4 text-right">
                       <div className="flex flex-col items-end">
-                        <span className={`font-black text-sm ${results > 0 ? 'text-blue-600' : 'text-slate-400'}`}>{N(results)}</span>
-                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">{isVendas ? 'Vendas' : 'Leads'}</span>
+                        <span className={`font-black text-sm ${results > 0 ? 'text-emerald-400' : 'text-slate-500'}`}>{N(results)}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-tighter" style={{ color: '#A8B2C0' }}>{isVendas ? 'Vendas' : 'Leads'}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-4 font-black text-slate-700 text-sm text-right">{R(cost || 0)}</td>
+                    <td className="py-4 px-4 font-black text-white text-sm text-right">{R(cost || 0)}</td>
                   </tr>
                 );
               })}

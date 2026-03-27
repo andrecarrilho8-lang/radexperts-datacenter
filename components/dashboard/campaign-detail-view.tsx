@@ -150,7 +150,7 @@ export function CampaignDetailView({ id }: { id: string }) {
           </Link>
 
           {/* Related */}
-          <div className="relative" ref={relatedRef}>
+          <div className="relative" ref={relatedRef} style={{ zIndex: 9999 }}>
             <button onClick={() => setRelatedOpen(o => !o)} disabled={relatedLoading}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-60"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
@@ -161,8 +161,8 @@ export function CampaignDetailView({ id }: { id: string }) {
               {!relatedLoading && <span className={`material-symbols-outlined text-[16px] transition-transform ${relatedOpen ? 'rotate-180' : ''}`}>expand_more</span>}
             </button>
             {relatedOpen && (
-              <div className="absolute top-full left-0 mt-2 w-[440px] rounded-2xl shadow-2xl z-50 overflow-hidden"
-                style={{ ...glossy, borderRadius: 16 }}>
+              <div className="absolute top-full left-0 mt-2 w-[440px] rounded-2xl shadow-2xl overflow-hidden"
+                style={{ background: 'linear-gradient(160deg, rgba(0,26,53,0.98) 0%, rgba(0,10,30,0.98) 100%)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', zIndex: 9999, borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
                 <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(232,177,79,0.06)' }}>
                   <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Campanhas com nome similar</p>
                   {relatedCamps.length > 0 && <span className="text-[10px] font-bold" style={{ color: SILVER }}>{relatedCamps.length} encontradas</span>}
@@ -385,7 +385,21 @@ export function CampaignDetailView({ id }: { id: string }) {
       {/* Tooltip */}
       {tooltipAd && tooltipPos && typeof window !== 'undefined' && createPortal(
         <div
-          style={{ position: 'fixed', top: tooltipPos.y - 12, left: tooltipPos.x + 20, ...glossy, width: 300, zIndex: 99999, borderRadius: 24 }}
+          style={{
+            position: 'fixed',
+            top: tooltipPos.y - 12,
+            left: tooltipPos.x + 20,
+            width: 300,
+            zIndex: 99999,
+            borderRadius: 24,
+            // glossy inline (without position:relative)
+            background: 'linear-gradient(160deg, rgba(0,26,53,0.97) 0%, rgba(0,10,30,0.97) 100%)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+            boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 24px 64px rgba(0,0,0,0.8)',
+            overflow: 'hidden',
+          }}
           className="pointer-events-auto transform -translate-y-full animate-in zoom-in-95 duration-200"
           onMouseEnter={keepTooltip} onMouseLeave={closeTooltip}>
           <div style={shine} />

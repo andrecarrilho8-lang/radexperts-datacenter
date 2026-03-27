@@ -48,47 +48,41 @@ export function LifetimeCampaignChart({ campaignId, type }: { campaignId: string
 
   const header = (
     <div className="flex items-center justify-between gap-3 mb-4">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center border border-blue-100 shadow-sm">
-          <span className="material-symbols-outlined">analytics</span>
-        </div>
-        <div>
-          <h3 className="font-headline font-black text-xl text-slate-800 leading-none mb-1">Performance Vitalícia</h3>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Evolução de Investimento vs {type === 'VENDAS' ? 'Vendas' : 'Leads'} · {data.length} dias
-          </p>
-        </div>
-      </div>
+      <h3 className="font-headline font-bold text-2xl text-white flex items-center gap-3">
+        <span className="material-symbols-outlined text-[28px]" style={{ color: '#E8B14F' }}>analytics</span>
+        Performance Vitalícia
+        <span className="text-xs font-normal" style={{ color: '#A8B2C0' }}>{data.length} dias · Investimento vs {type === 'VENDAS' ? 'Vendas' : 'Leads'}</span>
+      </h3>
       <div className="flex items-center gap-5 text-[11px] font-bold">
-        <span className="flex items-center gap-1.5 text-indigo-500"><span className="w-3 h-3 rounded-full bg-indigo-500 inline-block" />&nbsp;Investimento</span>
-        <span className="flex items-center gap-1.5 text-emerald-500"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />&nbsp;{type === 'VENDAS' ? 'Vendas' : 'Leads'}</span>
+        <span className="flex items-center gap-1.5" style={{ color: '#818cf8' }}><span className="w-3 h-3 rounded-full bg-indigo-400 inline-block" />&nbsp;Investimento</span>
+        <span className="flex items-center gap-1.5" style={{ color: '#34d399' }}><span className="w-3 h-3 rounded-full bg-emerald-400 inline-block" />&nbsp;{type === 'VENDAS' ? 'Vendas' : 'Leads'}</span>
       </div>
     </div>
   );
 
   if (loading) return (
-    <div className="bg-white rounded-3xl border border-slate-100 p-8 mb-12 shadow-sm">
+    <div className="rounded-3xl p-8 mb-12" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
       {header}
-      <div className="h-[330px] w-full bg-slate-50 rounded-2xl animate-pulse flex items-center justify-center">
-        <span className="material-symbols-outlined text-slate-200 text-[80px]">show_chart</span>
+      <div className="h-[330px] w-full rounded-2xl animate-pulse flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
+        <span className="material-symbols-outlined text-[80px]" style={{ color: 'rgba(255,255,255,0.1)' }}>show_chart</span>
       </div>
     </div>
   );
 
   if (data.length === 0) return (
-    <div className="bg-white rounded-3xl border border-slate-100 p-8 mb-12 shadow-sm">
+    <div className="rounded-3xl p-8 mb-12" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
       {header}
-      <div className="h-[200px] flex items-center justify-center text-slate-300">
+      <div className="h-[200px] flex items-center justify-center" style={{ color: '#A8B2C0' }}>
         <span className="text-sm font-bold">Sem dados disponíveis</span>
       </div>
     </div>
   );
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-100 p-8 mb-12 shadow-sm">
+    <div className="rounded-3xl p-8 mb-12" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
       {header}
 
-      <p className="text-[10px] text-slate-400 font-bold mb-3 flex items-center gap-1 select-none">
+      <p className="text-[10px] font-bold mb-3 flex items-center gap-1 select-none" style={{ color: '#A8B2C0' }}>
         <span className="material-symbols-outlined text-[14px]">drag_pan</span>
         Arraste para navegar
       </p>
@@ -120,21 +114,21 @@ export function LifetimeCampaignChart({ campaignId, type }: { campaignId: string
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
               <XAxis
                 dataKey="date"
                 tickFormatter={D}
-                tick={{ fontSize: 9, fontWeight: 700, fill: '#94a3b8', textAnchor: 'end' }}
+                tick={{ fontSize: 9, fontWeight: 700, fill: '#A8B2C0', textAnchor: 'end' }}
                 axisLine={false}
                 tickLine={false}
                 interval={0}
                 angle={-60}
                 dy={4}
               />
-              <YAxis yAxisId="left" tickFormatter={val => 'R$' + val} tick={{ fontSize: 9, fontWeight: 700, fill: '#4f46e5' }} axisLine={false} tickLine={false} width={65} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fontWeight: 700, fill: '#10b981' }} axisLine={false} tickLine={false} width={35} />
+              <YAxis yAxisId="left" tickFormatter={val => 'R$' + val} tick={{ fontSize: 9, fontWeight: 700, fill: '#818cf8' }} axisLine={false} tickLine={false} width={65} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fontWeight: 700, fill: '#34d399' }} axisLine={false} tickLine={false} width={35} />
               <Tooltip
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.12)', padding: '12px 16px', fontSize: 12 }}
+                contentStyle={{ borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,26,53,0.97)', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', padding: '12px 16px', fontSize: 12, color: '#fff' }}
                 labelFormatter={D as any}
                 formatter={((value: any, name: any) => [
                   name === 'spend' ? R(value) : N(value),
