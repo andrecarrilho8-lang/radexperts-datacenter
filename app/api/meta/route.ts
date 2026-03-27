@@ -27,30 +27,37 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { AdAccount } = initSDK(accessToken);
-    const account       = new AdAccount(adAccountId);
+    const META_BASE = 'https://graph.facebook.com/v19.0';
+    const dSince = dateFrom || null;
+    const dUntil = dateTo   || null;
 
-    const dSince = dateFrom ? `${dateFrom}T00:00:00-03:00` : null;
-    const dUntil = dateTo ? `${dateTo}T23:59:59-03:00` : null;
+    const dateRangeParam = dSince && dUntil
+      ? `time_range={"since":"${dSince}","until":"${dUntil}"}`
+      : `date_preset=last_30d`;
 
-    const dateRange = dSince && dUntil
-      ? { time_range: { since: dateFrom!, until: dateTo! } }
-      : { date_preset: 'last_30d' };
+    const insightFields = INSIGHT_FIELDS.join(',');
+    const campaignFilterParam = campaignId
+      ? `&filtering=[{"field":"campaign.id","operator":"EQUAL","value":"${campaignId}"}]`
+      : '';
 
-    const campaignFilter = campaignId
-      ? [{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]
-      : undefined;
-
-    // ── Fetch data in parallel ──
-    const [summaryInsights, allCampaigns, campaignsInsights, hotmartSales] = await Promise.all([
-      account.getInsights(INSIGHT_FIELDS, { level: 'account', ...dateRange }),
-      account.getCampaigns(
-        ['id', 'name', 'status', 'effective_status', 'created_time', 'objective'],
-        { limit: 1000 }
-      ),
-      account.getInsights(INSIGHT_FIELDS, { level: 'campaign', limit: 500, ...dateRange }),
-      fetchHotmartSales(dSince || '2026-01-01T00:00:00-03:00', dUntil || '2026-12-31T23:59:59-03:00').catch(() => [])
+    // ── Fetch data in parallel via HTTP ──
+    const [summaryRes, campaignsRes, campInsightsRes, hotmartSales] = await Promise.all([
+      fetch(`${META_BASE}/${adAccountId}/insights?fields=${insightFields}&level=account&${dateRangeParam}&access_token=${accessToken}`).then(r => r.json()),
+      fetch(`${META_BASE}/${adAccountId}/campaigns?fields=id,name,status,effective_status,created_time,objective&limit=1000&access_token=${accessToken}`).then(r => r.json()),
+      fetch(`${META_BASE}/${adAccountId}/insights?fields=${insightFields}&level=campaign&limit=500&${dateRangeParam}${campaignFilterParam}&access_token=${accessToken}`).then(r => r.json()),
+      fetchHotmartSales(
+        dSince ? `${dSince}T00:00:00-03:00` : '2026-01-01T00:00:00-03:00',
+        dUntil ? `${dUntil}T23:59:59-03:00` : '2026-12-31T23:59:59-03:00'
+      ).catch(() => [])
     ]);
+
+    if (summaryRes.error)     throw new Error(JSON.stringify(summaryRes.error));
+    if (campaignsRes.error)   throw new Error(JSON.stringify(campaignsRes.error));
+    if (campInsightsRes.error) throw new Error(JSON.stringify(campInsightsRes.error));
+
+    const summaryInsights    = summaryRes.data      || [];
+    const allCampaigns       = campaignsRes.data    || [];
+    const campaignsInsights  = campInsightsRes.data || [];
 
     // ── Deduplicate Hotmart Sales ──
     const uniqueTxIds = new Set();
