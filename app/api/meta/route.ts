@@ -150,7 +150,8 @@ export async function GET(request: Request) {
     return NextResponse.json(result);
 
   } catch (error: any) {
-    console.error('[/api/meta] Error:', error?.response?.error || error.message);
-    return NextResponse.json({ error: 'Meta API error' }, { status: 500 });
+    const metaError = error?.response?.error || error?.response?.data || error?.message || String(error);
+    console.error('[/api/meta] Error:', metaError);
+    return NextResponse.json({ error: 'Meta API error', detail: metaError }, { status: 500 });
   }
 }
