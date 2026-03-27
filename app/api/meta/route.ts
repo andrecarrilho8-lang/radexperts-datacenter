@@ -31,36 +31,53 @@ export async function GET(request: Request) {
     const dSince = dateFrom || null;
     const dUntil = dateTo   || null;
 
-    const dateRangeParam = dSince && dUntil
-      ? `time_range={"since":"${dSince}","until":"${dUntil}"}`
-      : `date_preset=last_30d`;
-
-    const insightFields = INSIGHT_FIELDS.join(',');
-    const campaignFilterParam = campaignId
-      ? `&filtering=[{"field":"campaign.id","operator":"EQUAL","value":"${campaignId}"}]`
-      : '';
-
     const accountInsightFields = 'spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values,date_start';
-    const campaignInsightFields = insightFields;
+    const campaignInsightFields = INSIGHT_FIELDS.join(',');
 
-    // ── Fetch data in parallel via HTTP ──
+    // Build URLSearchParams to ensure correct encoding of time_range JSON
+    const buildInsightParams = (level: string, extraFields?: string): URLSearchParams => {
+      const p = new URLSearchParams({
+        fields: level === 'account' ? accountInsightFields : (extraFields || campaignInsightFields),
+        level,
+        limit: '500',
+        access_token: accessToken!,
+      });
+      if (dSince && dUntil) {
+        p.set('time_range', JSON.stringify({ since: dSince, until: dUntil }));
+      } else {
+        p.set('date_preset', 'last_30d');
+      }
+      if (campaignId && level !== 'account') {
+        p.set('filtering', JSON.stringify([{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]));
+      }
+      return p;
+    };
+
+    const campaignParams = new URLSearchParams({
+      fields: 'id,name,status,effective_status,created_time,objective',
+      limit: '1000',
+      access_token: accessToken!,
+    });
+
+    // ── Fetch data in parallel via HTTP with proper URL encoding ──
     const [summaryRes, campaignsRes, campInsightsRes, hotmartSales] = await Promise.all([
-      fetch(`${META_BASE}/${adAccountId}/insights?fields=${accountInsightFields}&level=account&${dateRangeParam}&access_token=${accessToken}`).then(r => r.json()),
-      fetch(`${META_BASE}/${adAccountId}/campaigns?fields=id,name,status,effective_status,created_time,objective&limit=1000&access_token=${accessToken}`).then(r => r.json()),
-      fetch(`${META_BASE}/${adAccountId}/insights?fields=${campaignInsightFields}&level=campaign&limit=500&${dateRangeParam}${campaignFilterParam}&access_token=${accessToken}`).then(r => r.json()),
+      fetch(`${META_BASE}/${adAccountId}/insights?${buildInsightParams('account')}`).then(r => r.json()),
+      fetch(`${META_BASE}/${adAccountId}/campaigns?${campaignParams}`).then(r => r.json()),
+      fetch(`${META_BASE}/${adAccountId}/insights?${buildInsightParams('campaign')}`).then(r => r.json()),
       fetchHotmartSales(
         dSince ? `${dSince}T00:00:00-03:00` : '2026-01-01T00:00:00-03:00',
         dUntil ? `${dUntil}T23:59:59-03:00` : '2026-12-31T23:59:59-03:00'
       ).catch(() => [])
     ]);
 
-    if (summaryRes.error)     throw new Error(JSON.stringify(summaryRes.error));
-    if (campaignsRes.error)   throw new Error(JSON.stringify(campaignsRes.error));
+    if (summaryRes.error)      throw new Error(JSON.stringify(summaryRes.error));
+    if (campaignsRes.error)    throw new Error(JSON.stringify(campaignsRes.error));
     if (campInsightsRes.error) throw new Error(JSON.stringify(campInsightsRes.error));
 
-    const summaryInsights    = summaryRes.data      || [];
-    const allCampaigns       = campaignsRes.data    || [];
-    const campaignsInsights  = campInsightsRes.data || [];
+    const summaryInsights   = summaryRes.data      || [];
+    const allCampaigns      = campaignsRes.data    || [];
+    const campaignsInsights = campInsightsRes.data || [];
+
 
     // ── Deduplicate Hotmart Sales ──
     const uniqueTxIds = new Set();
