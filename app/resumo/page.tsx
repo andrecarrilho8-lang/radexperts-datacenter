@@ -70,24 +70,22 @@ export default function ResumoPage() {
         <div className="h-[80px]" />
 
         {/* ── HERO background image ── */}
-        <div className="relative w-full" style={{ background: '#000' }}>
-          {/* Image full width, no crop */}
-          <img
-            src="/rad.jpg"
-            alt=""
-            style={{
-              display: 'block',
-              width: '100%',
-              height: 'auto',
-              opacity: 0.5,
-            }}
-          />
+        <div className="relative w-full pb-6"
+          style={{
+            backgroundImage: 'url(/rad.jpg)',
+            backgroundSize: '100% auto',
+            backgroundPosition: 'top center',
+            backgroundRepeat: 'no-repeat',
+            backgroundColor: '#000',
+          }}>
+          {/* dark overlay */}
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
           {/* gradient fade to navy at bottom */}
           <div className="absolute bottom-0 left-0 w-full pointer-events-none"
-            style={{ height: '35%', background: `linear-gradient(to bottom, transparent, ${NAVY})` }} />
+            style={{ height: '50%', background: `linear-gradient(to bottom, transparent, ${NAVY})` }} />
 
-          {/* CONTENT over the image */}
-          <div className="absolute inset-0 z-10 w-full px-6 pt-6 pb-4" style={{ maxWidth: '100vw' }}>
+          {/* CONTENT — relative, sets container height */}
+          <div className="relative z-10 w-full px-6 pt-5">
             {/* Period bar */}
             <div className="max-w-[1600px] mx-auto"><div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-4 gap-3"
               style={{ ...glossy, borderRadius: 18 }}>
@@ -106,6 +104,7 @@ export default function ResumoPage() {
                   Atualizar
                 </button>
               </div>
+            </div>
             </div>
 
             {/* BIG KPIs */}
@@ -152,7 +151,7 @@ export default function ResumoPage() {
                 ))
               }
             </section>
-            </div></div>
+          </div>
         </div>
 
         {/* ── REST OF CONTENT on solid navy ── */}
