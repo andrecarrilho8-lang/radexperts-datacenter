@@ -2,19 +2,19 @@ import React from 'react';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
-const NAVY   = '#001a35';
 
-const glossyBase: React.CSSProperties = {
-  background: 'linear-gradient(160deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 50%, rgba(0,10,30,0.65) 100%)',
-  border: '1px solid rgba(255,255,255,0.12)',
-  backdropFilter: 'blur(20px)',
-  WebkitBackdropFilter: 'blur(20px)',
-  boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 16px 32px -8px rgba(0,0,0,0.5)',
+// ~60% de transparência nos boxes internos
+const cardStyle: React.CSSProperties = {
+  background: 'linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 50%, rgba(0,10,30,0.35) 100%)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 8px 24px -4px rgba(0,0,0,0.3)',
 };
 
 export function MetricPill({ label, value, accent = false, small = false }: { label: string; value: string; accent?: boolean; small?: boolean }) {
   return (
-    <div style={{ ...glossyBase, borderRadius: 14, padding: small ? '12px 16px' : '16px 20px' }}>
+    <div style={{ ...cardStyle, borderRadius: 14, padding: small ? '12px 16px' : '16px 20px' }}>
       <p style={{ fontSize: small ? 11 : 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6, color: accent ? GOLD : SILVER }}>
         {label}
       </p>
@@ -27,7 +27,7 @@ export function MetricPill({ label, value, accent = false, small = false }: { la
 
 export function MetricPillAmber({ label, value, accent = false, small = false }: { label: string; value: string; accent?: boolean; small?: boolean }) {
   return (
-    <div style={{ ...glossyBase, borderRadius: 14, padding: small ? '12px 16px' : '16px 20px' }}>
+    <div style={{ ...cardStyle, borderRadius: 14, padding: small ? '12px 16px' : '16px 20px' }}>
       <p style={{ fontSize: small ? 11 : 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6, color: accent ? '#38bdf8' : SILVER }}>
         {label}
       </p>
@@ -50,21 +50,21 @@ export function StatCard({ label, value, icon, color = 'slate', small = false }:
   }[color] ?? SILVER;
 
   return (
-    <div style={{ ...glossyBase, borderRadius: 18, padding: '16px 20px', transition: 'transform 0.2s, box-shadow 0.2s' }}
+    <div style={{ ...cardStyle, borderRadius: 18, padding: '14px 16px', transition: 'transform 0.2s' }}
       className="group hover:scale-[1.01]">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <div style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: `${accentColor}18`,
-          border: `1px solid ${accentColor}30`,
+          width: 28, height: 28, borderRadius: 7,
+          background: `${accentColor}14`,
+          border: `1px solid ${accentColor}25`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           transition: 'transform 0.2s',
         }} className="group-hover:scale-110">
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: accentColor }}>{icon}</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 16, color: accentColor }}>{icon}</span>
         </div>
-        <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: SILVER }}>{label}</p>
+        <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: SILVER }}>{label}</p>
       </div>
-      <p style={{ fontWeight: 900, fontSize: small ? 20 : 28, lineHeight: 1, color: '#fff', fontFamily: 'var(--font-jakarta)' }}>
+      <p style={{ fontWeight: 900, fontSize: small ? 18 : 26, lineHeight: 1, color: '#fff', fontFamily: 'var(--font-jakarta)' }}>
         {value}
       </p>
     </div>

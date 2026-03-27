@@ -229,7 +229,7 @@ export default function ResumoPage() {
             {/* Top Ads */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-24 mt-8">
               <div>
-                <h3 className="font-headline font-bold text-xl text-white mb-5 flex items-center gap-3">
+                <h3 className="font-headline font-bold text-3xl text-white mb-6 flex items-center gap-4">
                   <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
                     style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>🛒</span>
                   Top Anúncios de Vendas
@@ -242,7 +242,7 @@ export default function ResumoPage() {
                 </div>
               </div>
               <div>
-                <h3 className="font-headline font-bold text-xl text-white mb-5 flex items-center gap-3">
+                <h3 className="font-headline font-bold text-3xl text-white mb-6 flex items-center gap-4">
                   <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl shadow-lg"
                     style={{ background: 'rgba(232,177,79,0.15)', border: `1px solid rgba(232,177,79,0.3)` }}>🎯</span>
                   Top Anúncios de Captação
