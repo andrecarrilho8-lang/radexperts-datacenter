@@ -1,0 +1,12 @@
+export default [
+  {
+    ignores: [
+      "**/*",
+      ".next/**",
+      "node_modules/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+    ]
+  }
+];

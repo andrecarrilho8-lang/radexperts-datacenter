@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+@theme {
+  /* Refined, more sophisticated color palette based on the reference image */
+  --color-primary: #3b82f6;      
+  --color-secondary: #0ea5e9;    
+  --color-tertiary: #10b981;     
+  --color-error: #ef4444;       
+  
+  --color-surface: #ffffff;      
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f8fafc;
+  --color-surface-container: #f1f5f9;
+  
+  --color-on-surface: #0f172a;   
+  --color-on-surface-variant: #64748b;
+  --color-outline: #e2e8f0;
+  
+  --font-headline: var(--font-jakarta), sans-serif;
+  --font-body: var(--font-inter), sans-serif;
+  --font-label: var(--font-inter), sans-serif;
+
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  @keyframes loading-bar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+  }
+  --animate-pulse-slow: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-loading-bar-fast: loading-bar 2.5s infinite linear;
+}
+
+@layer utilities {
+  /* New Clean Card Style instead of Glassmorphism */
+  .clean-card {
+    background: #ffffff !important;
+    border: 1px solid #f1f5f9 !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05) !important;
+  }
+  
+  .glass-card {
+    /* Rebranding glass-card name to work with existing code but with new style */
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    border: 1px solid #f1f5f9 !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.03), 0 2px 4px -2px rgb(0 0 0 / 0.02) !important;
+    border-radius: 24px !important;
+  }
+
+  .subtle-shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1) !important;
+  }
+}
+
+body, html {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar for a cleaner look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+
+@media print {
+  nav, button, .print\:hidden, aside, .no-print {
+    display: none !important;
+  }
+  body, main {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+  .bg-surface, .bg-slate-50, .bg-surface-container-low {
+    background: #fff !important;
+  }
+  div, section {
+    box-shadow: none !important;
+    border-color: #eee !important;
+    break-inside: avoid;
+  }
+  h1, h2, h3, p, span, td, th {
+    color: #000 !important;
+  }
+  .text-violet-600, .text-emerald-600, .text-amber-600 {
+    color: #444 !important;
+    font-weight: bold;
+  }
+}
