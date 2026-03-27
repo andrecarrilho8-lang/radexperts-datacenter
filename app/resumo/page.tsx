@@ -71,23 +71,23 @@ export default function ResumoPage() {
 
         {/* ── HERO background image ── */}
         <div className="relative w-full" style={{ background: '#000' }}>
-          <div
-            className="absolute inset-0 w-full"
+          {/* Image full width, no crop */}
+          <img
+            src="/rad.jpg"
+            alt=""
             style={{
-              backgroundImage: 'url(/rad.jpg)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center top',
-              backgroundRepeat: 'no-repeat',
+              display: 'block',
+              width: '100%',
+              height: 'auto',
               opacity: 0.5,
-              minHeight: 420,
             }}
           />
           {/* gradient fade to navy at bottom */}
-          <div className="absolute bottom-0 left-0 w-full h-40 pointer-events-none"
-            style={{ background: `linear-gradient(to bottom, transparent, ${NAVY})` }} />
+          <div className="absolute bottom-0 left-0 w-full pointer-events-none"
+            style={{ height: '35%', background: `linear-gradient(to bottom, transparent, ${NAVY})` }} />
 
           {/* CONTENT over the image */}
-          <div className="relative z-10 px-6 max-w-[1600px] mx-auto pt-10 pb-16">
+          <div className="absolute inset-0 z-10 px-6 max-w-[1600px] mx-auto pt-10 pb-16 flex flex-col justify-center" style={{ maxWidth: '100%' }}>
             {/* Period bar */}
             <div className="p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mb-8 gap-3"
               style={{ ...glossy, borderRadius: 18 }}>
