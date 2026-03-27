@@ -1,16 +1,40 @@
-import { NextResponse }                                                   from 'next/server';
-import { getCache, setCache, initSDK, mapObjective,
-         parseMetrics, AD_INSIGHT_FIELDS, INSIGHT_FIELDS }                from '@/app/lib/metaApi';
+import { NextResponse } from 'next/server';
+import { getCache, setCache, mapObjective, parseMetrics } from '@/app/lib/metaApi';
+
+const BASE = 'https://graph.facebook.com/v19.0';
+
+const INSIGHT_FIELDS = [
+  'campaign_name','campaign_id','spend','impressions',
+  'clicks','outbound_clicks','cpc','ctr',
+  'actions','action_values','date_start',
+].join(',');
+
+const AD_INSIGHT_FIELDS = [
+  'ad_id','ad_name','campaign_id','campaign_name','spend','impressions',
+  'clicks','outbound_clicks','cpc','ctr','actions','action_values',
+].join(',');
+
+async function gql(path: string, params: Record<string, any>, token: string) {
+  const p = new URLSearchParams({ access_token: token, ...params });
+  // Stringify objects/arrays
+  for (const [k, v] of Object.entries(params)) {
+    if (typeof v === 'object') p.set(k, JSON.stringify(v));
+  }
+  const res = await fetch(`${BASE}/${path}?${p}`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message);
+  return json;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const dateFrom    = searchParams.get('dateFrom');
-  const dateTo      = searchParams.get('dateTo');
-  const campaignId  = searchParams.get('campaignId');
-  const force       = searchParams.get('force') === '1';
+  const dateFrom   = searchParams.get('dateFrom');
+  const dateTo     = searchParams.get('dateTo');
+  const campaignId = searchParams.get('campaignId');
+  const force      = searchParams.get('force') === '1';
 
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+  const accessToken = process.env.META_ACCESS_TOKEN!;
+  const adAccountId = process.env.META_AD_ACCOUNT_ID!;
   if (!accessToken || !adAccountId)
     return NextResponse.json({ error: 'Missing credentials' }, { status: 500 });
 
@@ -21,185 +45,153 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { AdAccount } = initSDK(accessToken);
-    const account       = new AdAccount(adAccountId);
-    const rawAccountId  = adAccountId.replace('act_', '');
+    const rawAccountId = adAccountId.replace('act_', '');
+    const timeRange = dateFrom && dateTo ? { since: dateFrom, until: dateTo } : undefined;
 
-    const dateRange = dateFrom && dateTo
-      ? { time_range: { since: dateFrom, until: dateTo } }
-      : { date_preset: 'last_30d' };
+    const baseInsightParams: Record<string, any> = {
+      fields: INSIGHT_FIELDS,
+      ...(timeRange ? { time_range: timeRange } : { date_preset: 'last_30d' }),
+    };
 
-    const campaignFilter = campaignId
-      ? [{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]
-      : undefined;
-
-    const dailyParams: any = {
+    // 1. Daily insights for chart
+    const dailyRes = await gql(`${adAccountId}/insights`, {
+      ...baseInsightParams,
       level: campaignId ? 'campaign' : 'account',
-      time_increment: 1,
-      ...dateRange,
-      ...(campaignFilter ? { filtering: campaignFilter } : {}),
-    };
-    // ── Fetch fast data in parallel ─────────────────────────────────────────
-    const [dailyInsights, campaignSpends, campaignObjects] = await Promise.all([
-      account.getInsights(INSIGHT_FIELDS, dailyParams),
-      // Fetch top 50 campaigns by spend to constraint the ad queue
-      !campaignId ? account.getInsights(['campaign_id', 'spend'], { level: 'campaign', limit: 50, sort: ['spend_descending'], ...dateRange }) : Promise.resolve([]),
-      account.getCampaigns(['id', 'objective', 'effective_status'], { limit: 200 }),
-    ]);
+      time_increment: '1',
+      limit: '90',
+      ...(campaignId ? { filtering: [{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }] } : {}),
+    }, accessToken);
+    const dailyInsights: any[] = dailyRes.data || [];
 
-    // ── Campaign meta for ads ────────────────────────────────────────────────
+    // 2. Top campaigns by spend (for ad filter)
+    let topCampaignIds: string[] = [];
+    if (!campaignId) {
+      const campSpendRes = await gql(`${adAccountId}/insights`, {
+        fields: 'campaign_id,spend',
+        level: 'campaign',
+        limit: '50',
+        sort: '["spend_descending"]',
+        ...(timeRange ? { time_range: timeRange } : { date_preset: 'last_30d' }),
+      }, accessToken);
+      topCampaignIds = (campSpendRes.data || []).map((c: any) => c.campaign_id).filter(Boolean);
+    }
+
+    // 3. Campaign objectives
+    const campObjRes = await gql(`${adAccountId}/campaigns`, {
+      fields: 'id,objective,effective_status',
+      limit: '200',
+    }, accessToken);
     const campaignMeta: Record<string, any> = {};
-    for (const c of campaignObjects) {
-      campaignMeta[c.id] = {
-        objective: mapObjective(c.objective || ''),
-        status:    c.effective_status || '',
-      };
-    }
-    
-    // ── Fetch Ads filtered by Top Campaigns to avoid "Reduce amount of data" error 
-    let adFilter: any[] = [];
-    if (campaignFilter) {
-      adFilter = campaignFilter;
-    } else {
-      const topIds = campaignSpends.map((c: any) => c.campaign_id).filter(Boolean);
-      if (topIds.length > 0) {
-        adFilter = [{ field: 'campaign.id', operator: 'IN', value: topIds }];
-      }
+    for (const c of (campObjRes.data || [])) {
+      campaignMeta[c.id] = { objective: mapObjective(c.objective || ''), status: c.effective_status || '' };
     }
 
-    const adParams: any = {
-      level: 'ad', limit: 60,
-      ...dateRange,
-      sort: ['spend_descending'],
-      ...(adFilter.length > 0 ? { filtering: adFilter } : {}),
-    };
+    // 4. Ad-level insights
+    const adFilter = campaignId
+      ? [{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]
+      : topCampaignIds.length > 0
+        ? [{ field: 'campaign.id', operator: 'IN', value: topCampaignIds }]
+        : [];
 
     let adInsights: any[] = [];
-    if (adFilter.length > 0 || dateRange.date_preset) {
-        try {
-            adInsights = await account.getInsights(AD_INSIGHT_FIELDS, adParams);
-        } catch(e: any) {
-            console.warn('[chart] Fallback ad request err:', e?.response?.error || e.message);
-        }
+    if (adFilter.length > 0 || !campaignId) {
+      const adRes = await gql(`${adAccountId}/insights`, {
+        fields: AD_INSIGHT_FIELDS,
+        level: 'ad',
+        limit: '60',
+        sort: '["spend_descending"]',
+        ...(timeRange ? { time_range: timeRange } : { date_preset: 'last_30d' }),
+        ...(adFilter.length > 0 ? { filtering: adFilter } : {}),
+      }, accessToken).catch(() => ({ data: [] }));
+      adInsights = adRes.data || [];
     }
 
-    // ── Chart data (daily) ────────────────────────────────────────────────────
+    // 5. Build chartData
     const chartData = dailyInsights
       .sort((a: any, b: any) => (a.date_start || '').localeCompare(b.date_start || ''))
       .map((day: any) => {
         const m = parseMetrics(day);
         return {
-          date:         new Date(day.date_start).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          date: new Date(day.date_start).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
           Investimento: m.spend,
-          Faturamento:  m.revenue,
-          Leads:        m.leads,
-          Vendas:       m.purchases,
+          Leads:  m.leads,
+          Vendas: m.purchases,
         };
       });
 
-    // ── Parse ads ─────────────────────────────────────────────────────────────
-    const parsedAds = adInsights
-      .map((data: any) => {
-        const meta = campaignMeta[data.campaign_id] || {};
-        return {
-          id:               data.ad_id         || '',
-          name:             data.ad_name       || '',
-          campaignId:       data.campaign_id   || '',
-          campaignName:     data.campaign_name || '',
-          objective:        meta.objective     || 'OUTROS',
-          thumbnailUrl:     null as string | null,
-          instagramPermalink: null as string | null,
-          landingPageUrl: null as string | null,
-          body: null as string | null,
-          adsManagerLink:   `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${rawAccountId}&selected_ad_ids=${data.ad_id}`,
-          ...parseMetrics(data),
-        };
-      })
-      .filter((a: any) => a.id);
+    // 6. Parse ads
+    const parsedAds = adInsights.map((d: any) => {
+      const meta = campaignMeta[d.campaign_id] || {};
+      return {
+        id: d.ad_id || '',
+        name: d.ad_name || '',
+        campaignId: d.campaign_id || '',
+        campaignName: d.campaign_name || '',
+        objective: meta.objective || 'OUTROS',
+        thumbnailUrl: null as string | null,
+        instagramPermalink: null as string | null,
+        landingPageUrl: null as string | null,
+        body: null as string | null,
+        adsManagerLink: `https://adsmanager.facebook.com/adsmanager/manage/ads?act=${rawAccountId}&selected_ad_ids=${d.ad_id}`,
+        ...parseMetrics(d),
+      };
+    }).filter((a: any) => a.id);
 
-    // ── Identify top ads and fetch thumbnails ─────────────────────────────────
-    const topSalesUnsorted = parsedAds
-      .filter((a: any) => a.objective === 'VENDAS')
-      .sort((a: any, b: any) => b.purchases - a.purchases)
-      .slice(0, 3);
-    const topLeadsUnsorted = parsedAds
-      .filter((a: any) => a.objective === 'LEADS')
-      .sort((a: any, b: any) => b.leads - a.leads)
-      .slice(0, 3);
+    const topSalesUnsorted = parsedAds.filter((a: any) => a.objective === 'VENDAS').sort((a: any, b: any) => b.purchases - a.purchases).slice(0, 3);
+    const topLeadsUnsorted = parsedAds.filter((a: any) => a.objective === 'LEADS').sort((a: any, b: any) => b.leads - a.leads).slice(0, 3);
+    const priorityIds = [...topSalesUnsorted, ...topLeadsUnsorted].map((a: any) => a.id).filter(Boolean);
 
-    const priorityIds = [...topSalesUnsorted, ...topLeadsUnsorted]
-      .map((a: any) => a.id)
-      .filter(Boolean);
-
+    // 7. Fetch creative thumbnails
     if (priorityIds.length > 0) {
       try {
-        const adsWithCreative = await account.getAds(
-          ['id', 'instagram_permalink_url', 'effective_instagram_story_id', 'preview_shareable_link', 'creative{id,object_story_id,thumbnail_url,image_url,body,object_story_spec,asset_feed_spec}'],
-          { filtering: [{ field: 'id', operator: 'IN', value: priorityIds }], limit: 10 }
-        );
+        const creativeFields = 'id,instagram_permalink_url,preview_shareable_link,effective_instagram_story_id,creative{id,thumbnail_url,image_url,body,object_story_id,object_story_spec,asset_feed_spec}';
+        const filterParam = JSON.stringify([{ field: 'id', operator: 'IN', value: priorityIds }]);
+        const adsRes = await gql(`${adAccountId}/ads`, {
+          fields: creativeFields,
+          filtering: filterParam,
+          limit: '10',
+        }, accessToken);
+
         const thumbMap: Record<string, string> = {};
         const igMap:    Record<string, string> = {};
         const urlMap:   Record<string, string> = {};
         const bodyMap:  Record<string, string> = {};
 
-        for (const ad of adsWithCreative) {
+        for (const ad of (adsRes.data || [])) {
           const c = ad.creative || {};
           const thumb = c.image_url || c.thumbnail_url || c.object_story_spec?.video_data?.image_url || c.object_story_spec?.link_data?.image_url || '';
           if (thumb) thumbMap[ad.id] = thumb;
-          
-          const body = c.body || 
-                       c.object_story_spec?.link_data?.message || 
-                       c.object_story_spec?.video_data?.message || 
-                       c.asset_feed_spec?.bodies?.[0]?.text || 
-                       c.object_story_spec?.link_data?.description || '';
+          const body = c.body || c.object_story_spec?.link_data?.message || c.object_story_spec?.video_data?.message || c.asset_feed_spec?.bodies?.[0]?.text || '';
           if (body) bodyMap[ad.id] = body;
-          
-           const url = c.object_story_spec?.link_data?.link || 
-                       c.asset_feed_spec?.ad_formats?.[0]?.link_data?.link ||
-                       c.object_story_spec?.video_data?.call_to_action?.value?.link || '';
-           if (url) urlMap[ad.id] = url;
-
-           let igLink = ad.instagram_permalink_url || ad.preview_shareable_link;
-           if (!igLink && ad.effective_instagram_story_id) {
-              igLink = `https://www.instagram.com/reels/${ad.effective_instagram_story_id}/`;
-           }
-           if (!igLink && c.object_story_id) {
-              const parts = c.object_story_id.split('_');
-              if (parts.length === 2 && parts[1].length > 10) {
-                 igLink = `https://www.instagram.com/p/${parts[1]}/`;
-              }
-           }
-          if (!igLink) {
-             igLink = `https://www.facebook.com/ads/experience/preview/?ad_id=${ad.id}&platform=INSTAGRAM`;
-          }
+          const url = c.object_story_spec?.link_data?.link || c.object_story_spec?.video_data?.call_to_action?.value?.link || '';
+          if (url) urlMap[ad.id] = url;
+          let igLink = ad.instagram_permalink_url || ad.preview_shareable_link;
+          if (!igLink && ad.effective_instagram_story_id) igLink = `https://www.instagram.com/reels/${ad.effective_instagram_story_id}/`;
+          if (!igLink && c.object_story_id) { const parts = c.object_story_id.split('_'); if (parts.length === 2) igLink = `https://www.instagram.com/p/${parts[1]}/`; }
+          if (!igLink) igLink = `https://www.facebook.com/ads/experience/preview/?ad_id=${ad.id}&platform=INSTAGRAM`;
           if (igLink) igMap[ad.id] = igLink;
         }
+
         for (const ad of parsedAds as any[]) {
-          if (thumbMap[ad.id]) ad.thumbnailUrl      = thumbMap[ad.id];
+          if (thumbMap[ad.id]) ad.thumbnailUrl = thumbMap[ad.id];
           if (igMap[ad.id])    ad.instagramPermalink = igMap[ad.id];
-          if (urlMap[ad.id])   ad.landingPageUrl     = urlMap[ad.id];
-          if (bodyMap[ad.id])  ad.body               = bodyMap[ad.id];
+          if (urlMap[ad.id])   ad.landingPageUrl = urlMap[ad.id];
+          if (bodyMap[ad.id])  ad.body = bodyMap[ad.id];
         }
       } catch (e) {
         console.warn('[chart] Thumbnail fetch skipped:', (e as any).message);
       }
     }
 
-    const topSalesAds = parsedAds
-      .filter((a: any) => a.objective === 'VENDAS')
-      .sort((a: any, b: any) => b.purchases - a.purchases)
-      .slice(0, 3);
-    const topLeadsAds = parsedAds
-      .filter((a: any) => a.objective === 'LEADS')
-      .sort((a: any, b: any) => b.leads - a.leads)
-      .slice(0, 3);
+    const topSalesAds = parsedAds.filter((a: any) => a.objective === 'VENDAS').sort((a: any, b: any) => b.purchases - a.purchases).slice(0, 3);
+    const topLeadsAds = parsedAds.filter((a: any) => a.objective === 'LEADS').sort((a: any, b: any) => b.leads - a.leads).slice(0, 3);
 
     const result = { chartData, topSalesAds, topLeadsAds };
     setCache(cacheKey, result);
     return NextResponse.json(result);
 
   } catch (error: any) {
-    console.error('[/api/meta/chart] Error:', error?.response?.error || error.message);
-    return NextResponse.json({ error: 'Meta chart API error' }, { status: 500 });
+    console.error('[/api/meta/chart] Error:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

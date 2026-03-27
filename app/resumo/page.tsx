@@ -155,15 +155,15 @@ export default function ResumoPage() {
             </section>
 
             {/* Budget Split */}
-            <div className="flex items-center gap-5 mb-3 mt-2">
-              <div className="flex items-center gap-3">
-                <div className="w-1.5 h-10 rounded-full" style={{ background: `linear-gradient(to bottom, ${GOLD}, rgba(232,177,79,0.3))` }} />
+            <div className="flex items-center gap-5 mb-6 mt-10">
+              <div className="flex items-center gap-4">
+                <div className="w-2 h-14 rounded-full" style={{ background: `linear-gradient(to bottom, ${GOLD}, rgba(232,177,79,0.3))` }} />
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: SILVER }}>Distribuição</p>
-                  <p className="text-lg font-black text-white leading-tight">Divisão do Orçamento</p>
+                  <p className="text-[12px] font-black uppercase tracking-[0.3em]" style={{ color: SILVER }}>Distribuição</p>
+                  <p className="text-2xl font-black text-white leading-tight">Divisão do Orçamento</p>
                 </div>
               </div>
-              <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, rgba(232,177,79,0.3), transparent)` }} />
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, rgba(232,177,79,0.4), transparent)` }} />
             </div>
 
             {!data.fastLoading && <BudgetSplit spend={data.spendByObjective} dayCount={dayCount} />}

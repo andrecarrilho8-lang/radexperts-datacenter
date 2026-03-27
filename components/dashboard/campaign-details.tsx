@@ -2,44 +2,61 @@ import React from 'react';
 import { R, N, P, PALETTE } from '@/app/lib/utils';
 import { StatCard, MetricPill, MetricPillAmber } from '@/components/ui/cards';
 
+const GOLD   = '#E8B14F';
+const SILVER = '#A8B2C0';
+const NAVY   = '#001a35';
+
 export function TopAdCard({ ad, type, rank, hideCampaign, onHover, onMove, onLeave }: { ad: any; type: 'VENDAS' | 'LEADS'; rank: number, hideCampaign?: boolean, onHover?: (e: React.MouseEvent, ad: any) => void, onMove?: (e: React.MouseEvent) => void, onLeave?: () => void }) {
   const link = ad.instagramPermalink || ad.adsManagerLink;
   const isVendas = type === 'VENDAS';
-  const accentColor = isVendas ? 'indigo' : 'sky';
-  const rankBg = isVendas ? 'bg-indigo-600' : 'bg-sky-500';
+  const accentColor = isVendas ? '#22c55e' : GOLD;
+
+  const cardStyle: React.CSSProperties = {
+    background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.03) 50%, rgba(0,10,30,0.55) 100%)',
+    border: '1px solid rgba(255,255,255,0.10)',
+    backdropFilter: 'blur(24px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+    boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 20px 40px -8px rgba(0,0,0,0.5)',
+    borderRadius: 24,
+    overflow: 'hidden',
+    transition: 'transform 0.2s',
+    position: 'relative',
+  };
 
   return (
-    <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
-      <div className="p-6 flex gap-4 items-start">
+    <div style={cardStyle} className="group hover:scale-[1.01]">
+      <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 24 }} />
+      <div className="p-6 flex gap-4 items-start relative z-10">
         <div className="relative flex-shrink-0" onMouseEnter={(e) => onHover && onHover(e, ad)} onMouseMove={(e) => onMove && onMove(e)} onMouseLeave={() => onLeave && onLeave()}>
-          <div className={`absolute -top-2 -left-2 w-6 h-6 rounded-lg ${rankBg} text-white font-black text-[10px] flex items-center justify-center z-10 shadow-lg border-2 border-white`}>
+          <div className="absolute -top-2 -left-2 w-6 h-6 rounded-lg text-white font-black text-[10px] flex items-center justify-center z-10 shadow-lg"
+            style={{ background: accentColor, color: NAVY }}>
             {rank}
           </div>
           <div className="cursor-pointer" onClick={() => window.open(link, '_blank')}>
             {ad.thumbnailUrl ? (
               <img src={ad.thumbnailUrl} alt={ad.name}
-                className="w-44 h-44 rounded-2xl object-cover border border-slate-100 shadow-md transition-transform group-hover:scale-105" />
+                className="w-44 h-44 rounded-2xl object-cover shadow-md transition-transform group-hover:scale-105"
+                style={{ border: '1px solid rgba(255,255,255,0.1)' }} />
             ) : (
-              <div className="w-44 h-44 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
-                <span className="material-symbols-outlined text-slate-300 text-4xl">image</span>
+              <div className="w-44 h-44 rounded-2xl flex items-center justify-center"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <span className="material-symbols-outlined text-4xl" style={{ color: SILVER }}>image</span>
               </div>
             )}
           </div>
         </div>
 
         <div className="flex-1 min-w-0">
-          <h3 className="font-headline font-black text-lg text-slate-900 leading-snug mb-0.5 group-hover:text-indigo-600 transition-colors uppercase tracking-tight truncate">{ad.name}</h3>
+          <h3 className="font-headline font-black text-lg leading-snug mb-0.5 uppercase tracking-tight truncate text-white">{ad.name}</h3>
           {ad.adStatus && (
             <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full w-fit ${
-              ad.adStatus === 'ACTIVE'
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-slate-100 text-slate-500'
+              ad.adStatus === 'ACTIVE' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-white/10 text-slate-400'
             }`}>
               {ad.adStatus === 'ACTIVE' ? '● Ativado' : '○ Desativado'}
             </span>
           )}
           {!hideCampaign && (
-            <p className="text-[10px] text-slate-400 font-bold mb-4 flex items-center gap-1.5 truncate uppercase tracking-widest">
+            <p className="text-[10px] font-bold mb-4 flex items-center gap-1.5 truncate uppercase tracking-widest mt-1" style={{ color: SILVER }}>
               <span className="material-symbols-outlined text-sm">folder</span>
               {ad.campaignName || 'Campanha'}
             </p>
@@ -47,15 +64,13 @@ export function TopAdCard({ ad, type, rank, hideCampaign, onHover, onMove, onLea
         </div>
       </div>
 
-      <div className="mx-5 border-t border-slate-100 mb-4" />
+      <div className="mx-5 mb-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }} />
 
-      <div className="px-5 pb-5">
+      <div className="px-5 pb-5 relative z-10">
         {type === 'VENDAS' ? (
           <>
-            <div className="mb-3">
-              <MetricPill label="📊 Investido" value={R(ad.spend)} small />
-            </div>
-             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="mb-3"><MetricPill label="📊 Investido" value={R(ad.spend)} small /></div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <StatCard label="Vendas"         value={N(ad.purchases)} icon="shopping_cart" color="emerald" small />
               <StatCard label="CTR"            value={P(ad.ctr)} icon="ads_click" color="blue" small />
               <StatCard label="Connect"        value={P(ad.connectRate)} icon="query_stats" color="slate" small />
@@ -65,8 +80,8 @@ export function TopAdCard({ ad, type, rank, hideCampaign, onHover, onMove, onLea
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 mb-3">
-              <MetricPillAmber label="🎯 Leads Gerados"   value={N(ad.leads)} accent small />
-              <MetricPillAmber label="📊 Investido"       value={R(ad.spend)} small />
+              <MetricPillAmber label="🎯 Leads Gerados" value={N(ad.leads)} accent small />
+              <MetricPillAmber label="📊 Investido"     value={R(ad.spend)} small />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <StatCard label="Custo/Lead" value={R(ad.costPerLead)} icon="payments" color="amber" small />
