@@ -3,7 +3,15 @@ import { getCache, setCache, parseMetrics } from '@/app/lib/metaApi';
 
 const BASE = 'https://graph.facebook.com/v19.0';
 const AD_FIELDS = 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values';
-const CREATIVE_FIELDS = 'id,effective_status,instagram_permalink_url,effective_instagram_story_id,preview_shareable_link,creative{id,object_story_id,thumbnail_url,image_url,body,object_story_spec,asset_feed_spec}';
+// Subfields explícitos para garantir que os links retornem
+const CREATIVE_FIELDS = [
+  'id',
+  'effective_status',
+  'instagram_permalink_url',
+  'effective_instagram_story_id',
+  'preview_shareable_link',
+  'creative{id,object_story_id,thumbnail_url,image_url,body,link_url,asset_feed_spec{bodies{text},link_urls{website_url}},object_story_spec{link_data{link,message,call_to_action{value{link}},child_attachments{link}},video_data{image_url,message,call_to_action{value{link}}}}}'  
+].join(',');
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const campaignId = (await params).id;
@@ -76,14 +84,36 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
         for (const ad of (crJson.data || [])) {
           const c = ad.creative || {};
-          if (ad.effective_status) statusMap[ad.id] = ad.effective_status;
-          const thumb = c.image_url || c.thumbnail_url || c.object_story_spec?.video_data?.image_url || c.object_story_spec?.link_data?.image_url || '';
-          if (thumb) thumbMap[ad.id] = thumb;
-          const body = c.body || c.object_story_spec?.link_data?.message || c.object_story_spec?.video_data?.message || c.asset_feed_spec?.bodies?.[0]?.text || '';
-          if (body) bodyMap[ad.id] = body;
           const spec = c.object_story_spec || {};
-          const lpUrl = spec.link_data?.link || spec.video_data?.call_to_action?.value?.link || spec.link_data?.call_to_action?.value?.link || spec.link_data?.child_attachments?.[0]?.link || '';
+          if (ad.effective_status) statusMap[ad.id] = ad.effective_status;
+
+          // Thumbnail
+          const thumb = c.image_url || c.thumbnail_url
+            || spec.video_data?.image_url
+            || spec.link_data?.image_hash
+            || '';
+          if (thumb) thumbMap[ad.id] = thumb;
+
+          // Body/copy
+          const body = c.body
+            || spec.link_data?.message
+            || spec.video_data?.message
+            || c.asset_feed_spec?.bodies?.[0]?.text
+            || '';
+          if (body) bodyMap[ad.id] = body;
+
+          // Landing page URL — múltiplos fallbacks
+          const lpUrl =
+            spec.link_data?.link
+            || spec.link_data?.call_to_action?.value?.link
+            || spec.video_data?.call_to_action?.value?.link
+            || spec.link_data?.child_attachments?.[0]?.link
+            || c.link_url
+            || c.asset_feed_spec?.link_urls?.[0]?.website_url
+            || '';
           if (lpUrl) urlMap[ad.id] = lpUrl;
+
+          // Instagram link
           let igLink = ad.instagram_permalink_url || ad.preview_shareable_link;
           if (!igLink && ad.effective_instagram_story_id) igLink = `https://www.instagram.com/reels/${ad.effective_instagram_story_id}/`;
           if (!igLink && c.object_story_id) { const parts = c.object_story_id.split('_'); if (parts.length === 2) igLink = `https://www.instagram.com/p/${parts[1]}/`; }
