@@ -50,6 +50,8 @@ export function CampaignDetailView({ id }: { id: string }) {
   const [tooltipAd, setTooltipAd]   = useState<any | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const tooltipTimer = useRef<any>(null);
+  const [lifetimeData, setLifetimeData] = useState<any>(null);
+  const [lifetimeLoading, setLifetimeLoading] = useState(false);
 
   const fetchDetail = useCallback(async () => {
     setLoading(true);
@@ -83,6 +85,20 @@ export function CampaignDetailView({ id }: { id: string }) {
   }, [id, dateFrom, dateTo, selectedAdSetId]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
+
+  // Para campanhas pausadas: busca dados lifetime (createdTime → hoje)
+  useEffect(() => {
+    if (!campDetail?.createdTime) return;
+    const isPaused = !['ACTIVE', 'ATIVA'].includes((campDetail.status || '').toUpperCase());
+    if (!isPaused) return;
+    setLifetimeLoading(true);
+    const today = new Date().toISOString().split('T')[0];
+    const start = campDetail.createdTime.split('T')[0];
+    fetch(`/api/meta/campaign/${id}/daily?dateFrom=${start}&dateTo=${today}`)
+      .then(r => r.json())
+      .then(d => { setLifetimeData(d); setLifetimeLoading(false); })
+      .catch(() => setLifetimeLoading(false));
+  }, [campDetail?.createdTime, campDetail?.status, id]);
 
   useEffect(() => {
     if (!campDetail?.name) return;
@@ -403,12 +419,112 @@ export function CampaignDetailView({ id }: { id: string }) {
       </div>
 
 
-      {/* Projeções do Analista */}
+      {/* Projeções do Analista / Overview Campanha */}
       {(() => {
+        const isPaused = !['ACTIVE', 'ATIVA'].includes((campDetail.status || '').toUpperCase());
         const dayCount = Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400_000) + 1);
         const daysActive = campDetail.createdTime
-          ? Math.max(dayCount, Math.round((new Date().getTime() - new Date(campDetail.createdTime).getTime()) / 86400_000) + 1)
+          ? Math.max(1, Math.round((new Date().getTime() - new Date(campDetail.createdTime).getTime()) / 86400_000))
           : dayCount;
+        const resultLabel  = isVendas ? 'Vendas' : 'Leads';
+        const resultColor  = isVendas ? '#22c55e' : GOLD;
+
+        const cardBorder = 'rgba(255,255,255,0.08)';
+        const cardBg     = 'rgba(255,255,255,0.04)';
+
+        const header = (title: string, sub: string, icon: string) => (
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
+              <span className="material-symbols-outlined text-[26px]">{icon}</span>
+            </div>
+            <div>
+              <h3 className="font-headline font-black text-2xl text-white leading-tight">{title}</h3>
+              <p className="text-[10px] font-black uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{sub}</p>
+            </div>
+            {isPaused && (
+              <span className="ml-auto px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}>Pausada</span>
+            )}
+          </div>
+        );
+
+        if (isPaused) {
+          // --- OVERVIEW CAMPANHA (pausada) ---
+          const ltSpend   = lifetimeData?.totalSpend   || 0;
+          const ltResults = lifetimeData?.totalResults || 0;
+          const ltDays    = lifetimeData?.daysWithData  || daysActive;
+          const avgDaily  = ltDays > 0 ? ltSpend / ltDays : 0;
+          const bestDay       = lifetimeData?.bestDay      || null;
+          const bestDayLeads  = lifetimeData?.bestDayLeads || null;
+          const bestDayResult = isVendas ? bestDay : (bestDayLeads || bestDay);
+
+          return (
+            <div className="rounded-[28px] p-8 mb-12" style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.95) 0%, rgba(0,15,40,0.9) 100%)', border: '1px solid rgba(239,68,68,0.2)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+              {header('Overview Campanha', 'Não influenciado pelo período — dados totais de vida', 'history')}
+
+              {lifetimeLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-[3px] border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+                  {/* Gasto médio diário */}
+                  <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[18px]" style={{ color: GOLD }}>today</span>
+                      <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto médio por dia</p>
+                    </div>
+                    <p className="font-headline font-black text-3xl text-white mb-1">{ltSpend > 0 ? R(avgDaily) : R(m.spend / dayCount)}</p>
+                    <p className="text-[10px] font-bold" style={{ color: SILVER }}>
+                      {ltSpend > 0 ? `Baseado em ${ltDays} dias de dados lifetime` : `Baseado no período selecionado (${dayCount} dias)`}
+                    </p>
+                  </div>
+
+                  {/* Dias que rodou */}
+                  <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[18px]" style={{ color: '#38bdf8' }}>event_note</span>
+                      <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Vida da campanha</p>
+                    </div>
+                    <p className="font-headline font-black text-4xl text-white mb-1">{daysActive}</p>
+                    <p className="text-[10px] font-bold mb-3" style={{ color: SILVER }}>dias desde a criação</p>
+                    {campDetail.createdTime && (
+                      <div className="pt-3" style={{ borderTop: `1px solid ${cardBorder}` }}>
+                        <p className="text-[9px] font-bold" style={{ color: SILVER }}>Criada em</p>
+                        <p className="font-black text-white">{D(campDetail.createdTime)}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Melhor dia */}
+                  <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[18px]" style={{ color: resultColor }}>emoji_events</span>
+                      <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Melhor dia de {resultLabel}</p>
+                    </div>
+                    {bestDayResult ? (
+                      <>
+                        <p className="font-headline font-black text-2xl mb-1" style={{ color: resultColor }}>{bestDayResult}</p>
+                        <p className="text-[10px] font-bold" style={{ color: SILVER }}>data com maior volume de {resultLabel.toLowerCase()}</p>
+                        {ltResults > 0 && (
+                          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${cardBorder}` }}>
+                            <p className="text-[9px] font-bold" style={{ color: SILVER }}>Total no período de vida</p>
+                            <p className="font-black text-lg" style={{ color: resultColor }}>{N(ltResults)} {resultLabel}</p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm font-bold" style={{ color: SILVER }}>Sem dados de {resultLabel.toLowerCase()} no lifetime</p>
+                    )}
+                  </div>
+
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // --- PROJEÇÕES (campanha ativa) ---
         const dailySpend   = m.spend / dayCount;
         const imprDay      = (m.impressions || 0) / dayCount;
         const ctrRate      = (m.ctr || 0) / 100;
@@ -418,26 +534,14 @@ export function CampaignDetailView({ id }: { id: string }) {
         const purchR       = m.landingPageViews > 0 ? ((m.purchases || 0) / ((m.landingPageViews || 1) * checkR || 1)) : 0;
         const leadCV       = m.landingPageViews > 0 ? ((m.leads || 0) / (m.landingPageViews || 1)) : 0;
         const dailyResults = isVendas ? lpvDay * checkR * Math.min(purchR, 1) : lpvDay * leadCV;
-        const resultLabel  = isVendas ? 'Vendas' : 'Leads';
-        const resultColor  = isVendas ? '#22c55e' : GOLD;
         const projections  = [{ days: 7, label: '7 dias' }, { days: 14, label: '14 dias' }, { days: 30, label: '30 dias' }];
+
         return (
           <div className="rounded-[28px] p-8 mb-12" style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.95) 0%, rgba(0,15,40,0.9) 100%)', border: `1px solid rgba(232,177,79,0.2)`, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
-                <span className="material-symbols-outlined text-[26px]">monitoring</span>
-              </div>
-              <div>
-                <h3 className="font-headline font-black text-2xl text-white leading-tight">Projeções do Analista</h3>
-                <p className="text-[10px] font-black uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>Baseado no ritmo do período analisado</p>
-              </div>
-            </div>
-
+            {header('Projeções do Analista', 'Baseado no ritmo do período analisado', 'monitoring')}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-              {/* Gasto médio */}
-              <div className="rounded-[20px] p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-[18px]" style={{ color: GOLD }}>today</span>
                   <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto médio por dia</p>
@@ -445,7 +549,7 @@ export function CampaignDetailView({ id }: { id: string }) {
                 <p className="font-headline font-black text-3xl text-white mb-1">{R(dailySpend)}</p>
                 <p className="text-[10px] font-bold mb-4" style={{ color: SILVER }}>Baseado em {dayCount} dias de período</p>
                 {campDetail.createdTime && (
-                  <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div className="pt-3" style={{ borderTop: `1px solid ${cardBorder}` }}>
                     <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>Campanha ativa há</p>
                     <p className="font-black text-white text-lg">{daysActive} dias</p>
                     <p className="text-[9px] font-bold" style={{ color: SILVER }}>desde {D(campDetail.createdTime)}</p>
@@ -453,8 +557,7 @@ export function CampaignDetailView({ id }: { id: string }) {
                 )}
               </div>
 
-              {/* Projeções de Investimento */}
-              <div className="rounded-[20px] p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="material-symbols-outlined text-[18px]" style={{ color: '#38bdf8' }}>trending_up</span>
                   <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento projetado</p>
@@ -467,15 +570,14 @@ export function CampaignDetailView({ id }: { id: string }) {
                         <span className="font-black text-white">{R(dailySpend * p.days)}</span>
                       </div>
                       <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div className="h-full rounded-full" style={{ width: `${Math.min((p.days / 30) * 100, 100)}%`, background: `linear-gradient(to right, rgba(232,177,79,0.8), rgba(232,177,79,0.4))` }} />
+                        <div className="h-full rounded-full" style={{ width: `${Math.min((p.days / 30) * 100, 100)}%`, background: 'linear-gradient(to right, rgba(232,177,79,0.8), rgba(232,177,79,0.4))' }} />
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Projeções de Resultados */}
-              <div className="rounded-[20px] p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
                 <div className="flex items-center gap-2 mb-3">
                   <span className="material-symbols-outlined text-[18px]" style={{ color: resultColor }}>{isVendas ? 'shopping_cart' : 'person_add'}</span>
                   <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{resultLabel} projetadas</p>
