@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCache, setCache, initSDK, mapObjective, parseMetrics, INSIGHT_FIELDS } from '@/app/lib/metaApi';
 import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { getAllRates, getConvertedValue } from '@/app/lib/currency';
 
 export const dynamic         = 'force-dynamic';
 export const runtime         = 'nodejs';
@@ -83,19 +84,24 @@ export async function GET(request: Request) {
     const campaignsInsights = campInsightsRes.data || [];
 
 
-    // ── Deduplicate Hotmart Sales ──
+    // ── Deduplicate Hotmart Sales and Convert Currencies ──
     const uniqueTxIds = new Set();
+    const currencies = hotmartSales.map((s: any) => s.purchase?.price?.currency_code).filter(Boolean);
+    await getAllRates(currencies);
+
     const cleanSales = hotmartSales.filter((s: any) => {
       const txId = s.purchase?.transaction;
       const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(s.purchase?.status);
       if (isApproved && !uniqueTxIds.has(txId)) {
         uniqueTxIds.add(txId);
+        // Injetamos o valor convertido para facilitar no front
+        s.purchase.price.converted_value = getConvertedValue(s.purchase.price.value, s.purchase.price.currency_code);
         return true;
       }
       return false;
     });
 
-    const globalHotmartRevenue = cleanSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.value || 0), 0);
+    const globalHotmartRevenue = cleanSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
     const globalHotmartPurchases = cleanSales.length;
 
     // ── Map Meta Insights ──
@@ -124,11 +130,11 @@ export async function GET(request: Request) {
                          cleanCampaign.includes(cleanProduct) ||
                          campTokens.some(token => cleanProduct.includes(cleanStr(token)));
 
-         if (isMatch) {
-            rev += (s.purchase?.price?.value || 0);
+          if (isMatch) {
+            rev += (s.purchase?.price?.converted_value || 0);
             qty += 1;
             if (!matchedProducts.includes(prodName)) matchedProducts.push(prodName);
-         }
+          }
        });
 
        return { hotmartRevenue: rev, hotmartPurchases: qty, matchedProducts };
