@@ -336,34 +336,58 @@ export function CampaignDetailView({ id }: { id: string }) {
         Conjuntos de Anúncios
       </h3>
       <div className="rounded-3xl overflow-hidden mb-12" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <table className="w-full text-left">
-          <thead style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
-            <tr>
-              <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Conjunto</th>
-              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto</th>
-              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Resultados</th>
-              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>CTR</th>
-              <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Connect</th>
-            </tr>
-          </thead>
-          <tbody>
-            {adSetsLoading
-              ? <tr><td colSpan={5} className="p-8 text-center font-bold animate-pulse" style={{ color: SILVER }}>Carregando conjuntos...</td></tr>
-              : campDetailAdSets.map(as => (
-                <tr key={as.id} onClick={() => setSelectedAdSetId(as.id)}
-                  className="cursor-pointer transition-colors"
-                  style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: selectedAdSetId === as.id ? 'rgba(232,177,79,0.06)' : 'transparent' }}
-                  onMouseEnter={e => { if(selectedAdSetId !== as.id) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = selectedAdSetId === as.id ? 'rgba(232,177,79,0.06)' : 'transparent'; }}>
-                  <td className="py-4 px-6 font-bold text-xs truncate text-white">{as.name}</td>
-                  <td className="py-4 px-4 font-black text-sm text-white">{R(as.spend)}</td>
-                  <td className="py-4 px-4 font-black text-sm text-right" style={{ color: GOLD }}>{isVendas ? N(as.purchases) : N(as.leads)}</td>
-                  <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{P(as.ctr)}</td>
-                  <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{P(as.connectRate)}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)' }}>
+              <tr>
+                <th className="py-4 px-6 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Conjunto</th>
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Gasto</th>
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>CTR</th>
+                <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Connect</th>
+                {isVendas ? (<>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Checkout</th>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Vendas</th>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>CPA</th>
+                </>) : (<>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Leads</th>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>CPL</th>
+                  <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Taxa Conv.</th>
+                </>)}
+              </tr>
+            </thead>
+            <tbody>
+              {adSetsLoading
+                ? <tr><td colSpan={isVendas ? 7 : 7} className="p-8 text-center font-bold animate-pulse" style={{ color: SILVER }}>Carregando conjuntos...</td></tr>
+                : campDetailAdSets.map(as => {
+                    const asCheckR = as.checkoutRate || (as.landingPageViews > 0 ? (as.checkouts / as.landingPageViews * 100) : 0);
+                    const asLeadCV = as.landingPageViews > 0 ? (as.leads / as.landingPageViews * 100) : 0;
+                    const asCPA    = as.spend > 0 && (as.purchases || 0) > 0 ? as.spend / as.purchases : 0;
+                    const asCPL    = as.spend > 0 && (as.leads || 0) > 0    ? as.spend / as.leads    : 0;
+                    return (
+                      <tr key={as.id} onClick={() => setSelectedAdSetId(as.id)}
+                        className="cursor-pointer transition-colors"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: selectedAdSetId === as.id ? 'rgba(232,177,79,0.06)' : 'transparent' }}
+                        onMouseEnter={e => { if(selectedAdSetId !== as.id) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = selectedAdSetId === as.id ? 'rgba(232,177,79,0.06)' : 'transparent'; }}>
+                        <td className="py-4 px-6 font-bold text-xs text-white max-w-[220px] truncate">{as.name}</td>
+                        <td className="py-4 px-4 font-black text-sm text-right text-white">{R(as.spend)}</td>
+                        <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{P(as.ctr)}</td>
+                        <td className="py-4 px-4 font-black text-sm text-right" style={{ color: as.connectRate > 70 ? '#22c55e' : as.connectRate < 50 ? '#ef4444' : SILVER }}>{P(as.connectRate)}</td>
+                        {isVendas ? (<>
+                          <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{P(asCheckR)}</td>
+                          <td className="py-4 px-4 font-black text-sm text-right" style={{ color: GOLD }}>{N(as.purchases || 0)}</td>
+                          <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{asCPA > 0 ? R(asCPA) : '—'}</td>
+                        </>) : (<>
+                          <td className="py-4 px-4 font-black text-sm text-right" style={{ color: GOLD }}>{N(as.leads || 0)}</td>
+                          <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{asCPL > 0 ? R(asCPL) : '—'}</td>
+                          <td className="py-4 px-4 font-black text-sm text-right" style={{ color: SILVER }}>{P(asLeadCV)}</td>
+                        </>)}
+                      </tr>
+                    );
+                  })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <h3 className="font-headline font-bold text-2xl text-white mb-6 flex items-center gap-3">
@@ -378,7 +402,112 @@ export function CampaignDetailView({ id }: { id: string }) {
           ))}
       </div>
 
-      <AdsInsights ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} />
+
+      {/* Projeções do Analista */}
+      {(() => {
+        const dayCount = Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400_000) + 1);
+        const daysActive = campDetail.createdTime
+          ? Math.max(dayCount, Math.round((new Date().getTime() - new Date(campDetail.createdTime).getTime()) / 86400_000) + 1)
+          : dayCount;
+        const dailySpend   = m.spend / dayCount;
+        const imprDay      = (m.impressions || 0) / dayCount;
+        const ctrRate      = (m.ctr || 0) / 100;
+        const connectRate  = (m.connectRate || 0) / 100;
+        const lpvDay       = imprDay * ctrRate * connectRate;
+        const checkR       = (m.checkoutRate || 0) / 100;
+        const purchR       = m.landingPageViews > 0 ? ((m.purchases || 0) / ((m.landingPageViews || 1) * checkR || 1)) : 0;
+        const leadCV       = m.landingPageViews > 0 ? ((m.leads || 0) / (m.landingPageViews || 1)) : 0;
+        const dailyResults = isVendas ? lpvDay * checkR * Math.min(purchR, 1) : lpvDay * leadCV;
+        const resultLabel  = isVendas ? 'Vendas' : 'Leads';
+        const resultColor  = isVendas ? '#22c55e' : GOLD;
+        const projections  = [{ days: 7, label: '7 dias' }, { days: 14, label: '14 dias' }, { days: 30, label: '30 dias' }];
+        return (
+          <div className="rounded-[28px] p-8 mb-12" style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.95) 0%, rgba(0,15,40,0.9) 100%)', border: `1px solid rgba(232,177,79,0.2)`, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
+                <span className="material-symbols-outlined text-[26px]">monitoring</span>
+              </div>
+              <div>
+                <h3 className="font-headline font-black text-2xl text-white leading-tight">Projeções do Analista</h3>
+                <p className="text-[10px] font-black uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>Baseado no ritmo do período analisado</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              {/* Gasto médio */}
+              <div className="rounded-[20px] p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-[18px]" style={{ color: GOLD }}>today</span>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto médio por dia</p>
+                </div>
+                <p className="font-headline font-black text-3xl text-white mb-1">{R(dailySpend)}</p>
+                <p className="text-[10px] font-bold mb-4" style={{ color: SILVER }}>Baseado em {dayCount} dias de período</p>
+                {campDetail.createdTime && (
+                  <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                    <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>Campanha ativa há</p>
+                    <p className="font-black text-white text-lg">{daysActive} dias</p>
+                    <p className="text-[9px] font-bold" style={{ color: SILVER }}>desde {D(campDetail.createdTime)}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Projeções de Investimento */}
+              <div className="rounded-[20px] p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-[18px]" style={{ color: '#38bdf8' }}>trending_up</span>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento projetado</p>
+                </div>
+                <div className="flex flex-col gap-4">
+                  {projections.map(p => (
+                    <div key={p.days}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{p.label}</span>
+                        <span className="font-black text-white">{R(dailySpend * p.days)}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${Math.min((p.days / 30) * 100, 100)}%`, background: `linear-gradient(to right, rgba(232,177,79,0.8), rgba(232,177,79,0.4))` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Projeções de Resultados */}
+              <div className="rounded-[20px] p-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-[18px]" style={{ color: resultColor }}>{isVendas ? 'shopping_cart' : 'person_add'}</span>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{resultLabel} projetadas</p>
+                </div>
+                <div className="text-[9px] font-bold mb-4 p-2 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', color: SILVER }}>
+                  {isVendas
+                    ? `CTR ${P(m.ctr)} × Connect ${P(m.connectRate)} × Checkout ${P(m.checkoutRate || 0)}`
+                    : `CTR ${P(m.ctr)} × Connect ${P(m.connectRate)} × Lead CV ${P(leadCV * 100)}`}
+                </div>
+                <div className="flex flex-col gap-4">
+                  {projections.map(p => {
+                    const proj = Math.round(dailyResults * p.days);
+                    return (
+                      <div key={p.days}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{p.label}</span>
+                          <span className="font-black" style={{ color: resultColor }}>~{N(proj)} {resultLabel}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                          <div className="h-full rounded-full" style={{ width: `${Math.min((p.days / 30) * 100, 100)}%`, background: `linear-gradient(to right, ${resultColor}99, ${resultColor}44)` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
+
       <CampaignPagesSection ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} />
       <CampaignAdsTable ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} onHover={openTooltip} onMove={moveTooltip} onLeave={closeTooltip} />
 
