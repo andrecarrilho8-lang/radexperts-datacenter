@@ -2,6 +2,17 @@
 export const R = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v ?? 0);
 
+export const RF = (v: number, currency: string = 'BRL') => {
+  try {
+    return new Intl.NumberFormat('pt-BR', { 
+      style: 'currency', 
+      currency: (currency || 'BRL').toUpperCase() 
+    }).format(v ?? 0);
+  } catch {
+    return `${(currency || 'BRL').toUpperCase()} ${(v ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  }
+};
+
 export const N = (v: number) => new Intl.NumberFormat('pt-BR').format(v ?? 0);
 
 export const P = (v: number) =>

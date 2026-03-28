@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useDashboard } from '@/app/lib/context';
 import { useDashboardData } from '@/app/lib/hooks';
-import { R, N, D } from '@/app/lib/utils';
+import { R, RF, N, D } from '@/app/lib/utils';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
@@ -70,6 +70,24 @@ export default function HotmartPage() {
     };
   };
 
+  const currentRevenueByCurrency: Record<string, number> = {};
+  filteredSales.forEach((s: any) => {
+    const cur = s.purchase?.price?.currency_code || 'BRL';
+    currentRevenueByCurrency[cur] = (currentRevenueByCurrency[cur] || 0) + (s.purchase?.price?.value || 0);
+  });
+
+  const getCountryName = (code: string) => {
+    if (!code) return '—';
+    try {
+      return new Intl.DisplayNames(['pt-BR'], { type: 'region' }).of(code.toUpperCase()) || code;
+    } catch { return code; }
+  };
+
+  const getFlag = (code: string) => {
+    if (!code) return '';
+    return code.toUpperCase().split('').map(c => String.fromCodePoint(c.charCodeAt(0) + 127397)).join('');
+  };
+
   const cardBorder = 'rgba(255,255,255,0.08)';
 
   return (
@@ -92,23 +110,33 @@ export default function HotmartPage() {
           </div>
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {[
-              { label: 'Faturamento no Período', sub: 'receita bruta · Hotmart', value: R(totalRevenue),    icon: 'payments',      accent: GOLD },
-              { label: 'Número de Vendas',       sub: 'transações confirmadas',  value: N(totalSalesCount), icon: 'shopping_cart', accent: '#22c55e' },
-            ].map(k => (
-              <div key={k.label} style={{ ...glossy, padding: '28px 32px', minHeight: 140 }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {/* Faturamentos per Currency */}
+            {Object.entries(currentRevenueByCurrency).sort(([a], [b]) => a === 'BRL' ? -1 : 1).map(([cur, val]) => (
+              <div key={cur} style={{ ...glossy, padding: '28px 32px', minHeight: 140 }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 40%)', borderRadius: 24 }} />
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-[20px]" style={{ color: k.accent }}>{k.icon}</span>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: k.accent }}>{k.label}</p>
+                    <span className="material-symbols-outlined text-[20px]" style={{ color: GOLD }}>payments</span>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Faturamento {cur}</p>
                   </div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>{k.sub}</p>
-                  <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none">{k.value}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>receita bruta · Hotmart</p>
+                  <p className="font-headline font-black text-4xl text-white tracking-tighter leading-none">{RF(val, cur)}</p>
                 </div>
               </div>
             ))}
+
+            <div style={{ ...glossy, padding: '28px 32px', minHeight: 140 }}>
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 40%)', borderRadius: 24 }} />
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="material-symbols-outlined text-[20px]" style={{ color: '#22c55e' }}>shopping_cart</span>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: '#22c55e' }}>Número de Vendas</p>
+                </div>
+                <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>transações confirmadas</p>
+                <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none">{N(totalSalesCount)}</p>
+              </div>
+            </div>
           </div>
 
           {/* Filtro por Produto */}
@@ -150,7 +178,14 @@ export default function HotmartPage() {
 
             <div className="p-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${cardBorder}` }}>
               <div>
-                <p className="font-black text-white text-base">Vendas Recentes</p>
+                <p className="font-black text-white text-base flex items-center gap-3">
+                  Vendas Recentes
+                  <span className="flex items-center gap-1.5 ml-2 opacity-80 scale-125">
+                    {Array.from(new Set(filteredSales.map(s => s.buyer?.address?.country_iso || s.purchase?.buyer_country || '').filter(Boolean))).map(code => (
+                      <span key={code as string} title={getCountryName(code as string)}>{getFlag(code as string)}</span>
+                    ))}
+                  </span>
+                </p>
                 <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{filteredSales.length} transações no período</p>
               </div>
               <button onClick={() => window.print()}
@@ -164,7 +199,7 @@ export default function HotmartPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
-                    {['Data / Hora', 'Valor', 'Pagamento', 'Cliente', 'Produto'].map((h, i) => (
+                    {['Data / Hora', 'Valor', 'País', 'Pagamento', 'Cliente', 'Produto'].map((h, i) => (
                       <th key={h} className={`py-4 px-6 text-[10px] font-black uppercase tracking-widest ${i === 1 ? 'text-right' : ''}`}
                         style={{ color: SILVER }}>
                         {h}
@@ -180,7 +215,7 @@ export default function HotmartPage() {
                       const paymentMethod = s.purchase?.payment?.type || s.purchase?.payment_type || s.purchase?.payment?.method || '';
                       return (
                         <tr key={idx}
-                          style={{ background: idx % 2 === 0 ? '透明' : 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${cardBorder}` }}
+                          style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${cardBorder}` }}
                           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.04)')}
                           onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}>
                           <td className="py-4 px-6">
@@ -192,7 +227,19 @@ export default function HotmartPage() {
                             </div>
                           </td>
                           <td className="py-4 px-6 text-right">
-                            <span className="font-black text-white text-base" style={{ color: GOLD }}>{R(s.purchase.price.value)}</span>
+                            <span className="font-black text-white text-base" style={{ color: GOLD }}>
+                              {RF(s.purchase.price.value, s.purchase.price.currency_code)}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="flex flex-col">
+                              <span className="text-base" title={getCountryName(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}>
+                                {getFlag(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}
+                              </span>
+                              <span className="text-[10px] font-bold uppercase tracking-tighter" style={{ color: SILVER }}>
+                                {getCountryName(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-4 px-6"><PaymentBadge method={paymentMethod} /></td>
                           <td className="py-4 px-6">
