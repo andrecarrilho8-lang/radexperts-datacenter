@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     // Pega as últimas 50 vendas ignorando filtros (usando 14 dias para evitar invalid_parameter do Hotmart que barra tempos acima de meses)
     const now = Date.now();
     const past = now - (14 * 24 * 60 * 60 * 1000);
-    const url = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}&max_results=50`;
+    const url = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}`;
 
     const resp = await fetch(url, { 
       headers: { 'Authorization': `Bearer ${token}` },
@@ -18,7 +18,12 @@ export async function GET(request: Request) {
     });
 
     if (!resp.ok) {
-      return NextResponse.json({ error: 'Erro ao buscar vendas', status: resp.status, text: await resp.text() });
+      return NextResponse.json({ 
+        error: 'Erro ao buscar vendas', 
+        status: resp.status, 
+        text: await resp.text(),
+        debug_url: url
+      });
     }
 
     const data = await resp.json();

@@ -77,7 +77,7 @@ export async function fetchHotmartSales(startDate: string, endDate: string, cust
       let pageToken = '';
       try {
         do {
-          const url = `${HOTMART_API_BASE}/sales/history?start_date=${chunk.start}&end_date=${chunk.end}${pageToken ? `&page_token=${pageToken}` : ''}&max_results=100`;
+          const url = `${HOTMART_API_BASE}/sales/history?start_date=${chunk.start}&end_date=${chunk.end}${pageToken ? `&page_token=${pageToken}` : ''}`;
           const resp = await fetch(url, { 
             headers: { 'Authorization': `Bearer ${token}` },
             cache: 'no-store'
