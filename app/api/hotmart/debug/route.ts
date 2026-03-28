@@ -4,55 +4,48 @@ const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
 const HOTMART_API_BASE = 'https://developers.hotmart.com/payments/api/v1';
 
 export async function GET() {
-  const clientId     = process.env.HOTMART_CLIENT_ID;
-  const clientSecret = process.env.HOTMART_CLIENT_SECRET;
-  const basicToken   = process.env.HOTMART_BASIC_TOKEN;
+  try {
+    const clientId     = process.env.HOTMART_CLIENT_ID     || '';
+    const clientSecret = process.env.HOTMART_CLIENT_SECRET || '';
+    const basicToken   = process.env.HOTMART_BASIC_TOKEN   || '';
+    const authHeader   = basicToken.startsWith('Basic ') ? basicToken : `Basic ${basicToken}`;
 
-  const authHeaderValue = (basicToken || '').startsWith('Basic ') ? basicToken! : `Basic ${basicToken}`;
+    // 1. Auth
+    const authResp = await fetch(
+      `${HOTMART_AUTH_URL}?grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': authHeader }, cache: 'no-store' }
+    );
+    const authData = await authResp.json() as any;
+    if (!authData.access_token) return NextResponse.json({ step: 'auth_failed', raw: authData });
+    const token = authData.access_token as string;
 
-  // Get token
-  const authResp = await fetch(
-    `${HOTMART_AUTH_URL}?grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': authHeaderValue }, cache: 'no-store' }
-  );
-  const authData = await authResp.json();
-  const token = authData.access_token;
-  if (!token) return NextResponse.json({ step: 'auth_failed', raw: authData });
+    const headers = { 'Authorization': `Bearer ${token}` };
+    const now  = Date.now();
+    const past = now - (7 * 24 * 60 * 60 * 1000);
 
-  const headers = { 'Authorization': `Bearer ${token}` };
+    // 2. Tenta /sales/history simples
+    const url1 = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}`;
+    const r1   = await fetch(url1, { headers, cache: 'no-store' });
+    const d1   = await r1.text();
 
-  // Step A: busca lista de produtos da conta
-  const productsResp = await fetch('https://developers.hotmart.com/product/api/v1/products', 
-    { headers, cache: 'no-store' }
-  );
-  const productsData = await productsResp.json();
-  const productIds: number[] = (productsData.items || []).map((p: any) => p.id);
+    // 3. Tenta /sales/summary
+    const url2 = `${HOTMART_API_BASE}/sales/summary?start_date=${past}&end_date=${now}`;
+    const r2   = await fetch(url2, { headers, cache: 'no-store' });
+    const d2   = await r2.text();
 
-  // Step B: tenta sales/history sem product_id
-  const now  = Date.now();
-  const past = now - (7 * 24 * 60 * 60 * 1000);
+    // 4. Tenta sem datas (últimas vendas)
+    const url3 = `${HOTMART_API_BASE}/sales/history`;
+    const r3   = await fetch(url3, { headers, cache: 'no-store' });
+    const d3   = await r3.text();
 
-  const noFilterUrl = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}`;
-  const noFilterResp = await fetch(noFilterUrl, { headers, cache: 'no-store' });
-  const noFilterStatus = noFilterResp.status;
-  const noFilterData   = noFilterResp.ok ? await noFilterResp.json() : await noFilterResp.text();
+    return NextResponse.json({
+      token_ok: true,
+      test1_with_dates:    { status: r1.status, url: url1, body: d1.substring(0, 500) },
+      test2_summary:       { status: r2.status, url: url2, body: d2.substring(0, 500) },
+      test3_no_dates:      { status: r3.status, url: url3, body: d3.substring(0, 500) },
+    });
 
-  // Step C: se tiver produto, tenta com o primeiro product_id  
-  let withProductStatus = null;
-  let withProductData  = null;
-  let withProductUrl   = null;
-  if (productIds.length > 0) {
-    withProductUrl  = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}&product_id=${productIds[0]}`;
-    const wpResp    = await fetch(withProductUrl, { headers, cache: 'no-store' });
-    withProductStatus = wpResp.status;
-    withProductData   = wpResp.ok ? await wpResp.json() : await wpResp.text();
+  } catch (e: any) {
+    return NextResponse.json({ crashed: true, error: e.message });
   }
-
-  return NextResponse.json({
-    token_ok: true,
-    products_endpoint_status: productsResp.status,
-    product_ids_found: productIds,
-    test_no_filter: { status: noFilterStatus, url: noFilterUrl, data: noFilterData },
-    test_with_product_id: { status: withProductStatus, url: withProductUrl, data: withProductData },
-  });
 }
