@@ -44,7 +44,8 @@ export async function getHotmartToken() {
 
   const resp = await fetch(`${HOTMART_AUTH_URL}?grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': authHeaderValue }
+    headers: { 'Content-Type': 'application/json', 'Authorization': authHeaderValue },
+    cache: 'no-store'
   });
 
   if (!resp.ok) throw new Error(`Erro Hotmart Auth: ${resp.status}`);
@@ -80,7 +81,10 @@ export async function fetchHotmartSales(startDate: string, endDate: string, cust
       try {
         do {
           const url = `${HOTMART_API_BASE}/sales/history?start_date=${chunk.start}&end_date=${chunk.end}${pageToken ? `&page_token=${pageToken}` : ''}&max_results=100`;
-          const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+          const resp = await fetch(url, { 
+            headers: { 'Authorization': `Bearer ${token}` },
+            cache: 'no-store'
+          });
           if (!resp.ok) break;
           const data = await resp.json() as any;
           if (data.items) chunkItems = [...chunkItems, ...data.items.filter((it: any) => isOfficialProduct(it.product))];
