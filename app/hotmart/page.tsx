@@ -113,21 +113,41 @@ export default function HotmartPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <div style={{ ...glossy, padding: '28px 32px', minHeight: 140 }} className="lg:col-span-2">
               <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 40%)', borderRadius: 24 }} />
-              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+                {/* BRL principal */}
+                <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="material-symbols-outlined text-[20px]" style={{ color: GOLD }}>payments</span>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Faturamento Total (BRL)</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Faturamento BRL</p>
                   </div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>receita bruta total convertida · Hotmart</p>
-                  <p className="font-headline font-black text-6xl text-white tracking-tighter leading-none">{R(filteredSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || s.purchase?.price?.value || 0), 0))}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>receita bruta em reais · Hotmart</p>
+                  <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none">
+                    {R(filteredSales.filter(s => (s.purchase?.price?.currency_code || 'BRL') === 'BRL').reduce((acc: number, s: any) => acc + (s.purchase?.price?.value || 0), 0))}
+                  </p>
                 </div>
-                <div className="flex flex-col gap-1 items-end">
+
+                {/* Vertical Divider */}
+                <div className="hidden md:block w-px h-16" style={{ background: 'rgba(255,255,255,0.1)' }} />
+
+                {/* Outras moedas convertidas */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="material-symbols-outlined text-[20px]" style={{ color: '#38bdf8' }}>currency_exchange</span>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: '#38bdf8' }}>Internacional (Convertido)</p>
+                  </div>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>estimativa em BRL · demais moedas</p>
+                  <p className="font-headline font-black text-4xl text-white tracking-tighter leading-none">
+                    {R(filteredSales.filter(s => (s.purchase?.price?.currency_code || 'BRL') !== 'BRL').reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0))}
+                  </p>
+                </div>
+
+                {/* Vendas Count */}
+                <div className="flex flex-col gap-1 items-end min-w-[120px]">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="material-symbols-outlined text-[18px]" style={{ color: '#22c55e' }}>shopping_cart</span>
-                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#22c55e' }}>Número de Vendas</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#22c55e' }}>Vendas</p>
                   </div>
-                  <p className="font-headline font-black text-4xl text-white">{N(totalSalesCount)}</p>
+                  <p className="font-headline font-black text-5xl text-white mr-1">{N(totalSalesCount)}</p>
                 </div>
               </div>
             </div>
@@ -145,6 +165,7 @@ export default function HotmartPage() {
                       <tr className="border-b border-white/5">
                         <th className="text-left pb-2">Moeda/País</th>
                         <th className="text-right pb-2">Vendas</th>
+                        <th className="text-right pb-2">Original</th>
                         <th className="text-right pb-2">Convertido</th>
                       </tr>
                     </thead>
@@ -153,7 +174,6 @@ export default function HotmartPage() {
                         .filter(([cur]) => cur !== 'BRL')
                         .sort(([,a], [,b]) => b - a)
                         .map(([cur, val]) => {
-                          // Pegamos o primeiro país que usou essa moeda para a bandeira
                           const firstSale = filteredSales.find((s: any) => s.purchase.price.currency_code === cur);
                           const cCode = firstSale?.buyer?.address?.country_iso || firstSale?.purchase?.buyer_country || '';
                           const converted = filteredSales
@@ -162,15 +182,13 @@ export default function HotmartPage() {
                           
                           return (
                             <tr key={cur} className="border-b border-white/5 last:border-0">
-                              <td className="py-2.5 flex items-center gap-2">
-                                <span className="text-base">{getFlag(cCode)}</span>
-                                <div className="flex flex-col">
-                                   <span className="uppercase">{cur}</span>
-                                   <span className="text-[7px] text-white/40 truncate max-w-[60px]">{getCountryName(cCode)}</span>
-                                </div>
+                              <td className="py-2 flex items-center gap-1.5">
+                                <span className="text-sm">{getFlag(cCode)}</span>
+                                <span className="uppercase">{cur}</span>
                               </td>
-                              <td className="py-2.5 text-right font-black">{filteredSales.filter((s: any) => s.purchase.price.currency_code === cur).length}</td>
-                              <td className="py-2.5 text-right font-black" style={{ color: GOLD }}>{R(converted)}</td>
+                              <td className="py-2 text-right font-black">{filteredSales.filter((s: any) => s.purchase.price.currency_code === cur).length}</td>
+                              <td className="py-2 text-right font-black text-[9px]">{RF(val, cur)}</td>
+                              <td className="py-2 text-right font-black" style={{ color: GOLD }}>{R(converted)}</td>
                             </tr>
                           );
                         })}
@@ -241,9 +259,9 @@ export default function HotmartPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
-                    {['Data / Hora', 'Valor Original', 'Conversão BRL', 'País', 'Pagamento', 'Cliente', 'Produto'].map((h, i) => (
-                      <th key={h} className={`py-4 px-6 text-[10px] font-black uppercase tracking-widest ${i === 1 || i === 2 ? 'text-right' : ''}`}
-                        style={{ color: SILVER }}>
+                    {['Data / Hora', 'Faturamento', 'País', 'Pagamento', 'Cliente', 'Produto'].map((h, i) => (
+                      <th key={h} className={`py-4 px-6 text-[10px] font-black uppercase tracking-widest ${i === 1 ? 'text-right' : ''}`}
+                        style={{ color: SILVER, width: i === 4 ? '240px' : i === 5 ? '180px' : 'auto' }}>
                         {h}
                       </th>
                     ))}
@@ -269,21 +287,23 @@ export default function HotmartPage() {
                             </div>
                           </td>
                           <td className="py-4 px-6 text-right">
-                            <span className="font-black text-white text-sm" style={{ color: SILVER }}>
-                              {RF(s.purchase.price.value, s.purchase.price.currency_code)}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6 text-right">
-                            <span className="font-black text-white text-base" style={{ color: GOLD }}>
-                              {R(s.purchase.price.converted_value || s.purchase.price.value)}
-                            </span>
+                            <div className="flex flex-col items-end">
+                              <span className="font-headline font-black text-white text-lg" style={{ color: GOLD }}>
+                                {R(s.purchase.price.converted_value || s.purchase.price.value)}
+                              </span>
+                              {s.purchase.price.currency_code !== 'BRL' && (
+                                <span className="text-[9px] font-bold opacity-60" style={{ color: SILVER }}>
+                                  ({RF(s.purchase.price.value, s.purchase.price.currency_code)})
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6">
                             <div className="flex flex-col items-center">
-                              <span className="text-2xl" title={getCountryName(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}>
+                              <span className="text-3xl" title={getCountryName(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}>
                                 {getFlag(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}
                               </span>
-                              <span className="text-[8px] font-black uppercase tracking-tighter" style={{ color: SILVER }}>
+                              <span className="text-[10px] font-black uppercase" style={{ color: SILVER }}>
                                 {getCountryName(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}
                               </span>
                             </div>
@@ -291,19 +311,19 @@ export default function HotmartPage() {
                           <td className="py-4 px-6"><PaymentBadge method={paymentMethod} /></td>
                           <td className="py-4 px-6">
                             <div className="flex flex-col">
-                              <span className="text-sm font-black text-white truncate max-w-[120px]">{s.buyer.name}</span>
-                              <span className="text-[10px] font-bold" style={{ color: SILVER }}>{s.buyer.email}</span>
+                              <span className="text-sm font-black text-white leading-tight">{s.buyer.name}</span>
+                              <span className="text-[10px] font-bold truncate max-w-[150px]" style={{ color: SILVER }}>{s.buyer.email}</span>
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            <span className="text-[11px] font-black uppercase tracking-tight" style={{ color: SILVER }}>{s.product.name}</span>
+                            <span className="text-[11px] font-black uppercase tracking-tight whitespace-normal leading-4 block max-w-[200px]" style={{ color: SILVER }}>{s.product.name}</span>
                           </td>
                         </tr>
                       );
                     })}
                   {filteredSales.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-16 text-center font-bold uppercase text-[11px] tracking-widest" style={{ color: SILVER }}>
+                      <td colSpan={6} className="py-16 text-center font-bold uppercase text-[11px] tracking-widest" style={{ color: SILVER }}>
                         Nenhuma venda encontrada no período
                       </td>
                     </tr>
