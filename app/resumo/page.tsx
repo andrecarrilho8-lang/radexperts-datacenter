@@ -80,27 +80,28 @@ export default function ResumoPage() {
     <LoginWrapper>
       <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: NAVY }}>
 
-      {/* BG separado: filter aplicado via scroll listener sem afetar conteúdo */}
-      <div ref={bgRef} style={{
-        position: 'absolute',
-        top: 0, left: 0, right: 0,
-        height: '110vw',
-        backgroundImage: 'url(/rad.jpg)',
-        backgroundSize: '100% auto',
-        backgroundPosition: 'top center',
-        backgroundRepeat: 'no-repeat',
-        pointerEvents: 'none',
-        zIndex: 0,
-        transition: 'filter 0.08s linear',
-      }} />
-      {/* Overlay escuro semitransparente */}
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)', pointerEvents: 'none', zIndex: 0 }} />
-      {/* Gradiente dissolve para navy */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: '110vw',
-        background: `linear-gradient(to bottom, transparent 50%, ${NAVY} 88%)`,
-        pointerEvents: 'none', zIndex: 0,
-      }} />
+        {/* BG em fluxo normal → rola com a página */}
+        <div ref={bgRef} style={{
+          position: 'relative',
+          width: '100%',
+          height: '110vw',
+          marginBottom: '-110vw',      /* puxa o conteúdo para cima, sobrepondo a imagem */
+          backgroundImage: 'url(/rad.jpg)',
+          backgroundSize: '100% auto',
+          backgroundPosition: 'top center',
+          backgroundRepeat: 'no-repeat',
+          transition: 'filter 0.08s linear',
+          zIndex: 0,
+        }}>
+          {/* Overlay escuro semitransparente */}
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)', pointerEvents: 'none' }} />
+          {/* Gradiente dissolve para navy */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(to bottom, transparent 50%, ${NAVY} 88%)`,
+            pointerEvents: 'none',
+          }} />
+        </div>
 
         {/* Conteúdo em fluxo normal — fica POR CIMA da imagem */}
         <div style={{ position: 'relative', zIndex: 1 }}>
