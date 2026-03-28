@@ -1,47 +1,65 @@
 import { NextResponse } from 'next/server';
-import { getHotmartToken, isOfficialProduct } from '@/app/lib/hotmartApi';
 
-export async function GET(request: Request) {
-  try {
-    const token = await getHotmartToken();
-    const HOTMART_API_BASE = 'https://developers.hotmart.com/payments/api/v1';
+const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
+const HOTMART_API_BASE = 'https://developers.hotmart.com/payments/api/v1';
 
-    // Pega as últimas 50 vendas ignorando filtros
-    // Pega as últimas 50 vendas ignorando filtros (usando 14 dias para evitar invalid_parameter do Hotmart que barra tempos acima de meses)
-    const now = Date.now();
-    const past = now - (14 * 24 * 60 * 60 * 1000);
-    const url = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}&transaction_status=APPROVED&transaction_status=COMPLETE`;
+export async function GET() {
+  const clientId     = process.env.HOTMART_CLIENT_ID;
+  const clientSecret = process.env.HOTMART_CLIENT_SECRET;
+  const basicToken   = process.env.HOTMART_BASIC_TOKEN;
 
-    const resp = await fetch(url, { 
-      headers: { 'Authorization': `Bearer ${token}` },
-      cache: 'no-store'
-    });
-
-    if (!resp.ok) {
-      return NextResponse.json({ 
-        error: 'Erro ao buscar vendas', 
-        status: resp.status, 
-        text: await resp.text(),
-        debug_url: url
-      });
-    }
-
-    const data = await resp.json();
-    const items = data.items || [];
-
-    const productsFound = Array.from(new Set(items.map((i: any) => i.product?.name)));
-    const productsMatched = productsFound.filter((name: any) => isOfficialProduct({ id: 0, name: String(name) }));
-
+  // 1. Check credentials exist
+  if (!clientId || !clientSecret || !basicToken) {
     return NextResponse.json({
-      success: true,
-      total_sales_30d: items.length,
-      token_used: token.substring(0, 10) + '...',
-      all_products_found: productsFound,
-      products_matched_by_filter: productsMatched,
-      sample_sales: items.slice(0, 2)
+      step: 'credentials_check',
+      error: 'Missing credentials',
+      clientId: !!clientId,
+      clientSecret: !!clientSecret,
+      basicToken: !!basicToken,
     });
-
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message });
   }
+
+  const authHeaderValue = basicToken.startsWith('Basic ') ? basicToken : `Basic ${basicToken}`;
+
+  // 2. Get token
+  let token: string;
+  try {
+    const authResp = await fetch(
+      `${HOTMART_AUTH_URL}?grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': authHeaderValue }, cache: 'no-store' }
+    );
+    const authData = await authResp.json();
+    if (!authData.access_token) {
+      return NextResponse.json({ step: 'auth', error: 'No token returned', raw: authData });
+    }
+    token = authData.access_token;
+  } catch (e: any) {
+    return NextResponse.json({ step: 'auth', error: e.message });
+  }
+
+  // 3. Fetch sales – simplest possible request (no extra params)
+  const now  = Date.now();
+  const past = now - (7 * 24 * 60 * 60 * 1000); // 7 days only
+  const url  = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}`;
+
+  const resp = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` },
+    cache: 'no-store'
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    return NextResponse.json({ step: 'sales_fetch', status: resp.status, text, url });
+  }
+
+  const data  = await resp.json();
+  const items = data.items || [];
+  const products = [...new Set(items.map((i: any) => i.product?.name as string))];
+
+  return NextResponse.json({
+    success: true,
+    total_results: data.page_info?.total_results,
+    fetched: items.length,
+    products_found: products,
+  });
 }
