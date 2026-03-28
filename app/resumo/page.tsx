@@ -78,7 +78,7 @@ export default function ResumoPage() {
 
   return (
     <LoginWrapper>
-      <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: NAVY }}>
+      <div style={{ position: 'relative', minHeight: '100vh' }}>
 
         {/* BG fixo no viewport — o conteúdo passa por cima ao scrollar */}
         <div ref={bgRef} style={{

@@ -50,7 +50,7 @@ export default function HistoricoPage() {
 
   return (
     <LoginWrapper>
-      <div className="min-h-screen pb-20" style={{ backgroundColor: NAVY }}>
+      <div className="min-h-screen pb-20">
         <Navbar />
         <div className="h-[80px]" />
         <main className="px-6 max-w-[1600px] mx-auto pt-10">

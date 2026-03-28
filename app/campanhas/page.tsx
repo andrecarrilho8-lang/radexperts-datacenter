@@ -62,7 +62,7 @@ export default function CampanhasPage() {
 
   return (
     <LoginWrapper>
-      <div style={{ minHeight: '100vh', background: NAVY }}>
+      <div style={{ minHeight: '100vh' }}>
         <Navbar />
         <div className="h-[80px]" />
         <main className="px-6 max-w-[1600px] mx-auto pt-10 pb-24">
