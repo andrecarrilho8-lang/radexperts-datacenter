@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic         = 'force-dynamic';
+export const runtime         = 'nodejs';
+export const preferredRegion = 'gru1'; // São Paulo, Brasil — necessário para acessar API da Hotmart
 
 const HOTMART_AUTH_URL  = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
 const HOTMART_API_BASE  = 'https://developers.hotmart.com/payments/api/v1';

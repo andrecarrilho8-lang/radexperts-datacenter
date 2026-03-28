@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { getCache, setCache, initSDK, mapObjective, parseMetrics, INSIGHT_FIELDS } from '@/app/lib/metaApi';
 import { fetchHotmartSales } from '@/app/lib/hotmartApi';
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+export const dynamic         = 'force-dynamic';
+export const runtime         = 'nodejs';
+export const preferredRegion = 'gru1'; // São Paulo, Brasil — necessário para acessar API da Hotmart
 
 function cleanStr(s: string) {
   return (s || '').toLowerCase()
