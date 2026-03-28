@@ -66,6 +66,10 @@ export async function GET() {
       hotmart_error    : salesData?.error || null,
       client_id_first8 : clientId.substring(0, 8),
       token_first8     : token.substring(0, 8),
+      // Debug completo para identificar campos de país
+      sample_item_full : salesData?.items?.[0] || null,
+      sample_buyer     : salesData?.items?.[0]?.buyer || null,
+      sample_purchase  : salesData?.items?.[0]?.purchase || null,
     });
 
   } catch (e: any) {
