@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { getCache, setCache, initSDK, mapObjective, parseMetrics, INSIGHT_FIELDS } from '@/app/lib/metaApi';
 import { fetchHotmartSales } from '@/app/lib/hotmartApi';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 function cleanStr(s: string) {
   return (s || '').toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
