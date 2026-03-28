@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCache, setCache, initSDK, mapObjective, parseMetrics, INSIGHT_FIELDS } from '@/app/lib/metaApi';
 import { fetchHotmartSales } from '@/app/lib/hotmartApi';
-import { getAllRates, getConvertedValue } from '@/app/lib/currency';
+import { getAllRates, getConvertedValue, convertToBRLOnDate } from '@/app/lib/currency';
 
 export const dynamic         = 'force-dynamic';
 export const runtime         = 'nodejs';
@@ -84,24 +84,42 @@ export async function GET(request: Request) {
     const campaignsInsights = campInsightsRes.data || [];
 
 
-    // ── Deduplicate Hotmart Sales and Convert Currencies ──
+    // ── Deduplicate Hotmart Sales and Convert Currencies per sale date ──
     const uniqueTxIds = new Set();
-    const currencies = hotmartSales.map((s: any) => s.purchase?.price?.currency_code).filter(Boolean);
-    await getAllRates(currencies);
+    const foreignSales = hotmartSales.filter((s: any) => {
+      const txId = s.purchase?.transaction;
+      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(s.purchase?.status);
+      const isNew = !uniqueTxIds.has(txId);
+      if (isApproved && isNew) { uniqueTxIds.add(txId); return true; }
+      return false;
+    }).filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') !== 'BRL');
 
+    // Convert each foreign sale by its historical rate
+    await Promise.all(foreignSales.map(async (s: any) => {
+      const dateIso = s.purchase?.order_date
+        ? new Date(s.purchase.order_date).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+      s.purchase.price.converted_value = await convertToBRLOnDate(
+        s.purchase.price.value, s.purchase.price.currency_code, dateIso
+      );
+    }));
+
+    // BRL sales keep converted_value = value
+    const uniqueTxIds2 = new Set();
     const cleanSales = hotmartSales.filter((s: any) => {
       const txId = s.purchase?.transaction;
       const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(s.purchase?.status);
-      if (isApproved && !uniqueTxIds.has(txId)) {
-        uniqueTxIds.add(txId);
-        // Injetamos o valor convertido para facilitar no front
-        s.purchase.price.converted_value = getConvertedValue(s.purchase.price.value, s.purchase.price.currency_code);
+      if (isApproved && !uniqueTxIds2.has(txId)) {
+        uniqueTxIds2.add(txId);
+        if ((s.purchase?.price?.currency_code || 'BRL') === 'BRL') {
+          s.purchase.price.converted_value = s.purchase.price.value;
+        }
         return true;
       }
       return false;
     });
 
-    const globalHotmartRevenue = cleanSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
+    const globalHotmartRevenue = cleanSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || s.purchase?.price?.value || 0), 0);
     const globalHotmartPurchases = cleanSales.length;
 
     // ── Map Meta Insights ──

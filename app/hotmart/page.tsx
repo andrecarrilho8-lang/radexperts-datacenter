@@ -259,12 +259,12 @@ export default function HotmartPage() {
               <table className="w-full text-left">
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
-                    {['Data / Hora', 'Faturamento', 'País', 'Pagamento', 'Cliente', 'Produto'].map((h, i) => (
-                      <th key={h} className={`py-4 px-6 text-[10px] font-black uppercase tracking-widest ${i === 1 ? 'text-right' : ''}`}
-                        style={{ color: SILVER, width: i === 4 ? '240px' : i === 5 ? '180px' : 'auto' }}>
-                        {h}
-                      </th>
-                    ))}
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '110px' }}>Data / Hora</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, minWidth: '150px' }}>Faturamento</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '120px' }}>País</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '120px' }}>Pagamento</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '220px' }}>Cliente</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '160px' }}>Produto</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -278,7 +278,7 @@ export default function HotmartPage() {
                           style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${cardBorder}` }}
                           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.04)')}
                           onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}>
-                          <td className="py-4 px-6">
+                          <td className="py-3 px-4">
                             <div className="flex flex-col">
                               <span className="text-sm font-black text-white">{dt.date}</span>
                               <span className="text-[10px] font-bold mt-0.5 flex items-center gap-1" style={{ color: SILVER }}>
@@ -286,37 +286,47 @@ export default function HotmartPage() {
                               </span>
                             </div>
                           </td>
-                          <td className="py-4 px-6 text-right">
+                          <td className="py-3 px-4 text-right">
                             <div className="flex flex-col items-end">
-                              <span className="font-headline font-black text-white text-lg" style={{ color: GOLD }}>
+                              <span className="font-headline font-black text-white text-xl" style={{ color: GOLD }}>
                                 {R(s.purchase.price.converted_value || s.purchase.price.value)}
                               </span>
-                              {s.purchase.price.currency_code !== 'BRL' && (
-                                <span className="text-[9px] font-bold opacity-60" style={{ color: SILVER }}>
-                                  ({RF(s.purchase.price.value, s.purchase.price.currency_code)})
+                              {(s.purchase.price.currency_code || 'BRL') !== 'BRL' && (
+                                <span className="text-[12px] font-bold mt-0.5" style={{ color: SILVER }}>
+                                  {RF(s.purchase.price.value, s.purchase.price.currency_code)}
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="py-4 px-6">
-                            <div className="flex flex-col items-center">
-                              <span className="text-3xl" title={getCountryName(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}>
-                                {getFlag(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}
-                              </span>
-                              <span className="text-[10px] font-black uppercase" style={{ color: SILVER }}>
-                                {getCountryName(s.buyer?.address?.country_iso || s.purchase?.buyer_country || '')}
-                              </span>
-                            </div>
+                          <td className="py-3 px-4">
+                            {(() => {
+                              // Tenta todos os campos que Hotmart pode retornar para país
+                              const cCode =
+                                s.buyer?.address?.country_iso ||
+                                s.buyer?.address?.country ||
+                                s.purchase?.buyer_country ||
+                                s.purchase?.payment?.origin_country ||
+                                s.subscriber?.address?.country_iso ||
+                                '';
+                              return (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-3xl">{getFlag(cCode)}</span>
+                                  <span className="text-[10px] font-black uppercase text-center leading-tight" style={{ color: SILVER }}>
+                                    {getCountryName(cCode)}
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </td>
-                          <td className="py-4 px-6"><PaymentBadge method={paymentMethod} /></td>
-                          <td className="py-4 px-6">
+                          <td className="py-3 px-4"><PaymentBadge method={paymentMethod} /></td>
+                          <td className="py-3 px-4">
                             <div className="flex flex-col">
                               <span className="text-sm font-black text-white leading-tight">{s.buyer.name}</span>
-                              <span className="text-[10px] font-bold truncate max-w-[150px]" style={{ color: SILVER }}>{s.buyer.email}</span>
+                              <span className="text-[10px] font-bold" style={{ color: SILVER }}>{s.buyer.email}</span>
                             </div>
                           </td>
-                          <td className="py-4 px-6">
-                            <span className="text-[11px] font-black uppercase tracking-tight whitespace-normal leading-4 block max-w-[200px]" style={{ color: SILVER }}>{s.product.name}</span>
+                          <td className="py-3 px-4">
+                            <span className="text-[11px] font-black uppercase tracking-tight whitespace-normal leading-4 block" style={{ color: SILVER }}>{s.product.name}</span>
                           </td>
                         </tr>
                       );
