@@ -335,6 +335,22 @@ export default function HotmartPage() {
                                   {RF(s.purchase.price.value, s.purchase.price.currency_code)}
                                 </span>
                               )}
+                              {(() => {
+                                const n = s.purchase?.payment?.installments_number || 1;
+                                const curr = s.purchase?.payment?.installments_current;
+                                if (n > 1) {
+                                  return (
+                                    <span className="text-[10px] font-black mt-1 px-2 py-0.5 rounded-md" style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                                      {curr ? `Parcela ${curr}/${n}` : `${n}× parcelado`}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="text-[10px] font-black mt-1 px-2 py-0.5 rounded-md" style={{ background: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
+                                    Pgto. Único
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </td>
                           <td className="py-3 px-4"><PaymentBadge method={paymentMethod} /></td>
