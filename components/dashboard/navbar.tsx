@@ -86,6 +86,8 @@ export function Navbar() {
                     color: isActive ? GOLD : SILVER,
                     background: isActive ? 'rgba(232,177,79,0.07)' : 'transparent',
                   }}
+                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
                 >
                   {item.label}
                   {isActive && (

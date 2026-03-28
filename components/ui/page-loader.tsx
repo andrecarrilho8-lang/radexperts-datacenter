@@ -60,8 +60,8 @@ export function PageLoader() {
         className="fixed top-0 left-0 z-[99999] h-[8px]"
         style={{
           width: `${progress}%`,
-          background: 'linear-gradient(90deg, #7c3aed, #6366f1, #a78bfa)',
-          boxShadow: '0 0 18px rgba(124, 58, 237, 0.85)',
+          background: 'linear-gradient(90deg, #c8922a, #E8B14F, #f0c76a)',
+          boxShadow: '0 0 18px rgba(232,177,79,0.85)',
           opacity: visible ? 1 : 0,
           transitionProperty: 'width, opacity',
           transitionDuration: '0.25s, 0.35s',
@@ -72,18 +72,19 @@ export function PageLoader() {
 
       {/* Spinner badge */}
       {loading && progress < 90 && (
-        <div className="fixed top-5 right-6 z-[99995] flex items-center gap-2 bg-white/90 backdrop-blur-md border border-slate-100 shadow-xl rounded-full px-4 py-2 animate-in fade-in slide-in-from-top-2 duration-300">
-          <svg className="w-3.5 h-3.5 animate-spin text-violet-600" fill="none" viewBox="0 0 24 24">
+        <div className="fixed top-5 right-6 z-[99995] flex items-center gap-2 backdrop-blur-md shadow-xl rounded-full px-4 py-2 animate-in fade-in slide-in-from-top-2 duration-300"
+          style={{ background: 'rgba(0,26,53,0.95)', border: '1px solid rgba(232,177,79,0.3)', boxShadow: '0 4px 24px rgba(232,177,79,0.2)' }}>
+          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" style={{ color: '#E8B14F' }}>
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
           </svg>
-          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Carregando</span>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#A8B2C0' }}>Carregando</span>
           <div className="flex gap-0.5">
             {[0, 1, 2].map(i => (
               <span
                 key={i}
-                className="w-1 h-1 rounded-full bg-violet-500"
-                style={{ animation: `pgdot 0.8s ${i * 0.15}s infinite` }}
+                className="w-1 h-1 rounded-full"
+                style={{ background: '#E8B14F', animation: `pgdot 0.8s ${i * 0.15}s infinite` }}
               />
             ))}
           </div>
