@@ -76,6 +76,7 @@ export default function HotmartPage() {
     currentRevenueByCurrency[cur] = (currentRevenueByCurrency[cur] || 0) + (s.purchase?.price?.value || 0);
   });
 
+  // Usado no painel LATAM para exibir de qual moeda/região vêm as vendas
   const getCountryName = (code: string) => {
     if (!code) return '—';
     try {
@@ -85,7 +86,7 @@ export default function HotmartPage() {
 
   const getFlag = (code: string) => {
     if (!code) return '';
-    return code.toUpperCase().split('').map(c => String.fromCodePoint(c.charCodeAt(0) + 127397)).join('');
+    return code.toUpperCase().split('').map((c: string) => String.fromCodePoint(c.charCodeAt(0) + 127397)).join('');
   };
 
   const cardBorder = 'rgba(255,255,255,0.08)';
@@ -238,14 +239,7 @@ export default function HotmartPage() {
 
             <div className="p-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${cardBorder}` }}>
               <div>
-                <p className="font-black text-white text-base flex items-center gap-3">
-                  Vendas Recentes
-                  <span className="flex items-center gap-1.5 ml-2 opacity-80 scale-125">
-                    {Array.from(new Set(filteredSales.map(s => s.buyer?.address?.country_iso || s.purchase?.buyer_country || '').filter(Boolean))).map(code => (
-                      <span key={code as string} title={getCountryName(code as string)}>{getFlag(code as string)}</span>
-                    ))}
-                  </span>
-                </p>
+                <p className="font-black text-white text-base">Vendas Recentes</p>
                 <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{filteredSales.length} transações no período</p>
               </div>
               <button onClick={() => window.print()}
@@ -260,11 +254,10 @@ export default function HotmartPage() {
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '110px' }}>Data / Hora</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, minWidth: '150px' }}>Faturamento</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '120px' }}>País</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, minWidth: '160px' }}>Faturamento</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '120px' }}>Pagamento</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '220px' }}>Cliente</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '160px' }}>Produto</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '240px' }}>Cliente</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '180px' }}>Produto</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -298,26 +291,6 @@ export default function HotmartPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-3 px-4">
-                            {(() => {
-                              // Tenta todos os campos que Hotmart pode retornar para país
-                              const cCode =
-                                s.buyer?.address?.country_iso ||
-                                s.buyer?.address?.country ||
-                                s.purchase?.buyer_country ||
-                                s.purchase?.payment?.origin_country ||
-                                s.subscriber?.address?.country_iso ||
-                                '';
-                              return (
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <span className="text-3xl">{getFlag(cCode)}</span>
-                                  <span className="text-[10px] font-black uppercase text-center leading-tight" style={{ color: SILVER }}>
-                                    {getCountryName(cCode)}
-                                  </span>
-                                </div>
-                              );
-                            })()}
-                          </td>
                           <td className="py-3 px-4"><PaymentBadge method={paymentMethod} /></td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
@@ -333,7 +306,7 @@ export default function HotmartPage() {
                     })}
                   {filteredSales.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-16 text-center font-bold uppercase text-[11px] tracking-widest" style={{ color: SILVER }}>
+                      <td colSpan={5} className="py-16 text-center font-bold uppercase text-[11px] tracking-widest" style={{ color: SILVER }}>
                         Nenhuma venda encontrada no período
                       </td>
                     </tr>
