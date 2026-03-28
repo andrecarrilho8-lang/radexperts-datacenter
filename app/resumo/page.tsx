@@ -229,8 +229,15 @@ export default function ResumoPage() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.06)" />
                         <XAxis dataKey="date" tick={{ fontSize: 10, fill: SILVER, fontWeight: 700 }} axisLine={false} tickLine={false} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: SILVER, fontWeight: 700 }} />
-                        <Tooltip contentStyle={{ borderRadius: 16, border: '1px solid rgba(232,177,79,0.2)', background: 'rgba(0,26,53,0.95)', backdropFilter: 'blur(20px)', color: '#fff', fontSize: 12 }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: SILVER, fontWeight: 700 }}
+                          tickFormatter={(v: number) => `R$${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: 16, border: '1px solid rgba(232,177,79,0.2)', background: 'rgba(0,26,53,0.95)', backdropFilter: 'blur(20px)', color: '#fff', fontSize: 12 }}
+                          formatter={(value: any, name: any) => [
+                            name === 'Investimento' ? `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : value,
+                            name
+                          ]}
+                        />
                         <Area type="monotone" dataKey="Leads"        stroke="#38bdf8" strokeWidth={2} fillOpacity={1} fill="url(#gL)" />
                         <Area type="monotone" dataKey="Vendas"       stroke="#22c55e" strokeWidth={2} fillOpacity={1} fill="url(#gV)" />
                         <Area type="monotone" dataKey="Investimento" stroke={GOLD}    strokeWidth={3} fillOpacity={1} fill="url(#gS)" />
@@ -280,6 +287,77 @@ export default function ResumoPage() {
               </div>
             </div>
 
+            {/* Overview */}
+            {!data.fastLoading && (() => {
+              const topCamp = [...(data.tableData || [])].sort((a: any, b: any) => (b.spend||0) - (a.spend||0))[0];
+              const avgDaily = o.spend / dayCount;
+              return (
+                <div className="mb-16 mt-10">
+                  {/* Título */}
+                  <div className="flex items-center gap-5 mb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="w-2 h-14 rounded-full" style={{ background: `linear-gradient(to bottom, ${GOLD}, rgba(232,177,79,0.3))` }} />
+                      <div>
+                        <p className="text-[12px] font-black uppercase tracking-[0.3em]" style={{ color: SILVER }}>Análise</p>
+                        <p className="text-2xl font-black text-white leading-tight">Overview</p>
+                      </div>
+                    </div>
+                    <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, rgba(232,177,79,0.4), transparent)` }} />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {/* Campanha com mais investimento */}
+                    <div className="rounded-[22px] p-6"
+                      style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.92) 0%, rgba(0,15,40,0.88) 100%)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="material-symbols-outlined text-[18px]" style={{ color: GOLD }}>emoji_events</span>
+                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Campanha com mais investimento</p>
+                      </div>
+                      {topCamp ? (
+                        <>
+                          <p className="font-black text-white text-sm leading-snug uppercase mb-2 truncate" title={topCamp.name}>{topCamp.name}</p>
+                          <p className="font-headline font-black text-2xl" style={{ color: GOLD }}>{R(topCamp.spend)}</p>
+                          <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>
+                            {((topCamp.spend / o.spend) * 100).toFixed(1)}% do investimento total
+                          </p>
+                        </>
+                      ) : <p style={{ color: SILVER }} className="text-sm">—</p>}
+                    </div>
+
+                    {/* Investimento médio diário */}
+                    <div className="rounded-[22px] p-6"
+                      style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.92) 0%, rgba(0,15,40,0.88) 100%)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="material-symbols-outlined text-[18px]" style={{ color: '#38bdf8' }}>today</span>
+                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento médio diário</p>
+                      </div>
+                      <p className="font-headline font-black text-3xl text-white mb-1">{R(avgDaily)}</p>
+                      <p className="text-[10px] font-bold" style={{ color: SILVER }}>Baseado em {dayCount} dias do período</p>
+                    </div>
+
+                    {/* Projeções */}
+                    <div className="rounded-[22px] p-6"
+                      style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.92) 0%, rgba(0,15,40,0.88) 100%)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="material-symbols-outlined text-[18px]" style={{ color: '#22c55e' }}>trending_up</span>
+                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Projeções de investimento</p>
+                      </div>
+                      <div className="flex flex-col gap-3">
+                        {[{days: 7, label: '7 dias'}, {days: 30, label: '30 dias'}, {days: 60, label: '60 dias'}].map(p => (
+                          <div key={p.days} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full" style={{ background: GOLD }} />
+                              <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{p.label}</span>
+                            </div>
+                            <span className="font-black text-white text-sm">{R(avgDaily * p.days)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </main>
 
           {/* Ad Tooltip Portal */}
