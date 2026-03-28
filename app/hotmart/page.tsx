@@ -52,6 +52,7 @@ export default function HotmartPage() {
   const { dateFrom, dateTo } = useDashboard();
   const data = useDashboardData();
   const [selectedProductTags, setSelectedProductTags] = useState<string[]>([]);
+  const [productSearch, setProductSearch] = useState('');
 
   const filteredSales = (data.hotmartSales || []).filter((s: any) =>
     selectedProductTags.length === 0 || selectedProductTags.includes(s.product?.name)
@@ -59,7 +60,20 @@ export default function HotmartPage() {
 
   const totalRevenue    = filteredSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.value || 0), 0);
   const totalSalesCount = filteredSales.length;
-  const uniqueProducts  = Array.from(new Set((data.hotmartSales || []).map((s: any) => s.product?.name))).filter(Boolean).sort() as string[];
+
+  // Ordena do produto com venda mais recente para o mais antigo
+  const uniqueProducts: string[] = (() => {
+    const productLastSale: Record<string, number> = {};
+    (data.hotmartSales || []).forEach((s: any) => {
+      const name = s.product?.name;
+      if (!name) return;
+      const t = new Date(s.purchase?.order_date || 0).getTime();
+      if (!productLastSale[name] || t > productLastSale[name]) productLastSale[name] = t;
+    });
+    return Object.entries(productLastSale)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name]) => name);
+  })();
 
   const formatDateTime = (dateStr: string) => {
     if (!dateStr) return { date: '—', time: '' };
@@ -90,14 +104,22 @@ export default function HotmartPage() {
     } catch { return code; }
   };
 
-  const getFlag = (code: string) => {
-    if (!code) return '';
-    return code.toUpperCase().split('').map((c: string) => String.fromCodePoint(c.charCodeAt(0) + 127397)).join('');
+  const getFlagImg = (isoCode: string, size = 20) => {
+    if (!isoCode) return null;
+    return (
+      <img
+        src={`https://flagcdn.com/w${size}/${isoCode.toLowerCase()}.png`}
+        width={size}
+        height={Math.round(size * 0.67)}
+        alt={isoCode}
+        style={{ borderRadius: 2, objectFit: 'cover', display: 'inline-block', verticalAlign: 'middle' }}
+      />
+    );
   };
 
-  const getFlagByCurrency = (currency: string) => {
+  const getFlagImgByCurrency = (currency: string, size = 20) => {
     const iso = CURRENCY_TO_COUNTRY[(currency || 'BRL').toUpperCase()];
-    return iso ? getFlag(iso) : '';
+    return iso ? getFlagImg(iso, size) : null;
   };
 
   const cardBorder = 'rgba(255,255,255,0.08)';
@@ -186,17 +208,17 @@ export default function HotmartPage() {
                         .filter(([cur]) => cur !== 'BRL')
                         .sort(([,a], [,b]) => b - a)
                         .map(([cur, val]) => {
-                          const firstSale = filteredSales.find((s: any) => s.purchase.price.currency_code === cur);
-                          const cCode = firstSale?.buyer?.address?.country_iso || firstSale?.purchase?.buyer_country || '';
                           const converted = filteredSales
                             .filter((s: any) => s.purchase.price.currency_code === cur)
                             .reduce((acc: number, s: any) => acc + (s.purchase.price.converted_value || 0), 0);
                           
                           return (
                             <tr key={cur} className="border-b border-white/5 last:border-0">
-                              <td className="py-2 flex items-center gap-1.5">
-                                <span className="text-sm">{getFlag(cCode)}</span>
-                                <span className="uppercase">{cur}</span>
+                              <td className="py-2">
+                                <div className="flex items-center gap-2">
+                                  {getFlagImg(CURRENCY_TO_COUNTRY[cur.toUpperCase()] || '', 16)}
+                                  <span className="uppercase">{cur}</span>
+                                </div>
                               </td>
                               <td className="py-2 text-right font-black">{filteredSales.filter((s: any) => s.purchase.price.currency_code === cur).length}</td>
                               <td className="py-2 text-right font-black text-[9px]">{RF(val, cur)}</td>
@@ -215,12 +237,25 @@ export default function HotmartPage() {
           {uniqueProducts.length > 0 && (
             <div className="rounded-[24px] p-6 mb-8"
               style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${cardBorder}` }}>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: SILVER }}>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
                 <span className="material-symbols-outlined text-sm" style={{ color: GOLD }}>filter_alt</span>
                 Filtrar por Produto
               </p>
+              <div className="relative mb-4">
+                <span className="material-symbols-outlined text-[16px] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
+                <input
+                  type="text"
+                  placeholder="Buscar produto..."
+                  value={productSearch}
+                  onChange={e => setProductSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 rounded-xl text-[12px] font-bold outline-none"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${cardBorder}`, color: 'white' }}
+                />
+              </div>
               <div className="flex flex-wrap gap-2">
-                {uniqueProducts.map(p => {
+                {uniqueProducts
+                  .filter(p => p.toLowerCase().includes(productSearch.toLowerCase()))
+                  .map(p => {
                   const isSelected = selectedProductTags.includes(p);
                   return (
                     <button key={p}
@@ -305,10 +340,10 @@ export default function HotmartPage() {
                           <td className="py-3 px-4"><PaymentBadge method={paymentMethod} /></td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
-                              <span className="text-sm font-black text-white leading-tight flex items-center gap-2">
-                                {getFlagByCurrency(s.purchase?.price?.currency_code)}
-                                {s.buyer.name}
-                              </span>
+                              <div className="flex items-center gap-2 leading-tight">
+                                {getFlagImgByCurrency(s.purchase?.price?.currency_code, 18)}
+                                <span className="text-sm font-black text-white">{s.buyer.name}</span>
+                              </div>
                               <span className="text-[10px] font-bold" style={{ color: SILVER }}>{s.buyer.email}</span>
                             </div>
                           </td>
