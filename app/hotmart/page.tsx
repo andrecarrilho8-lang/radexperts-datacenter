@@ -104,15 +104,15 @@ export default function HotmartPage() {
     } catch { return code; }
   };
 
-  const getFlagImg = (isoCode: string, size = 20) => {
+  const getFlagImg = (isoCode: string, size = 24) => {
     if (!isoCode) return null;
     return (
       <img
-        src={`https://flagcdn.com/w${size}/${isoCode.toLowerCase()}.png`}
+        src={`https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/flags/4x3/${isoCode.toLowerCase()}.svg`}
         width={size}
-        height={Math.round(size * 0.67)}
+        height={Math.round(size * 0.75)}
         alt={isoCode}
-        style={{ borderRadius: 2, objectFit: 'cover', display: 'inline-block', verticalAlign: 'middle' }}
+        style={{ borderRadius: 3, objectFit: 'cover', display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
       />
     );
   };
@@ -281,7 +281,7 @@ export default function HotmartPage() {
 
           {/* Tabela */}
           <div className="rounded-[28px] overflow-hidden mb-12"
-            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${cardBorder}` }}>
+            style={{ ...glossy, padding: 0 }}>
 
             <div className="p-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${cardBorder}` }}>
               <div>
