@@ -76,7 +76,13 @@ export default function HotmartPage() {
     currentRevenueByCurrency[cur] = (currentRevenueByCurrency[cur] || 0) + (s.purchase?.price?.value || 0);
   });
 
-  // Usado no painel LATAM para exibir de qual moeda/região vêm as vendas
+  // Moedas com país único e inequívoco
+  const CURRENCY_TO_COUNTRY: Record<string, string> = {
+    BRL: 'BR', COP: 'CO', BOB: 'BO', MXN: 'MX', ARS: 'AR',
+    CLP: 'CL', PEN: 'PE', UYU: 'UY', CRC: 'CR', HNL: 'HN',
+    PYG: 'PY', GTQ: 'GT', DOP: 'DO', CUP: 'CU', VES: 'VE',
+  };
+
   const getCountryName = (code: string) => {
     if (!code) return '—';
     try {
@@ -87,6 +93,11 @@ export default function HotmartPage() {
   const getFlag = (code: string) => {
     if (!code) return '';
     return code.toUpperCase().split('').map((c: string) => String.fromCodePoint(c.charCodeAt(0) + 127397)).join('');
+  };
+
+  const getFlagByCurrency = (currency: string) => {
+    const iso = CURRENCY_TO_COUNTRY[(currency || 'BRL').toUpperCase()];
+    return iso ? getFlag(iso) : '';
   };
 
   const cardBorder = 'rgba(255,255,255,0.08)';
@@ -112,9 +123,9 @@ export default function HotmartPage() {
 
           {/* KPI Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <div style={{ ...glossy, padding: '28px 32px', minHeight: 140 }} className="lg:col-span-2">
+            <div style={{ ...glossy, padding: '28px 32px' }} className="lg:col-span-2 flex flex-col justify-center">
               <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 40%)', borderRadius: 24 }} />
-              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 h-full">
                 {/* BRL principal */}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -294,7 +305,10 @@ export default function HotmartPage() {
                           <td className="py-3 px-4"><PaymentBadge method={paymentMethod} /></td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
-                              <span className="text-sm font-black text-white leading-tight">{s.buyer.name}</span>
+                              <span className="text-sm font-black text-white leading-tight flex items-center gap-2">
+                                {getFlagByCurrency(s.purchase?.price?.currency_code)}
+                                {s.buyer.name}
+                              </span>
                               <span className="text-[10px] font-bold" style={{ color: SILVER }}>{s.buyer.email}</span>
                             </div>
                           </td>
