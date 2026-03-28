@@ -156,9 +156,7 @@ export default function ResumoPage() {
               {data.fastLoading
                 ? Array.from({ length: 4 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : smallKpis.map((c, i) => (
-                  <div key={i} style={{ ...glossy, padding: '16px 20px', transition: 'transform 0.2s' }} className="flex flex-col gap-1"
-                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.01)')}
-                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
+                  <div key={i} style={{ ...glossy, padding: '16px 20px' }} className="flex flex-col gap-1">
                     <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 40%)', borderRadius: 20 }} />
                     <div className="relative z-10 flex items-center gap-2 mb-1">
                       <span className="material-symbols-outlined text-[18px]" style={{ color: c.accent }}>{c.icon}</span>
