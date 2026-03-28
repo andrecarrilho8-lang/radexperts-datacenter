@@ -235,8 +235,15 @@ export default function HotmartPage() {
 
           {/* Filtro por Produto */}
           {uniqueProducts.length > 0 && (
-            <div className="rounded-[24px] p-6 mb-8"
-              style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${cardBorder}` }}>
+            <div className="rounded-[24px] p-6 mb-8 relative overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, rgba(232,177,79,0.07) 0%, rgba(255,255,255,0.03) 60%, rgba(232,177,79,0.04) 100%)',
+                border: '1px solid rgba(232,177,79,0.18)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                boxShadow: '0 4px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(232,177,79,0.12)',
+              }}>
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(232,177,79,0.06) 0%, transparent 50%)', borderRadius: 24 }} />
               <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
                 <span className="material-symbols-outlined text-sm" style={{ color: GOLD }}>filter_alt</span>
                 Filtrar por Produto
