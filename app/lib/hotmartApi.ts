@@ -1,27 +1,23 @@
 import { getCache, setCache } from './metaApi';
 
-// Whitelist precisamente definida para os 119 produtos oficiais do ADVOGADO 10X
+// Whitelist precisamente definida para os produtos oficiais da RadExperts
 export function isOfficialProduct(product: { id: number, name: string }) {
   const name = (product.name || '').toUpperCase();
-  const officialBrands = ['ADVOGADO 10X', 'ADV10X', 'A NOVA ADVOCACIA', '10X', 'ADVOGADO10X', 'IADVOGADO'];
+  
+  // Marcas e linhas de produtos da RadExperts
+  const officialBrands = [
+    'EXPERT', 'NEUROEXPERT', 'BODYEXPERT', 'CEP EXPERT', 'WEXPERT', 'CEP HIGHLIGHTS',
+    'SKELETAL EXPERT', 'NEUROPASS', 'RADIOPASS', 'NEURONEWS', 'RADEXPERTS'
+  ];
   if (officialBrands.some(k => name.includes(k))) return true;
 
-  const officialProducts = [
-    'COCO BAMBU', 'HONORÁRIOS', 'PENSÃO ALIMENTÍCIA', 'DIREITO DE FAMÍLIA', 'SUCESSÕES', 
-    'DIREITO POSSESSÓRIO', 'PLANEJAMENTO SUCESSÓRIO', 'VIOLÊNCIA DOMÉSTICA', 'GOOGLE ADS', 
-    'MÁQUINA DE VENDAS', 'BRADING', 'MAESTRIA EM VENDAS', 'NEGÓCIOS', 'MAPEAMENTO',
-    'PETIÇÃO INICIAL', 'ATUALIZAÇÕES CÍVEIS', 'PROCESSO CIVIL', 'BRANDING', 'VENDAS E INTELIGÊNCIA'
+  // Palavras-chave fortes nos nomes dos produtos fornecidos
+  const officialKeywords = [
+    'NEURORRADIOLOGIA', 'RADIOLOGIA', 'ALZHEIMER', 'NEUROFTALMOLOGIA', 
+    'PELVE FEMININA', 'CABEZA Y CUELLO', 'CABEÇA E PESCOÇO', 'MEDICINA INTERNA',
+    'ANA FONSECA', '100 CASOS', 'NEURORRÁDIO'
   ];
-  if (officialProducts.some(k => name.includes(k))) return true;
-
-  const personalBlacklist = [
-    'KIT DE PEÇAS CRIMINAIS', 'DEFESA ESTRATÉGIA', 'INVENTÁRIOS 2.0',
-    'PROCLUB', 'TONE ACADEMY', 'COPILOTO CRIMINALISTA', 'RISOTO', 'RECEITA'
-  ];
-  if (personalBlacklist.some(k => name.includes(k))) return false;
-
-  const genericPatterns = ['IMERSÃO', 'DESAFIO', 'E-BOOK', 'MENTORIA', 'MASTERCLASS', 'WORKSHOP', 'PLANO DE AÇÃO'];
-  if (genericPatterns.some(k => name.includes(k)) && (name.includes('ADV') || name.includes('10X') || name.includes('IA'))) return true;
+  if (officialKeywords.some(k => name.includes(k))) return true;
 
   return false;
 }
