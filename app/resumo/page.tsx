@@ -80,25 +80,25 @@ export default function ResumoPage() {
     <LoginWrapper>
       <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: NAVY }}>
 
-        {/* BG em fluxo normal → rola com a página */}
+        {/* BG fixo no viewport — o conteúdo passa por cima ao scrollar */}
         <div ref={bgRef} style={{
-          position: 'relative',
-          width: '100%',
-          height: '110vw',
-          marginBottom: '-110vw',      /* puxa o conteúdo para cima, sobrepondo a imagem */
+          position: 'fixed',
+          top: 0, left: 0, right: 0,
+          height: '100vh',
           backgroundImage: 'url(/rad.jpg)',
-          backgroundSize: '100% auto',
+          backgroundSize: 'cover',
           backgroundPosition: 'top center',
           backgroundRepeat: 'no-repeat',
-          transition: 'filter 0.08s linear',
+          pointerEvents: 'none',
           zIndex: 0,
+          transition: 'filter 0.08s linear',
         }}>
           {/* Overlay escuro semitransparente */}
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)', pointerEvents: 'none' }} />
           {/* Gradiente dissolve para navy */}
           <div style={{
             position: 'absolute', inset: 0,
-            background: `linear-gradient(to bottom, transparent 50%, ${NAVY} 88%)`,
+            background: `linear-gradient(to bottom, transparent 50%, ${NAVY} 95%)`,
             pointerEvents: 'none',
           }} />
         </div>
@@ -135,10 +135,8 @@ export default function ResumoPage() {
               {data.fastLoading
                 ? Array.from({ length: 3 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : bigKpis.map((c, i) => (
-                  <div key={i} style={{ ...glossy, minHeight: 140, padding: '20px 24px', transition: 'transform 0.2s' }}
-                    className="flex flex-col justify-between"
-                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.01)')}
-                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
+                  <div key={i} style={{ ...glossy, minHeight: 140, padding: '20px 24px' }}
+                    className="flex flex-col justify-between">
                     <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 40%)', borderRadius: 24 }} />
                     <div className="relative z-10">
                       <div className="flex items-center gap-2 mb-1">
