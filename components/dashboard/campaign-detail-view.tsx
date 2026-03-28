@@ -468,7 +468,7 @@ export function CampaignDetailView({ id }: { id: string }) {
                   <div className="w-8 h-8 border-[3px] border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }} />
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                   {/* Gasto médio diário */}
                   <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
@@ -478,9 +478,7 @@ export function CampaignDetailView({ id }: { id: string }) {
                     </div>
                     <p className="font-headline font-black text-3xl text-white mb-1">{R(avgDaily)}</p>
                     <p className="text-[10px] font-bold" style={{ color: SILVER }}>
-                      {ltDays > 0
-                        ? `Baseado em ${ltDays} dias com veiculação ativa`
-                        : `Baseado nos ${daysActive} dias desde a criação`}
+                      Baseado no período que a campanha esteve no ar
                     </p>
                   </div>
 
@@ -497,28 +495,6 @@ export function CampaignDetailView({ id }: { id: string }) {
                         <p className="text-[9px] font-bold" style={{ color: SILVER }}>Criada em</p>
                         <p className="font-black text-white">{D(campDetail.createdTime)}</p>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Melhor dia */}
-                  <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="material-symbols-outlined text-[18px]" style={{ color: resultColor }}>emoji_events</span>
-                      <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Melhor dia de {resultLabel}</p>
-                    </div>
-                    {bestDayResult ? (
-                      <>
-                        <p className="font-headline font-black text-2xl mb-1" style={{ color: resultColor }}>{bestDayResult}</p>
-                        <p className="text-[10px] font-bold" style={{ color: SILVER }}>data com maior volume de {resultLabel.toLowerCase()}</p>
-                        {ltResults > 0 && (
-                          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${cardBorder}` }}>
-                            <p className="text-[9px] font-bold" style={{ color: SILVER }}>Total no período de vida</p>
-                            <p className="font-black text-lg" style={{ color: resultColor }}>{N(ltResults)} {resultLabel}</p>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-sm font-bold" style={{ color: SILVER }}>Sem dados de {resultLabel.toLowerCase()} no lifetime</p>
                     )}
                   </div>
 
