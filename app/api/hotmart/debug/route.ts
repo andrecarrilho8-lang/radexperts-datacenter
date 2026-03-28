@@ -7,8 +7,9 @@ export async function GET(request: Request) {
     const HOTMART_API_BASE = 'https://developers.hotmart.com/payments/api/v1';
 
     // Pega as últimas 50 vendas ignorando filtros
+    // Pega as últimas 50 vendas ignorando filtros (usando 14 dias para evitar invalid_parameter do Hotmart que barra tempos acima de meses)
     const now = Date.now();
-    const past = now - (30 * 24 * 60 * 60 * 1000);
+    const past = now - (14 * 24 * 60 * 60 * 1000);
     const url = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}&max_results=50`;
 
     const resp = await fetch(url, { 

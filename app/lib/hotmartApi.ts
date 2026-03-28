@@ -58,7 +58,8 @@ export async function fetchHotmartSales(startDate: string, endDate: string, cust
   const token = await getHotmartToken();
   const startMs_init = new Date(startDate).getTime();
   const endMs = new Date(endDate).getTime();
-  const CHUNK_SIZE = customChunkSize || (30 * 24 * 60 * 60 * 1000);
+  // Alterado para 15 dias (evita erro 'invalid_parameter' de range > 30 dias do Hotmart)
+  const CHUNK_SIZE = customChunkSize || (15 * 24 * 60 * 60 * 1000);
   
   const chunks: {start: number, end: number}[] = [];
   let cur = startMs_init;
