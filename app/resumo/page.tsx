@@ -65,16 +65,19 @@ export default function ResumoPage() {
     { label: 'CPM',            value: R(cpm),              icon: 'bar_chart',  accent: SILVER },
   ];
 
-  const glossy: React.CSSProperties = {
-    background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.034) 50%, rgba(0,10,30,0.55) 100%)',
+  // Sem backdropFilter — causa flickering com bg fixo.
+  // Fundo semi-opaco sólido elimina o bug de recomposição.
+  const cardBase: React.CSSProperties = {
+    background: 'linear-gradient(160deg, rgba(0,22,55,0.92) 0%, rgba(0,15,40,0.88) 100%)',
     border: '1px solid rgba(255,255,255,0.10)',
-    backdropFilter: 'blur(24px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-    boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 24px 48px -12px rgba(0,0,0,0.5)',
+    boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 20px 40px -8px rgba(0,0,0,0.55)',
     borderRadius: 24,
     position: 'relative',
     overflow: 'hidden',
+    transition: 'border-color 0.25s ease',
   };
+  // Alias mantido para period bar e chart (sem hover)
+  const glossy = { ...cardBase };
 
   return (
     <LoginWrapper>
@@ -135,9 +138,12 @@ export default function ResumoPage() {
               {data.fastLoading
                 ? Array.from({ length: 3 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : bigKpis.map((c, i) => (
-                  <div key={i} style={{ ...glossy, minHeight: 140, padding: '20px 24px' }}
-                    className="flex flex-col justify-between">
-                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 40%)', borderRadius: 24 }} />
+                  <div key={i}
+                    style={{ ...cardBase, minHeight: 140, padding: '20px 24px' }}
+                    className="flex flex-col justify-between"
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(232,177,79,0.55)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}>
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 40%)', borderRadius: 24 }} />
                     <div className="relative z-10">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="material-symbols-outlined text-[20px]" style={{ color: c.accent }}>{c.icon}</span>
@@ -156,8 +162,12 @@ export default function ResumoPage() {
               {data.fastLoading
                 ? Array.from({ length: 4 }).map((_, i) => <SkeletonCardBig key={i} />)
                 : smallKpis.map((c, i) => (
-                  <div key={i} style={{ ...glossy, padding: '16px 20px' }} className="flex flex-col gap-1">
-                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 40%)', borderRadius: 20 }} />
+                  <div key={i}
+                    style={{ ...cardBase, padding: '16px 20px' }}
+                    className="flex flex-col gap-1"
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(232,177,79,0.55)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)')}>
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(180deg,rgba(255,255,255,0.05) 0%,transparent 40%)', borderRadius: 20 }} />
                     <div className="relative z-10 flex items-center gap-2 mb-1">
                       <span className="material-symbols-outlined text-[18px]" style={{ color: c.accent }}>{c.icon}</span>
                       <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{c.label}</p>
