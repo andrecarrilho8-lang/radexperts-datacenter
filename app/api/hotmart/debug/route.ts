@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     // Pega as últimas 50 vendas ignorando filtros (usando 14 dias para evitar invalid_parameter do Hotmart que barra tempos acima de meses)
     const now = Date.now();
     const past = now - (14 * 24 * 60 * 60 * 1000);
-    const url = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}`;
+    const url = `${HOTMART_API_BASE}/sales/history?start_date=${past}&end_date=${now}&transaction_status=APPROVED&transaction_status=COMPLETE`;
 
     const resp = await fetch(url, { 
       headers: { 'Authorization': `Bearer ${token}` },
