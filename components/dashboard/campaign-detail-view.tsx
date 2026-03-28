@@ -449,13 +449,15 @@ export function CampaignDetailView({ id }: { id: string }) {
 
         if (isPaused) {
           // --- OVERVIEW CAMPANHA (pausada) ---
-          const ltSpend   = lifetimeData?.totalSpend   || 0;
-          const ltResults = lifetimeData?.totalResults || 0;
-          const ltDays    = lifetimeData?.daysWithData  || daysActive;
-          const avgDaily  = ltDays > 0 ? ltSpend / ltDays : 0;
-          const bestDay       = lifetimeData?.bestDay      || null;
-          const bestDayLeads  = lifetimeData?.bestDayLeads || null;
-          const bestDayResult = isVendas ? bestDay : (bestDayLeads || bestDay);
+          const ltSpend   = lifetimeData?.totalSpend   ?? 0;
+          const ltResults = lifetimeData?.totalResults ?? 0;
+          // daysWithData = dias que realmente tiveram gasto (ignora dias sem veiculação)
+          const ltDays    = lifetimeData?.daysWithData  || 0;
+          // Gasto médio: usa dias com dados reais; fallback nos dias da campanha
+          const avgDaily  = ltDays > 0 ? ltSpend / ltDays : (daysActive > 0 ? (ltSpend || m.spend) / daysActive : 0);
+          const bestDay       = lifetimeData?.bestDay      ?? null;
+          const bestDayLeads  = lifetimeData?.bestDayLeads ?? null;
+          const bestDayResult = isVendas ? bestDay : (bestDayLeads ?? bestDay);
 
           return (
             <div className="rounded-[28px] p-8 mb-12" style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.95) 0%, rgba(0,15,40,0.9) 100%)', border: '1px solid rgba(239,68,68,0.2)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
@@ -474,9 +476,11 @@ export function CampaignDetailView({ id }: { id: string }) {
                       <span className="material-symbols-outlined text-[18px]" style={{ color: GOLD }}>today</span>
                       <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto médio por dia</p>
                     </div>
-                    <p className="font-headline font-black text-3xl text-white mb-1">{ltSpend > 0 ? R(avgDaily) : R(m.spend / dayCount)}</p>
+                    <p className="font-headline font-black text-3xl text-white mb-1">{R(avgDaily)}</p>
                     <p className="text-[10px] font-bold" style={{ color: SILVER }}>
-                      {ltSpend > 0 ? `Baseado em ${ltDays} dias de dados lifetime` : `Baseado no período selecionado (${dayCount} dias)`}
+                      {ltDays > 0
+                        ? `Baseado em ${ltDays} dias com veiculação ativa`
+                        : `Baseado nos ${daysActive} dias desde a criação`}
                     </p>
                   </div>
 

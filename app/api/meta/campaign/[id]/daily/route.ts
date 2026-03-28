@@ -36,55 +36,56 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const dailyInsights = await account.getInsights(INSIGHT_FIELDS, dailyParams);
 
     if (!dailyInsights || dailyInsights.length === 0) {
-      const empty = { avgSpend: 0, avgSales: 0, bestDay: 'Sem dados diarios' };
+      const empty = { bestDay: null, bestDayLeads: null, totalSpend: 0, totalResults: 0, daysWithData: 0 };
       setCache(cacheKey, empty);
       return NextResponse.json(empty);
     }
 
-    const salesByDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
-    const countSalesByDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
-    const leadsByDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
-    const countLeadsByDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
+    const salesByDow  = [0,0,0,0,0,0,0];
+    const cntSalesDow = [0,0,0,0,0,0,0];
+    const leadsByDow  = [0,0,0,0,0,0,0];
+    const cntLeadsDow = [0,0,0,0,0,0,0];
+
+    let totalSpend   = 0;
+    let totalResults = 0;
+    let daysWithData = 0;
 
     for (const day of dailyInsights) {
       const parsed = parseMetrics(day);
-      
-      const dateObj = new Date(day.date_start + 'T12:00:00Z');
-      const dow = dateObj.getUTCDay();
-      
-      if (parsed.purchases > 0) {
-        salesByDayOfWeek[dow] += parsed.purchases;
-        countSalesByDayOfWeek[dow] += 1;
+      const dow = new Date(day.date_start + 'T12:00:00Z').getUTCDay();
+
+      const spend = parsed.spend || 0;
+      totalSpend += spend;
+      if (spend > 0) daysWithData++;
+      totalResults += (parsed.purchases || 0) + (parsed.leads || 0);
+
+      if ((parsed.purchases || 0) > 0) {
+        salesByDow[dow]  += parsed.purchases;
+        cntSalesDow[dow] += 1;
       }
-      if (parsed.leads > 0) {
-        leadsByDayOfWeek[dow] += parsed.leads;
-        countLeadsByDayOfWeek[dow] += 1;
+      if ((parsed.leads || 0) > 0) {
+        leadsByDow[dow]  += parsed.leads;
+        cntLeadsDow[dow] += 1;
       }
     }
 
-    const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-    let bestSalesDowIndex = 0;
-    let bestSalesAvg = -1;
-    let bestLeadsDowIndex = 0;
-    let bestLeadsAvg = -1;
+    const dayNames = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    let bestSalesIdx = 0, bestSalesAvg = -1;
+    let bestLeadsIdx = 0, bestLeadsAvg = -1;
 
     for (let i = 0; i < 7; i++) {
-      const avgSales = countSalesByDayOfWeek[i] > 0 ? (salesByDayOfWeek[i] / countSalesByDayOfWeek[i]) : 0;
-      if (avgSales > bestSalesAvg) {
-        bestSalesAvg = avgSales;
-        bestSalesDowIndex = i;
-      }
-      
-      const avgLeads = countLeadsByDayOfWeek[i] > 0 ? (leadsByDayOfWeek[i] / countLeadsByDayOfWeek[i]) : 0;
-      if (avgLeads > bestLeadsAvg) {
-        bestLeadsAvg = avgLeads;
-        bestLeadsDowIndex = i;
-      }
+      const avgS = cntSalesDow[i] > 0 ? salesByDow[i] / cntSalesDow[i] : 0;
+      if (avgS > bestSalesAvg) { bestSalesAvg = avgS; bestSalesIdx = i; }
+      const avgL = cntLeadsDow[i] > 0 ? leadsByDow[i] / cntLeadsDow[i] : 0;
+      if (avgL > bestLeadsAvg) { bestLeadsAvg = avgL; bestLeadsIdx = i; }
     }
 
     const result = {
-      bestDay: bestSalesAvg > 0 ? dayNames[bestSalesDowIndex] : 'Sem vendas',
-      bestDayLeads: bestLeadsAvg > 0 ? dayNames[bestLeadsDowIndex] : 'Sem leads',
+      bestDay:      bestSalesAvg > 0 ? dayNames[bestSalesIdx] : null,
+      bestDayLeads: bestLeadsAvg > 0 ? dayNames[bestLeadsIdx] : null,
+      totalSpend,
+      totalResults,
+      daysWithData,
     };
 
     setCache(cacheKey, result);
@@ -92,6 +93,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   } catch (error: any) {
     console.error('[/api/meta/campaign/[id]/daily] Error:', error?.response?.error || error.message);
-    return NextResponse.json({ bestDay: 'Erro', error: error.message }, { status: 200 });
+    return NextResponse.json({ bestDay: null, bestDayLeads: null, totalSpend: 0, totalResults: 0, daysWithData: 0 }, { status: 200 });
   }
 }
