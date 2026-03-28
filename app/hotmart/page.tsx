@@ -81,7 +81,7 @@ export default function HotmartPage() {
 
           {/* Header */}
           <div className="flex items-center gap-5 mb-8">
-            <img src="/hotmart-logo.png" alt="Hotmart" style={{ height: 40, objectFit: 'contain' }} />
+            <img src="/hotmart-logo.png" alt="Hotmart" style={{ height: 40, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
             <div className="w-px h-10" style={{ background: 'rgba(255,255,255,0.12)' }} />
             <div>
               <h2 className="font-headline font-black text-3xl text-white leading-none">Gestão de Vendas</h2>
