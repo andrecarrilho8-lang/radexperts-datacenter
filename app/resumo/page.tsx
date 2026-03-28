@@ -25,6 +25,19 @@ export default function ResumoPage() {
   const [tooltipPos, setTooltipPos] = React.useState<{ x: number, y: number } | null>(null);
   const tooltipTimer = React.useRef<any>(null);
   const [feedbackCamp, setFeedbackCamp] = React.useState<any>(null);
+  const bgRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const THRESHOLD = 350; // px de scroll para atingir P&B / 50%
+    const handler = () => {
+      const progress = Math.min(window.scrollY / THRESHOLD, 1);
+      if (bgRef.current) {
+        bgRef.current.style.filter = `grayscale(${progress * 100}%) opacity(${1 - progress * 0.5})`;
+      }
+    };
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
+  }, []);
 
   const openTooltip  = (e: React.MouseEvent, ad: any) => { if (tooltipTimer.current) clearTimeout(tooltipTimer.current); setTooltipPos({ x: e.clientX, y: e.clientY }); setTooltipAd(ad); };
   const moveTooltip  = (e: React.MouseEvent) => { if (tooltipAd) setTooltipPos({ x: e.clientX, y: e.clientY }); };
@@ -65,29 +78,29 @@ export default function ResumoPage() {
 
   return (
     <LoginWrapper>
-      {/*
-        OUTER DIV: a imagem é o background-image.
-        Ela NÃO ocupa espaço — fica atrás de todo o conteúdo.
-        O conteúdo flui normalmente em z-index 1.
-      */}
-      <div style={{
-        position: 'relative',
-        minHeight: '100vh',
-        backgroundColor: NAVY,
+      <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: NAVY }}>
+
+      {/* BG separado: filter aplicado via scroll listener sem afetar conteúdo */}
+      <div ref={bgRef} style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: '110vw',
         backgroundImage: 'url(/rad.jpg)',
         backgroundSize: '100% auto',
         backgroundPosition: 'top center',
         backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'scroll',
-      }}>
-        {/* Overlay escuro semitransparente */}
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)', pointerEvents: 'none', zIndex: 0 }} />
-        {/* Gradiente: imagem dissolve para navy conforme scroll */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, height: '110vw',
-          background: `linear-gradient(to bottom, transparent 50%, ${NAVY} 88%)`,
-          pointerEvents: 'none', zIndex: 0,
-        }} />
+        pointerEvents: 'none',
+        zIndex: 0,
+        transition: 'filter 0.08s linear',
+      }} />
+      {/* Overlay escuro semitransparente */}
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)', pointerEvents: 'none', zIndex: 0 }} />
+      {/* Gradiente dissolve para navy */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: '110vw',
+        background: `linear-gradient(to bottom, transparent 50%, ${NAVY} 88%)`,
+        pointerEvents: 'none', zIndex: 0,
+      }} />
 
         {/* Conteúdo em fluxo normal — fica POR CIMA da imagem */}
         <div style={{ position: 'relative', zIndex: 1 }}>
