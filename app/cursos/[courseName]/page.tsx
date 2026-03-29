@@ -12,7 +12,7 @@ const NAVY   = '#001a35';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type SubStatus = 'ACTIVE' | 'OVERDUE' | 'CANCELLED';
-type PayHist   = { date: number; valor: number };
+type PayHist   = { date: number; valor: number; recurrencyNumber: number; index: number };
 type Student   = {
   name: string; email: string;
   entryDate: number | null; lastPayDate: number | null;
@@ -45,8 +45,7 @@ function fmtMoney(val: number, curr = 'BRL'): string {
   try {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: curr, minimumFractionDigits: 2 });
   } catch {
-    // fallback for unknown currency codes
-    return `${curr} ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 }
 function daysSince(ts: number | null): number {
@@ -201,23 +200,31 @@ function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) 
       </div>
 
       {/* Paid installments */}
-      <div className="px-5 py-3" style={{ borderBottom: upcoming.length > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, maxHeight: 220, overflowY: 'auto' }}>
+      <div className="px-5 py-3" style={{ borderBottom: upcoming.length > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, maxHeight: 260, overflowY: 'auto' }}>
         <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>
           ✓ Realizados ({paid.length})
         </p>
         {paid.length === 0 && (
           <p className="text-[11px]" style={{ color: SILVER }}>Nenhum registro</p>
         )}
-        {paid.map((p, i) => (
-          <div key={i} className="flex items-center justify-between py-1.5"
-            style={{ borderBottom: i < paid.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#4ade80' }} />
-              <span className="text-[11px] font-bold text-white">{fmtDate(p.date)}</span>
+        {paid.map((p, i) => {
+          // Label: use recurrencyNumber if > 0, else use sequential index
+          const num = p.recurrencyNumber > 0 ? p.recurrencyNumber : p.index;
+          const label = isSub ? `Assinatura — Mês ${num}` : `Parcela ${num}`;
+          return (
+            <div key={i} className="flex items-center justify-between py-1.5"
+              style={{ borderBottom: i < paid.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#4ade80' }} />
+                <div>
+                  <p className="text-[10px] font-black text-white">{label}</p>
+                  <p className="text-[10px]" style={{ color: SILVER }}>{fmtDate(p.date)}</p>
+                </div>
+              </div>
+              <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{fmtMoney(p.valor)}</span>
             </div>
-            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{fmtMoney(p.valor, s.currency)}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Upcoming */}
@@ -547,8 +554,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     </div>
 
                     <span className="text-[11px] font-bold truncate pr-3 pt-1" style={{ color: SILVER }}>{s.email}</span>
-                    <span className="text-[12px] font-bold pt-1" style={{ color: GOLD }}>{fmtMoney(vParcela(s), s.currency)}</span>
-                    <span className="text-[12px] font-bold pt-1 text-white">{fmtMoney(vTotal(s), s.currency)}</span>
+                    <span className="text-[12px] font-bold pt-1" style={{ color: GOLD }}>{fmtMoney(vParcela(s))}</span>
+                    <span className="text-[12px] font-bold pt-1 text-white">{fmtMoney(vTotal(s))}</span>
                     <PaymentCell s={s} />
                   </div>
                 );

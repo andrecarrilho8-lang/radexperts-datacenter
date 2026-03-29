@@ -5,26 +5,31 @@ import { getCache, setCache } from '@/app/lib/metaApi';
 const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
-// Currency → country code (for flag emoji)
+// Currency → country flag emoji
 const CURRENCY_TO_COUNTRY: Record<string, string> = {
   BRL: 'BR', USD: 'US', EUR: 'EU', COP: 'CO', MXN: 'MX',
   ARS: 'AR', PEN: 'PE', CLP: 'CL', PYG: 'PY', BOB: 'BO',
   UYU: 'UY', VES: 'VE', CRC: 'CR', DOP: 'DO', GTQ: 'GT',
   HNL: 'HN', NIO: 'NI', PAB: 'PA', GBP: 'GB', CAD: 'CA',
 };
-
 function countryFlag(currencyCode: string): string {
   const cc = CURRENCY_TO_COUNTRY[currencyCode.toUpperCase()] || '';
   if (!cc || cc === 'EU') return cc === 'EU' ? '🇪🇺' : '';
   return cc.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
-function getValueInfo(purchase: any): { value: number; currency: string; isBRL: boolean; flag: string } {
-  const currency = (purchase?.price?.currency_code || 'BRL').toUpperCase();
-  const value    = purchase?.price?.value ?? 0;
-  const flag     = countryFlag(currency);
-  return { value, currency, isBRL: currency === 'BRL', flag };
+/** Returns BRL value from Hotmart purchase.
+ * Hotmart stores `actual_value` = value already converted to BRL (producer's currency).
+ * Falls back to `value` if not present (BRL-only sales usually only have `value`).
+ */
+function getBRLValue(purchase: any): number {
+  return purchase?.price?.actual_value ?? purchase?.price?.value ?? 0;
 }
+function getFlag(purchase: any): string {
+  const currency = (purchase?.price?.currency_code || 'BRL').toUpperCase();
+  return countryFlag(currency);
+}
+
 
 export async function GET(
   req: NextRequest,
@@ -35,7 +40,7 @@ export async function GET(
   const courseName = decodeURIComponent(rawParam);
   const turma      = searchParams.get('turma') || '';
 
-  const CACHE_KEY = `curso_v6_${courseName}`;
+  const CACHE_KEY = `curso_v7_${courseName}`;
   const hit = getCache(CACHE_KEY);
   if (hit?.expires_at > Date.now()) {
     const result = hit.data;
@@ -65,7 +70,7 @@ export async function GET(
       latestTs: number; latestSale: any;
       maxRecurrency: number; isSub: boolean;
       totalInstallments: number;
-      payments: Array<{ date: number; valor: number }>;
+      payments: Array<{ date: number; valor: number; recurrencyNumber: number }>;
     };
     const emailMap = new Map<string, Agg>();
 
@@ -78,17 +83,17 @@ export async function GET(
       const isSub   = s.purchase?.is_subscription === true ||
                       (s.purchase?.offer?.payment_mode || '').toUpperCase() === 'SUBSCRIPTION';
       const install = s.purchase?.payment?.installments_number || 1;
-      const vi      = getValueInfo(s.purchase);
+      const brlVal  = getBRLValue(s.purchase);
 
       const cur = emailMap.get(buyerEmail);
       if (!cur) {
         emailMap.set(buyerEmail, {
           latestTs: ts, latestSale: s, maxRecurrency: recur, isSub,
           totalInstallments: install,
-          payments: [{ date: ts, valor: vi.value }],
+          payments: [{ date: ts, valor: brlVal, recurrencyNumber: recur }],
         });
       } else {
-        cur.payments.push({ date: ts, valor: vi.value });
+        cur.payments.push({ date: ts, valor: brlVal, recurrencyNumber: recur });
         if (ts > cur.latestTs) { cur.latestTs = ts; cur.latestSale = s; }
         if (recur > cur.maxRecurrency) cur.maxRecurrency = recur;
       }
@@ -116,7 +121,7 @@ export async function GET(
         else if (daysSince > 35) subStatus = 'OVERDUE';
       }
 
-      const vi = getValueInfo(purchase);
+      const vi     = { value: getBRLValue(purchase), flag: getFlag(purchase) };
 
       return {
         name:               buyerName.toUpperCase(),
@@ -124,9 +129,9 @@ export async function GET(
         entryDate:          purchase.approved_date || purchase.order_date || null,
         lastPayDate:        lastPayTs || null,
         turma:              purchase.offer?.code || '—',
-        valor:              vi.value,       // in original currency
-        currency:           vi.currency,    // e.g. COP, BRL, USD
-        flag:               vi.flag,        // country flag emoji
+        valor:              vi.value,
+        currency:           'BRL',
+        flag:               vi.flag,
         transaction:        purchase.transaction || '',
         paymentType:        payType,
         paymentInstallments: install,
@@ -136,8 +141,10 @@ export async function GET(
         paymentHistory: agg.payments
           .filter(p => p.date > 0)
           .sort((a, b) => a.date - b.date)
+          .map((p, i) => ({ ...p, index: i + 1 })) // add 1-based index for "Parcela N"
           .slice(-24),
       };
+
     }).sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
 
     const result = { students, turmas: Array.from(turmasSet).sort(), total: students.length };
