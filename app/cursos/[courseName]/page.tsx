@@ -28,9 +28,13 @@ function getFlagImg(iso: string, size = 18) {
     />
   );
 }
+// Show flag only for non-BRL (LATAM / international) — same rule as Hotmart page:
+// when currency is unknown or BRL (default), simply don't show the flag.
 function getFlagByCurrency(currency: string, size = 18) {
-  const iso = CURRENCY_TO_ISO[(currency || 'BRL').toUpperCase()];
-  return iso ? getFlagImg(iso, size) : null;
+  if (!currency || currency.toUpperCase() === 'BRL') return null;
+  const iso = CURRENCY_TO_ISO[currency.toUpperCase()];
+  if (!iso) return null;
+  return getFlagImg(iso, size);
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -81,23 +85,20 @@ function addMonths(ts: number, n: number): number {
 type PayStatus = 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO';
 
 function getPayStatus(s: Student): PayStatus {
-  const t = (s.paymentType || '').toUpperCase();
-  // Single-payment (PIX, Boleto, card à vista) → QUITADO
+  // Single payment (PIX, Boleto, card à vista) → always QUITADO
   if (!s.paymentIsSub && s.paymentInstallments <= 1) return 'QUITADO';
-  // Card installments: all done → QUITADO, else ADIMPLENTE
+  // Card installments: use ACTUAL paid count from history
   if (!s.paymentIsSub && s.paymentInstallments > 1) {
-    const monthsSince = s.entryDate
-      ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000))
-      : 0;
-    const paidSoFar = Math.min(monthsSince + 1, s.paymentInstallments);
-    return paidSoFar >= s.paymentInstallments ? 'QUITADO' : 'ADIMPLENTE';
+    const actualPaid = s.paymentHistory.length;
+    return actualPaid >= s.paymentInstallments ? 'QUITADO' : 'ADIMPLENTE';
   }
   // Subscription
   if (s.subStatus === 'ACTIVE')    return 'ADIMPLENTE';
   if (s.subStatus === 'OVERDUE')   return 'INADIMPLENTE';
-  if (s.subStatus === 'CANCELLED') return 'QUITADO'; // treated as closed/done
+  if (s.subStatus === 'CANCELLED') return 'QUITADO';
   return 'ADIMPLENTE';
 }
+
 
 // ── Payment Cell — ultra-clean ─────────────────────────────────────────────────
 function PaymentCell({ s }: { s: Student }) {
@@ -117,10 +118,10 @@ function PaymentCell({ s }: { s: Student }) {
   else if (t.includes('DEBIT'))                                method = 'Débito';
   else                                                         method = 'Cartão';
 
-  // Progress for installments
+  // Progress for installments — uses ACTUAL paid count from history
   const showProgress = !s.paymentIsSub && inst > 1;
-  const monthsSince  = s.entryDate ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) : 0;
-  const paidSoFar    = showProgress ? Math.min(monthsSince + 1, inst) : 0;
+  const actualPaid   = showProgress ? s.paymentHistory.length : 0;
+  const paidSoFar    = Math.min(actualPaid, inst);
   const leftover     = inst - paidSoFar;
 
   // INADIMPLENTE
@@ -179,23 +180,26 @@ function PaymentCell({ s }: { s: Student }) {
 
 // ── Tooltip — simple, clean ───────────────────────────────────────────────────
 function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) {
-  const paid = s.paymentHistory || [];
-  const isSub = s.paymentIsSub;
-  const inst   = s.paymentInstallments;
-  const status = getPayStatus(s);
+  const paid       = s.paymentHistory || [];
+  const isSub      = s.paymentIsSub;
+  const inst       = s.paymentInstallments;
+  const status     = getPayStatus(s);
+  const actualPaid = paid.length; // ← real paid count from API, not time-based
 
-  const monthsSince = s.entryDate ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) : 0;
-  const paidSoFar   = (!isSub && inst > 1) ? Math.min(monthsSince + 1, inst) : 0;
-
-  // Upcoming payments (estimated)
+  // Upcoming: from last real payment date, count remaining installments
   const upcoming: { date: number; label: string }[] = [];
   if (isSub && s.lastPayDate && status !== 'QUITADO') {
     for (let i = 1; i <= 3; i++) {
       upcoming.push({ date: addMonths(s.lastPayDate, i), label: `Mês estimado` });
     }
-  } else if (!isSub && inst > 1) {
-    for (let i = paidSoFar; i < inst; i++) {
-      upcoming.push({ date: addMonths(s.entryDate!, i), label: `Parcela ${i + 1}/${inst}` });
+  } else if (!isSub && inst > 1 && actualPaid < inst) {
+    const ref = s.lastPayDate || s.entryDate || Date.now();
+    const remaining = inst - actualPaid;
+    for (let i = 1; i <= remaining; i++) {
+      upcoming.push({
+        date: addMonths(ref, i),
+        label: `Parcela ${actualPaid + i}/${inst}`,
+      });
     }
   }
 

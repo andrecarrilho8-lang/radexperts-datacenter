@@ -3,9 +3,8 @@ import { getCachedAllSales } from '@/app/lib/salesCache';
 import { getCache, setCache } from '@/app/lib/metaApi';
 
 const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
+const CACHE_TTL = 2 * 60 * 60 * 1000;
 
-// Currency → country ISO2 code (lowercase for flag-icons CDN)
 const CURRENCY_TO_ISO: Record<string, string> = {
   BRL: 'br', USD: 'us', EUR: 'eu', COP: 'co', MXN: 'mx',
   ARS: 'ar', PEN: 'pe', CLP: 'cl', PYG: 'py', BOB: 'bo',
@@ -13,16 +12,31 @@ const CURRENCY_TO_ISO: Record<string, string> = {
   HNL: 'hn', NIO: 'ni', PAB: 'pa', GBP: 'gb', CAD: 'ca',
 };
 
+/**
+ * Returns the BRL amount from Hotmart's purchase price.
+ * For BRL sales: price.value is already in BRL.
+ * For LATAM: price.actual_value or price.converted_value (if available) = BRL equivalent.
+ * If neither exists for LATAM, returns 0 (not raw foreign amount, to avoid R$1.605.812 type bugs).
+ */
 function getBRLValue(purchase: any): number {
-  // actual_value = Hotmart's pre-converted BRL value (covers LATAM)
-  return purchase?.price?.actual_value ?? purchase?.price?.value ?? 0;
+  const currency = (purchase?.price?.currency_code || 'BRL').toUpperCase();
+  if (currency === 'BRL') {
+    return purchase?.price?.value ?? 0;
+  }
+  // LATAM: prefer Hotmart's own BRL conversion fields; 0 if not available
+  return purchase?.price?.actual_value
+    ?? purchase?.price?.converted_value
+    ?? 0;  // Return 0 rather than wrong raw foreign amount
+}
+
+function getCurrency(purchase: any): string {
+  return (purchase?.price?.currency_code || 'BRL').toUpperCase();
 }
 
 function getFlag(purchase: any): string {
-  const currency = (purchase?.price?.currency_code || 'BRL').toUpperCase();
-  return CURRENCY_TO_ISO[currency] || 'br';
+  const currency = getCurrency(purchase);
+  return CURRENCY_TO_ISO[currency] || '';
 }
-
 
 export async function GET(
   req: NextRequest,
@@ -33,7 +47,8 @@ export async function GET(
   const courseName = decodeURIComponent(rawParam);
   const turma      = searchParams.get('turma') || '';
 
-  const CACHE_KEY = `curso_v7_${courseName}`;
+  // v8: fixed entryDate (first payment), real currency, correct LATAM values
+  const CACHE_KEY = `curso_v8_${courseName}`;
   const hit = getCache(CACHE_KEY);
   if (hit?.expires_at > Date.now()) {
     const result = hit.data;
@@ -43,26 +58,26 @@ export async function GET(
   }
 
   try {
-    // ── Shared global cache — NO extra fetch ──────────────────────────────
     const sales = await getCachedAllSales();
 
-    // Filter to this course only
     const filtered = sales.filter((s: any) =>
       APPROVED.has(s.purchase?.status) && (s.product?.name || '') === courseName
     );
 
-    // Collect turmas
     const turmasSet = new Set<string>();
     filtered.forEach((s: any) => {
       const t = s.purchase?.offer?.code || '';
       if (t) turmasSet.add(t);
     });
 
-    // Aggregate per email: ALL payments counted (so subscription recurrency is accurate)
     type Agg = {
-      latestTs: number; latestSale: any;
-      maxRecurrency: number; isSub: boolean;
+      firstTs: number;       // ← FIRST payment timestamp (for entryDate)
+      latestTs: number;      // ← LAST payment timestamp (for lastPayDate)
+      latestSale: any;
+      maxRecurrency: number;
+      isSub: boolean;
       totalInstallments: number;
+      currency: string;
       payments: Array<{ date: number; valor: number; recurrencyNumber: number }>;
     };
     const emailMap = new Map<string, Agg>();
@@ -77,16 +92,23 @@ export async function GET(
                       (s.purchase?.offer?.payment_mode || '').toUpperCase() === 'SUBSCRIPTION';
       const install = s.purchase?.payment?.installments_number || 1;
       const brlVal  = getBRLValue(s.purchase);
+      const currency = getCurrency(s.purchase);
 
       const cur = emailMap.get(buyerEmail);
       if (!cur) {
         emailMap.set(buyerEmail, {
-          latestTs: ts, latestSale: s, maxRecurrency: recur, isSub,
+          firstTs: ts,    // ← track the earliest
+          latestTs: ts,
+          latestSale: s,
+          maxRecurrency: recur,
+          isSub,
           totalInstallments: install,
+          currency,
           payments: [{ date: ts, valor: brlVal, recurrencyNumber: recur }],
         });
       } else {
         cur.payments.push({ date: ts, valor: brlVal, recurrencyNumber: recur });
+        if (ts < cur.firstTs || cur.firstTs === 0) cur.firstTs = ts;  // ← keep earliest
         if (ts > cur.latestTs) { cur.latestTs = ts; cur.latestSale = s; }
         if (recur > cur.maxRecurrency) cur.maxRecurrency = recur;
       }
@@ -100,13 +122,12 @@ export async function GET(
       const buyerObj = typeof s.buyer === 'object' ? s.buyer : {};
       const buyerName = buyerObj.name || (typeof s.buyer === 'string' ? s.buyer : '—');
 
-      const payType = (purchase.payment?.type || '').toUpperCase();
-      const isSub   = agg.isSub;
-      const install = agg.totalInstallments;
+      const payType  = (purchase.payment?.type || '').toUpperCase();
+      const isSub    = agg.isSub;
+      const install  = agg.totalInstallments;
       const maxRecur = agg.maxRecurrency;
       const lastPayTs = agg.latestTs;
 
-      // Status for subscriptions
       let subStatus: 'ACTIVE' | 'OVERDUE' | 'CANCELLED' = 'ACTIVE';
       if (isSub && lastPayTs) {
         const daysSince = (nowMs - lastPayTs) / (24 * 60 * 60 * 1000);
@@ -114,28 +135,32 @@ export async function GET(
         else if (daysSince > 35) subStatus = 'OVERDUE';
       }
 
-      const vi     = { value: getBRLValue(purchase), flag: getFlag(purchase) };
+      const valor    = getBRLValue(purchase);
+      const currency = getCurrency(purchase);
+      const flag     = getFlag(purchase);
+
+      const sortedPayments = agg.payments
+        .filter(p => p.date > 0)
+        .sort((a, b) => a.date - b.date)
+        .map((p, i) => ({ ...p, index: i + 1 }))
+        .slice(-24);
 
       return {
         name:               buyerName.toUpperCase(),
         email:              buyerEmail,
-        entryDate:          purchase.approved_date || purchase.order_date || null,
+        entryDate:          agg.firstTs || null,   // ← FIRST payment = entry date
         lastPayDate:        lastPayTs || null,
         turma:              purchase.offer?.code || '—',
-        valor:              vi.value,
-        currency:           'BRL',
-        flag:               vi.flag,
+        valor,
+        currency,           // actual currency code (BRL, COP, ARS, etc.)
+        flag,               // ISO 2-letter lowercase for CDN flag, or '' if unknown
         transaction:        purchase.transaction || '',
         paymentType:        payType,
         paymentInstallments: install,
         paymentIsSub:       isSub,
         paymentRecurrency:  maxRecur,
         subStatus,
-        paymentHistory: agg.payments
-          .filter(p => p.date > 0)
-          .sort((a, b) => a.date - b.date)
-          .map((p, i) => ({ ...p, index: i + 1 })) // add 1-based index for "Parcela N"
-          .slice(-24),
+        paymentHistory: sortedPayments,
       };
 
     }).sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
