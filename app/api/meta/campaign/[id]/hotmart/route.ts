@@ -59,7 +59,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Collect matched sales (deduped)
     const matchedProductsNames: Set<string> = new Set();
     const uniqueTxIds = new Set<string>();
-    const matchedSales: { value: number; netBRL: number; currency: string; dateIso: string }[] = [];
+    const matchedSales: { value: number; netBRL: number; currency: string; dateIso: string; feePct: number }[] = [];
 
     for (const s of allSales) {
       const prodName = s.product?.name || '';
@@ -93,23 +93,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         // Liquid net: use commission PRODUCER source when available
         const commData    = commissionMap.get(txId);
         const isBRL       = currency === 'BRL';
+        const feePct      = purchase.hotmart_fee?.percentage ?? 0;
         let netValue: number;
         if (commData?.producerNet != null) {
           if (isBRL) {
-            // BRL: commission already in BRL
             netValue = commData.producerNet;
           } else {
-            // LATAM: commission.value is in USD payout currency — convert to BRL at historical rate
             netValue = await convertToBRLOnDate(commData.producerNet, 'USD', dateIso);
           }
         } else {
           // Fallback: gross × (1 - hotmartFee%)
-          const feePct = purchase.hotmart_fee?.percentage ?? 0;
           const grossBRLFb = await convertToBRLOnDate(grossValue, currency, dateIso);
           netValue = grossBRLFb * (1 - feePct / 100);
         }
 
-        matchedSales.push({ value: grossValue, netBRL: netValue, currency, dateIso });
+        matchedSales.push({ value: grossValue, netBRL: netValue, currency, dateIso, feePct });
       }
     }
 
@@ -131,12 +129,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     );
     const grossBRL = grossConversions.reduce((a, b) => a + b, 0);
 
+    // Co-producers BRL = gross - hotmartFee(%) - producerNet
+    let hotmartFeesBRL = 0;
+    for (let i = 0; i < matchedSales.length; i++) {
+      hotmartFeesBRL += grossConversions[i] * (matchedSales[i].feePct / 100);
+    }
+    const coProducersBRL = Math.max(0, grossBRL - hotmartFeesBRL - revenueBRL);
+
     return NextResponse.json({
       success: true,
-      revenue: revenueBRL,          // Líquido em BRL (producer_net)
-      revenueBRL,                   // alias explícito
-      grossBRL,                     // bruto BRL (para tooltip)
-      hotmartFeesBRL: grossBRL - revenueBRL,
+      revenue: revenueBRL,
+      revenueBRL,
+      grossBRL,
+      hotmartFeesBRL: Math.max(0, hotmartFeesBRL),
+      coProducersBRL,
       purchases: purchaseCount,
       matchedProducts: Array.from(matchedProductsNames),
       currencyBreakdown: byCurrency,

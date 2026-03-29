@@ -59,7 +59,7 @@ export function CampaignDetailView({ id }: { id: string }) {
   const [campDetail, setCampDetail]     = useState<any | null>(null);
   const [campDetailAds, setCampDetailAds] = useState<any[]>([]);
   const [campDetailAdSets, setCampDetailAdSets] = useState<any[]>([]);
-  const [campHotmart, setCampHotmart]   = useState({ revenue: 0, grossBRL: 0, hotmartFeesBRL: 0, purchases: 0, matchedProducts: [] as string[], currencyBreakdown: {} as Record<string, { count: number; originalTotal: number; convertedTotal: number }>, loading: false });
+  const [campHotmart, setCampHotmart]   = useState({ revenue: 0, grossBRL: 0, hotmartFeesBRL: 0, coProducersBRL: 0, purchases: 0, matchedProducts: [] as string[], currencyBreakdown: {} as Record<string, { count: number; originalTotal: number; convertedTotal: number }>, loading: false });
   const [manualProducts, setManualProducts] = useState<string[]>([]); // produtos selecionados manualmente
   const [availableProducts, setAvailableProducts] = useState<string[]>([]); // lista de todos produtos Hotmart
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
@@ -118,7 +118,7 @@ export function CampaignDetailView({ id }: { id: string }) {
     try {
       const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(campName)}${manualParam}`);
       const hData = await hRes.json();
-      setCampHotmart({ revenue: hData.revenue || 0, grossBRL: hData.grossBRL || 0, hotmartFeesBRL: hData.hotmartFeesBRL || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
+      setCampHotmart({ revenue: hData.revenue || 0, grossBRL: hData.grossBRL || 0, hotmartFeesBRL: hData.hotmartFeesBRL || 0, coProducersBRL: hData.coProducersBRL || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
     } catch {
       setCampHotmart(p => ({ ...p, loading: false }));
     }
@@ -495,6 +495,7 @@ export function CampaignDetailView({ id }: { id: string }) {
                         lines={[
                           { emoji: '🟡', label: 'Bruto', value: R(campHotmart.grossBRL || 0) },
                           ...((campHotmart.hotmartFeesBRL || 0) > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(campHotmart.hotmartFeesBRL)}`, color: '#f87171' }] : []),
+                          ...((campHotmart.coProducersBRL || 0) > 0.01 ? [{ emoji: '🟠', label: 'Co-produtores', value: `− ${R(campHotmart.coProducersBRL)}`, color: '#fb923c' }] : []),
                         ]}
                         total={{ label: 'Líquido', value: R(campHotmart.revenue || 0) }}
                       />
