@@ -240,8 +240,9 @@ function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
         {paid.length === 0
           ? <p className="text-[10px]" style={{ color: SILVER }}>Sem registros</p>
           : paid.map((p, i) => {
-              const num = p.recurrencyNumber > 0 ? p.recurrencyNumber : p.index;
-              const label = isSub ? `Mês ${num}` : inst > 1 ? `Parcela ${num}` : 'Pago';
+              // Use p.index (sequential position) for label — avoids duplicate "Parcela 1/Parcela 1"
+              // when recurrencyNumber is 1 for multiple separate transactions
+              const label = isSub ? `Mês ${p.index}` : inst > 1 ? `Parcela ${p.index}` : 'Pago';
               return (
                 <div key={i} className="flex items-center justify-between py-1.5"
                   style={{ borderBottom: i < paid.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
@@ -388,8 +389,18 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const inadimN = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
   const quitN  = students.filter(s => getPayStatus(s) === 'QUITADO').length;
 
-  function vParcela(s: Student) { return s.paymentIsSub ? s.valor : s.paymentInstallments > 1 ? s.valor / s.paymentInstallments : s.valor; }
-  function vTotal(s: Student)   { return s.paymentIsSub ? s.valor * s.paymentRecurrency : s.valor; }
+  // vParcela = valor de uma parcela (s.valor = amount per Hotmart transaction/charge)
+  // vTotal   = soma real de todos os pagamentos registrados no histórico
+  function vParcela(s: Student): number {
+    return s.valor || 0;
+  }
+  function vTotal(s: Student): number {
+    const hist = s.paymentHistory;
+    if (hist && hist.length > 0) {
+      return hist.reduce((sum, p) => sum + p.valor, 0);
+    }
+    return s.valor || 0;
+  }
 
   const SUMMARY_CARDS = [
     { label: 'Total',        val: students.length, color: '#60a5fa', icon: 'group',        f: '' as const },
