@@ -128,23 +128,19 @@ export default function HotmartPage() {
     return acc + (net != null ? Math.max(0, gross - fee - net) : 0);
   }, 0);
 
-  // Intl: líquido em BRL = convertedGross × (1 - hotmartFeePct/100)
-  // NOTA: Não subtraímos co-produtor aqui porque o commission.value das vendas LATAM
-  // vem em BRL (moeda de payout), não na moeda original (COP, ARS...), causando
-  // um ratio incorreto. Deduzimos apenas a taxa Hotmart (% confiável do payload).
+  // Intl: líquido em BRL
+  // producer_net_brl = exato (backend: producer_net_USD × BRL/USD na data da venda)
+  // = "Valor que você recebeu convertido" do painel/CSV Hotmart
+  // Fallback: converted_gross × (1 - hotmartFeePct/100) quando commissions não disponível
   const getIntlNetBRL = (s: any): number => {
-    const convertedGross = s.purchase?.price?.converted_value || 0;
-    const hotmartFeePct  = s.purchase?.hotmart_fee?.percentage ?? 0;
-    if (convertedGross === 0) return 0;
-    return convertedGross * (1 - hotmartFeePct / 100);
+    if (s.purchase?.producer_net_brl != null) return s.purchase.producer_net_brl;
+    const pct = s.purchase?.hotmart_fee?.percentage ?? 0;
+    return (s.purchase?.price?.converted_value || 0) * (1 - pct / 100);
   };
   const intlNetBRL         = intlSales.reduce((acc: number, s: any) => acc + getIntlNetBRL(s), 0);
   const intlGrossBRL       = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
   const intlHotmartFeesBRL = intlGrossBRL - intlNetBRL;
-  // Co-produtor internacional não calculado (ver nota acima)
   const intlCoProducerFeesBRL = 0;
-
-  // keep alias
   const intlRevenueBRL = intlNetBRL;
 
   // Unique products sorted by most recent sale
@@ -613,10 +609,10 @@ Apenas a taxa Hotmart (%) é deduzida com precisão.</p>
                               {fmt(netValue)}
                             </span>
 
-                            {/* BRL aprox. se moeda estrangeira */}
-                            {currency !== 'BRL' && s.purchase?.price?.converted_value && (
+                            {/* BRL aprox. se moeda estrangeira — usa líquido exato quando disponível */}
+                            {currency !== 'BRL' && (
                               <span className="text-[10px] font-bold" style={{ color: SILVER }}>
-                                ≈ {R(s.purchase.price.converted_value)}
+                                ≈ {R(s.purchase?.producer_net_brl ?? s.purchase?.price?.converted_value ?? 0)}
                               </span>
                             )}
 

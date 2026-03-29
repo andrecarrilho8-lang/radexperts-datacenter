@@ -96,18 +96,34 @@ export async function GET(request: Request) {
       return false;
     }).filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') !== 'BRL');
 
-    // Convert each foreign sale by its historical rate (approved_date for consistency with Hotmart dashboard)
+    // ── Convert LATAM gross + enrich with producer_net_brl ──────────────────
+    // DESCOBERTA (debug 29/03/26): commission.value é SEMPRE em USD (moeda payout)
+    // Para match exato com "Valor que você recebeu convertido" do CSV/painel Hotmart:
+    //   net_BRL = producer_net_USD × BRL/USD_{data_da_venda}
+    //   = convertToBRLOnDate(producer_net, 'USD', dateIso)
     await Promise.all(foreignSales.map(async (s: any) => {
       const dateIso = (s.purchase?.approved_date || s.purchase?.order_date)
         ? new Date(s.purchase.approved_date || s.purchase.order_date).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
       const rawValue = s.purchase.price?.actual_value ?? s.purchase.price?.value ?? 0;
+
+      // 1. Gross converted to BRL (as before)
       s.purchase.price.converted_value = await convertToBRLOnDate(
         rawValue, s.purchase.price.currency_code, dateIso
       );
+
+      // 2. Commission enrichment + producer_net_brl (exact match with Hotmart dashboard)
+      const tx = s.purchase?.transaction;
+      if (tx && commissionMap.has(tx)) {
+        const cd: CommissionData = commissionMap.get(tx)!;
+        s.purchase.producer_net     = cd.producerNet;   // USD
+        s.purchase.co_producers     = cd.coProducers;
+        // Convert USD net to BRL at the same historical rate → match com CSV
+        s.purchase.producer_net_brl = await convertToBRLOnDate(cd.producerNet, 'USD', dateIso);
+      }
     }));
 
-    // BRL sales keep converted_value = actual_value ?? value
+    // BRL sales: converted_value = actual_value ?? value
     const uniqueTxIds2 = new Set();
     const cleanSales = hotmartSales.filter((s: any) => {
       const txId = s.purchase?.transaction;
@@ -122,21 +138,24 @@ export async function GET(request: Request) {
       return false;
     });
 
-    // ── Enrich each clean sale with producer_net + co_producers from commissions API ──
-    // producer_net = o que a RadExperts recebeu de fato (deduzido: Hotmart fee + co-produtor)
+    // ── Final enrichment: BRL sales commission + hotmart_fee_total ────────────
+    // LATAM already enriched above (inside foreignSales loop with dateIso)
+    // BRL sales: commission.value is already in BRL (payout currency = BRL)
     cleanSales.forEach((s: any) => {
-      const tx = s.purchase?.transaction;
-      if (tx && commissionMap.has(tx)) {
+      const tx  = s.purchase?.transaction;
+      const cur = s.purchase?.price?.currency_code || 'BRL';
+      if (tx && commissionMap.has(tx) && cur === 'BRL') {
         const cd: CommissionData = commissionMap.get(tx)!;
-        s.purchase.producer_net  = cd.producerNet;
-        s.purchase.co_producers  = cd.coProducers;   // [{name, amount}] para tooltip
+        s.purchase.producer_net     = cd.producerNet;   // BRL for BRL sales
+        s.purchase.producer_net_brl = cd.producerNet;   // same for BRL
+        s.purchase.co_producers     = cd.coProducers;
       }
-      // Sempre expor hotmart_fee_total para tooltip
       s.purchase.hotmart_fee_total = s.purchase?.hotmart_fee?.total ?? 0;
     });
 
+    // Revenue = producer_net_brl when available (exact), else converted_value (fallback)
     const globalHotmartRevenue = cleanSales.reduce((acc: number, s: any) => {
-      const net = s.purchase?.producer_net;
+      const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
       return acc + (net != null ? net : (s.purchase?.price?.converted_value || s.purchase?.price?.value || 0));
     }, 0);
     const globalHotmartPurchases = cleanSales.length;
