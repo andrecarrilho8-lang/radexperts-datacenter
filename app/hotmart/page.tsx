@@ -298,8 +298,22 @@ export default function HotmartPage() {
                       onClick={() => setSelectedProductTags(prev => isSelected ? prev.filter(t => t !== p) : [...prev, p])}
                       className="px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all"
                       style={isSelected
-                        ? { background: GOLD, color: NAVY, border: `1px solid ${GOLD}` }
-                        : { background: 'rgba(255,255,255,0.06)', border: `1px solid ${cardBorder}`, color: SILVER }}>
+                        ? { background: GOLD, color: NAVY, border: `1px solid ${GOLD}`, boxShadow: `0 0 12px rgba(232,177,79,0.35)` }
+                        : { background: 'rgba(255,255,255,0.06)', border: `1px solid ${cardBorder}`, color: SILVER }}
+                      onMouseEnter={e => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = GOLD;
+                          e.currentTarget.style.color = GOLD;
+                          e.currentTarget.style.boxShadow = `0 0 10px rgba(232,177,79,0.2)`;
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = cardBorder;
+                          e.currentTarget.style.color = SILVER;
+                          e.currentTarget.style.boxShadow = 'none';
+                        }
+                      }}>
                       {p}
                     </button>
                   );
