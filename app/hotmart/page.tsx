@@ -459,14 +459,14 @@ export default function HotmartPage() {
                     let installLabel = '';
                     let installStyle: React.CSSProperties = {};
                     if (isSubscription) {
-                      installLabel = installCurrent ? `Assinatura #${installCurrent}` : 'Assinatura';
+                      installLabel = installCurrent ? `Assinatura · Ciclo ${installCurrent}` : 'Assinatura';
                       installStyle = { background: 'rgba(56,189,248,0.12)', color: '#38bdf8' };
                     } else if (installTotal > 1) {
                       installLabel = installCurrent ? `Parcela ${installCurrent}/${installTotal}` : `${installTotal}× parcelado`;
                       installStyle = { background: 'rgba(99,102,241,0.15)', color: '#818cf8' };
                     } else {
-                      installLabel = 'Pgto. Único';
-                      installStyle = { background: 'rgba(34,197,94,0.1)', color: '#4ade80' };
+                      installLabel = 'À vista';
+                      installStyle = { background: 'rgba(34,197,94,0.08)', color: '#86efac' };
                     }
 
                     return (
@@ -488,37 +488,40 @@ export default function HotmartPage() {
                         {/* Faturamento */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex flex-col items-end gap-1">
-                            {/* Valor bruto */}
-                            <span className="font-headline font-black text-xl" style={{ color: GOLD }}>
-                              {fmt(grossValue)}
+
+                            {/* VALOR LÍQUIDO — principal, o que voce recebeu */}
+                            <span className="font-headline font-black text-xl" style={{ color: '#4ade80' }}>
+                              {fmt(netValue)}
                             </span>
-                            {/* BRL aproximado se moeda estrangeira */}
+
+                            {/* Bruto (secundario, apenas quando diferente do liquido) */}
+                            {netValue !== grossValue && (
+                              <span className="text-[10px] font-bold" style={{ color: SILVER }}>
+                                Bruto: {fmt(grossValue)}
+                              </span>
+                            )}
+
+                            {/* BRL aprox. se moeda estrangeira */}
                             {currency !== 'BRL' && s.purchase?.price?.converted_value && (
                               <span className="text-[10px] font-bold" style={{ color: SILVER }}>
                                 ≈ {R(s.purchase.price.converted_value)}
                               </span>
                             )}
-                            {/* Taxa Hotmart */}
+
+                            {/* Deducoes (Hotmart + co-prod) em fonte menor */}
                             {hotmartFee > 0 && (
-                              <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#f87171' }}>
-                                <span className="material-symbols-outlined text-[11px]">remove</span>
-                                Hotmart {hotmartFeePct > 0 ? `${hotmartFeePct}%` : ''}: {fmt(hotmartFee)}
+                              <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>
+                                − Hotmart{hotmartFeePct > 0 ? ` ${hotmartFeePct}%` : ''}: {fmt(hotmartFee)}
                               </span>
                             )}
-                            {/* Comissão co-produtor */}
                             {hasCoProducer && (
-                              <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#fb923c' }}>
-                                <span className="material-symbols-outlined text-[11px]">remove</span>
-                                Co-prod.: {fmt(coProducerAmt)}
+                              <span className="text-[9px] font-bold" style={{ color: '#fb923c' }}>
+                                − Co-prod.: {fmt(coProducerAmt)}
                               </span>
                             )}
-                            {/* Você recebeu — sempre mostrado */}
-                            <span className="text-[11px] font-black px-2 py-0.5 rounded-md"
-                              style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.2)' }}>
-                              ✓ {fmt(netValue)}
-                            </span>
-                            {/* Badge parcela/assinatura */}
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>
+
+                            {/* Badge parcela/ciclo */}
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md mt-0.5" style={installStyle}>
                               {installLabel}
                             </span>
                           </div>
