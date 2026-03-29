@@ -16,7 +16,7 @@ type PayHist   = { date: number; valor: number };
 type Student   = {
   name: string; email: string;
   entryDate: number | null; lastPayDate: number | null;
-  turma: string; valor: number; currency: string; transaction: string;
+  turma: string; valor: number; currency: string; flag: string; transaction: string;
   paymentType: string; paymentInstallments: number;
   paymentIsSub: boolean; paymentRecurrency: number;
   subStatus: SubStatus;
@@ -42,8 +42,12 @@ function fmtDate(ts: number | null): string {
 }
 function fmtMoney(val: number, curr = 'BRL'): string {
   if (!val) return '—';
-  try { return val.toLocaleString('pt-BR', { style: 'currency', currency: curr, minimumFractionDigits: 2 }); }
-  catch { return `R$ ${val.toFixed(2)}`; }
+  try {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: curr, minimumFractionDigits: 2 });
+  } catch {
+    // fallback for unknown currency codes
+    return `${curr} ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 }
 function daysSince(ts: number | null): number {
   return ts ? Math.floor((Date.now() - ts) / 86_400_000) : 9999;
@@ -183,8 +187,17 @@ function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) 
       {/* Header */}
       <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: GOLD }}>Histórico de Pagamentos</p>
-        <p className="font-black text-white text-sm truncate">{s.name}</p>
-        <p className="text-[10px]" style={{ color: SILVER }}>{s.email}</p>
+        <div className="flex items-center gap-2">
+          {s.flag && <span className="text-lg leading-none">{s.flag}</span>}
+          <p className="font-black text-white text-sm truncate">{s.name}</p>
+        </div>
+        <p className="text-[10px] mt-0.5" style={{ color: SILVER }}>  {s.email}</p>
+        {s.currency !== 'BRL' && (
+          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full mt-1 inline-block"
+            style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>
+            Pagamento em {s.currency}
+          </span>
+        )}
       </div>
 
       {/* Paid installments */}
@@ -202,7 +215,7 @@ function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) 
               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#4ade80' }} />
               <span className="text-[11px] font-bold text-white">{fmtDate(p.date)}</span>
             </div>
-            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{fmtMoney(p.valor)}</span>
+            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{fmtMoney(p.valor, s.currency)}</span>
           </div>
         ))}
       </div>
@@ -518,8 +531,13 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       onMouseEnter={e => openTip(e, s)}
                       onMouseMove={moveTip}
                       onMouseLeave={closeTip}>
-                      <p className="text-[12px] font-black text-white truncate group-hover:opacity-80 transition-opacity"
-                        title={s.name}>{s.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        {s.flag && (
+                          <span className="text-[14px] flex-shrink-0 leading-none" title={s.currency}>{s.flag}</span>
+                        )}
+                        <p className="text-[12px] font-black text-white truncate group-hover:opacity-80 transition-opacity"
+                          title={s.name}>{s.name}</p>
+                      </div>
                       {s.paymentIsSub && s.subStatus === 'OVERDUE' && (
                         <span className="flex items-center gap-1 mt-0.5 pointer-events-none">
                           <span className="material-symbols-outlined text-[11px] animate-pulse" style={{ color: '#fbbf24' }}>warning</span>
@@ -529,8 +547,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     </div>
 
                     <span className="text-[11px] font-bold truncate pr-3 pt-1" style={{ color: SILVER }}>{s.email}</span>
-                    <span className="text-[12px] font-bold pt-1" style={{ color: GOLD }}>{fmtMoney(vParcela(s))}</span>
-                    <span className="text-[12px] font-bold pt-1 text-white">{fmtMoney(vTotal(s))}</span>
+                    <span className="text-[12px] font-bold pt-1" style={{ color: GOLD }}>{fmtMoney(vParcela(s), s.currency)}</span>
+                    <span className="text-[12px] font-bold pt-1 text-white">{fmtMoney(vTotal(s), s.currency)}</span>
                     <PaymentCell s={s} />
                   </div>
                 );

@@ -5,14 +5,25 @@ import { getCache, setCache } from '@/app/lib/metaApi';
 const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
-/** Resolve the BRL value for any purchase — prefers Hotmart's own converted_value for LATAM */
-function getBRLValue(purchase: any): number {
+// Currency → country code (for flag emoji)
+const CURRENCY_TO_COUNTRY: Record<string, string> = {
+  BRL: 'BR', USD: 'US', EUR: 'EU', COP: 'CO', MXN: 'MX',
+  ARS: 'AR', PEN: 'PE', CLP: 'CL', PYG: 'PY', BOB: 'BO',
+  UYU: 'UY', VES: 'VE', CRC: 'CR', DOP: 'DO', GTQ: 'GT',
+  HNL: 'HN', NIO: 'NI', PAB: 'PA', GBP: 'GB', CAD: 'CA',
+};
+
+function countryFlag(currencyCode: string): string {
+  const cc = CURRENCY_TO_COUNTRY[currencyCode.toUpperCase()] || '';
+  if (!cc || cc === 'EU') return cc === 'EU' ? '🇪🇺' : '';
+  return cc.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt(0)));
+}
+
+function getValueInfo(purchase: any): { value: number; currency: string; isBRL: boolean; flag: string } {
   const currency = (purchase?.price?.currency_code || 'BRL').toUpperCase();
-  if (currency === 'BRL') {
-    return purchase?.price?.value ?? 0;
-  }
-  // LATAM: use converted_value (Hotmart's own BRL conversion, already accurate)
-  return purchase?.price?.converted_value ?? purchase?.price?.value ?? 0;
+  const value    = purchase?.price?.value ?? 0;
+  const flag     = countryFlag(currency);
+  return { value, currency, isBRL: currency === 'BRL', flag };
 }
 
 export async function GET(
@@ -67,17 +78,17 @@ export async function GET(
       const isSub   = s.purchase?.is_subscription === true ||
                       (s.purchase?.offer?.payment_mode || '').toUpperCase() === 'SUBSCRIPTION';
       const install = s.purchase?.payment?.installments_number || 1;
-      const brlVal  = getBRLValue(s.purchase);
+      const vi      = getValueInfo(s.purchase);
 
       const cur = emailMap.get(buyerEmail);
       if (!cur) {
         emailMap.set(buyerEmail, {
           latestTs: ts, latestSale: s, maxRecurrency: recur, isSub,
           totalInstallments: install,
-          payments: [{ date: ts, valor: brlVal }],
+          payments: [{ date: ts, valor: vi.value }],
         });
       } else {
-        cur.payments.push({ date: ts, valor: brlVal });
+        cur.payments.push({ date: ts, valor: vi.value });
         if (ts > cur.latestTs) { cur.latestTs = ts; cur.latestSale = s; }
         if (recur > cur.maxRecurrency) cur.maxRecurrency = recur;
       }
@@ -105,8 +116,7 @@ export async function GET(
         else if (daysSince > 35) subStatus = 'OVERDUE';
       }
 
-      // Use BRL-converted value (covers LATAM via converted_value)
-      const valorBRL = getBRLValue(purchase);
+      const vi = getValueInfo(purchase);
 
       return {
         name:               buyerName.toUpperCase(),
@@ -114,15 +124,15 @@ export async function GET(
         entryDate:          purchase.approved_date || purchase.order_date || null,
         lastPayDate:        lastPayTs || null,
         turma:              purchase.offer?.code || '—',
-        valor:              valorBRL,
-        currency:           'BRL',
+        valor:              vi.value,       // in original currency
+        currency:           vi.currency,    // e.g. COP, BRL, USD
+        flag:               vi.flag,        // country flag emoji
         transaction:        purchase.transaction || '',
         paymentType:        payType,
         paymentInstallments: install,
         paymentIsSub:       isSub,
         paymentRecurrency:  maxRecur,
         subStatus,
-        // History: sorted ascending, capped at 24 most recent
         paymentHistory: agg.payments
           .filter(p => p.date > 0)
           .sort((a, b) => a.date - b.date)
