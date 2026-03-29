@@ -37,7 +37,7 @@ export function CampaignDetailView({ id }: { id: string }) {
   const [campDetail, setCampDetail]     = useState<any | null>(null);
   const [campDetailAds, setCampDetailAds] = useState<any[]>([]);
   const [campDetailAdSets, setCampDetailAdSets] = useState<any[]>([]);
-  const [campHotmart, setCampHotmart]   = useState({ revenue: 0, purchases: 0, matchedProducts: [] as string[], loading: false });
+  const [campHotmart, setCampHotmart]   = useState({ revenue: 0, purchases: 0, matchedProducts: [] as string[], currencyBreakdown: {} as Record<string, { count: number; originalTotal: number; convertedTotal: number }>, loading: false });
   const [loading, setLoading]           = useState(true);
   const [adSetsLoading, setAdSetsLoading] = useState(false);
   const [selectedAdSetId, setSelectedAdSetId] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export function CampaignDetailView({ id }: { id: string }) {
         setCampHotmart(p => ({ ...p, loading: true }));
         const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}`);
         const hData = await hRes.json();
-        setCampHotmart({ revenue: hData.revenue || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], loading: false });
+        setCampHotmart({ revenue: hData.revenue || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
       }
     } catch (e) {
       console.error(e);
@@ -353,9 +353,12 @@ export function CampaignDetailView({ id }: { id: string }) {
                     <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>transações confirmadas</p>
                   </div>
                   <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Faturamento</p>
+                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Faturamento em BRL</p>
                     <p className="font-headline font-black text-3xl" style={{ color: GOLD }}>{R(campHotmart.revenue || 0)}</p>
-                    <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>receita bruta Hotmart</p>
+                    <p className="text-[10px] font-bold mt-1 flex items-center gap-1" style={{ color: '#22c55e' }}>
+                      <span className="material-symbols-outlined text-[11px]">currency_exchange</span>
+                      cotação histórica do dia
+                    </p>
                   </div>
                   <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>ROAS</p>
@@ -403,6 +406,41 @@ export function CampaignDetailView({ id }: { id: string }) {
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Breakdown por moeda */}
+                {Object.keys(campHotmart.currencyBreakdown).length > 0 && (
+                  <div className="rounded-[16px] p-4 mt-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
+                      <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>currency_exchange</span>
+                      Detalhamento por Moeda — convertido pela cotação do dia da venda
+                    </p>
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <th className="text-left pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>Moeda</th>
+                          <th className="text-right pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>Vendas</th>
+                          <th className="text-right pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>Valor Original</th>
+                          <th className="text-right pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>≈ em BRL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(campHotmart.currencyBreakdown).map(([cur, d]) => (
+                          <tr key={cur} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                            <td className="py-2 font-black text-white">{cur}</td>
+                            <td className="py-2 text-right font-bold" style={{ color: SILVER }}>{d.count}</td>
+                            <td className="py-2 text-right font-bold" style={{ color: SILVER }}>
+                              {cur === 'BRL'
+                                ? R(d.originalTotal)
+                                : `${cur} ${d.originalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </td>
+                            <td className="py-2 text-right font-black" style={{ color: GOLD }}>{R(d.convertedTotal)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { convertToBRLOnDate } from '@/app/lib/currency';
 
 function cleanStr(s: string) {
   return (s || '').toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
-    .replace(/[^a-z0-9]/g, ''); // Keep only letters and numbers
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, '');
 }
 
 // Mapeamentos explícitos: se o nome da campanha contiver a keyword,
@@ -16,7 +17,7 @@ const CAMPAIGN_KEYWORD_MAP: { keyword: string; products: string[] }[] = [
 ];
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const { id: _id } = await params;
   const { searchParams } = new URL(request.url);
   const dateFrom = searchParams.get('dateFrom');
   const dateTo = searchParams.get('dateTo');
@@ -29,26 +30,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   try {
     const dSince = `${dateFrom}T00:00:00-03:00`;
     const dUntil = `${dateTo}T23:59:59-03:00`;
-    
-    // Fetch all sales for the period
+
     const allSales = await fetchHotmartSales(dSince, dUntil);
-    
+
     const normCampName = cleanStr(campaignName);
-    
-    // Extraction of unique identifying tokens
     const campTokens = campaignName.toLowerCase()
-      .replace(/[\[\]\-\_\(\)]/g, ' ') 
+      .replace(/[\[\]\-\_\(\)]/g, ' ')
       .split(/\s+/)
-      .filter(t => t.length > 3) 
+      .filter(t => t.length > 3)
       .filter(t => !['vendas', 'leads', 'hybrid', 'paginas', 'campanha', 'oficial', 'atual', 'anuncio', 'geral', '2025', '2026'].includes(t));
 
-    const matchedProductsNames: Set<string> = new Set();
-    const uniqueTxIds = new Set();
-    let grossRevenue = 0;
-    let userCommission = 0;
-    let purchaseCount = 0;
-
-    // Resolve explicit keyword overrides for this campaign
+    // Resolve explicit keyword overrides
     const campNameLower = campaignName.toLowerCase();
     const forcedProducts = new Set<string>();
     for (const map of CAMPAIGN_KEYWORD_MAP) {
@@ -57,41 +49,65 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       }
     }
 
-    allSales.forEach(s => {
+    // Collect matched sales (deduped)
+    const matchedProductsNames: Set<string> = new Set();
+    const uniqueTxIds = new Set<string>();
+    const matchedSales: { value: number; currency: string; dateIso: string }[] = [];
+
+    allSales.forEach((s: any) => {
       const prodName = s.product?.name || '';
       const cleanProduct = cleanStr(prodName);
       const purchase = s.purchase || {};
       const txId = purchase.transaction;
 
-      // Status check (Approved only)
       const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status);
       if (!isApproved) return;
 
-      // Explicit override first (e.g. latam → NeuroExpert Posgrado)
       const isForced = forcedProducts.has(prodName);
-
-      // Generic token match as fallback
       const isGenericMatch = !isForced && (
         cleanProduct.includes(normCampName) ||
         normCampName.includes(cleanProduct) ||
-        campTokens.some(token => cleanProduct.includes(cleanStr(token)))
+        campTokens.some((token: string) => cleanProduct.includes(cleanStr(token)))
       );
 
       if ((isForced || isGenericMatch) && !uniqueTxIds.has(txId)) {
         uniqueTxIds.add(txId);
         matchedProductsNames.add(prodName);
-        grossRevenue += (purchase.price?.value || 0);
-        userCommission += (purchase.commission?.value || 0);
-        purchaseCount++;
+        const dateIso = purchase.order_date
+          ? new Date(purchase.order_date).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
+        matchedSales.push({
+          value: purchase.price?.value || 0,
+          currency: (purchase.price?.currency_code || 'BRL').toUpperCase(),
+          dateIso,
+        });
       }
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      revenue: grossRevenue, // Total gross value for ROAS
-      userShare: userCommission, // What the user actually earned
+    // Convert each sale to BRL using the historical rate of its date
+    const convertedValues = await Promise.all(
+      matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso))
+    );
+
+    const revenueBRL = convertedValues.reduce((a, b) => a + b, 0);
+    const purchaseCount = matchedSales.length;
+
+    // Currency breakdown
+    const byCurrency: Record<string, { count: number; originalTotal: number; convertedTotal: number }> = {};
+    matchedSales.forEach((s, i) => {
+      if (!byCurrency[s.currency]) byCurrency[s.currency] = { count: 0, originalTotal: 0, convertedTotal: 0 };
+      byCurrency[s.currency].count++;
+      byCurrency[s.currency].originalTotal += s.value;
+      byCurrency[s.currency].convertedTotal += convertedValues[i];
+    });
+
+    return NextResponse.json({
+      success: true,
+      revenue: revenueBRL,          // Total em BRL (convertido historicamente)
+      revenueBRL,                   // alias explícito
       purchases: purchaseCount,
-      matchedProducts: Array.from(matchedProductsNames)
+      matchedProducts: Array.from(matchedProductsNames),
+      currencyBreakdown: byCurrency, // detalhe por moeda
     });
 
   } catch (error: any) {
