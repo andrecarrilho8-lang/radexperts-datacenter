@@ -316,6 +316,8 @@ export function CampaignDetailView({ id }: { id: string }) {
         <div style={{ ...glossy, padding: '32px', marginBottom: 16, background: 'linear-gradient(160deg, rgba(232,120,13,0.1) 0%, rgba(0,10,30,0.55) 100%)', border: '1px solid rgba(232,120,13,0.25)', borderRadius: 28 }}>
           <div style={shine} />
           <div className="relative z-10">
+
+            {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <svg width="36" height="36" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -325,21 +327,94 @@ export function CampaignDetailView({ id }: { id: string }) {
                 <span className="font-black text-2xl tracking-tight text-white">hotmart</span>
                 {campHotmart.loading && <span className="w-2 h-2 rounded-full animate-ping ml-1" style={{ background: '#E8380D' }} />}
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg"
-                style={{ color: '#E8380D', background: 'rgba(232,56,13,0.1)', border: '1px solid rgba(232,56,13,0.2)' }}>Período Analisado</span>
-            </div>
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <p className="text-[11px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Vendas no Período</p>
-                <p className="font-headline font-black text-4xl lg:text-5xl text-white">{N(campHotmart.purchases || 0)}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: SILVER }}>transações confirmadas</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Faturamento no Período</p>
-                <p className="font-headline font-black text-4xl lg:text-5xl" style={{ color: GOLD }}>{R(campHotmart.revenue || 0)}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: SILVER }}>receita total Hotmart</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                  style={{ color: '#94a3b8', background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.15)' }}>
+                  <span className="material-symbols-outlined text-[12px]">info</span>
+                  Correspondência por aproximação
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg"
+                  style={{ color: '#E8380D', background: 'rgba(232,56,13,0.1)', border: '1px solid rgba(232,56,13,0.2)' }}>Período Analisado</span>
               </div>
             </div>
+
+            {campHotmart.loading ? (
+              <div className="flex items-center justify-center py-10 gap-3">
+                <span className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#E8380D transparent transparent transparent' }} />
+                <span className="text-sm font-bold" style={{ color: SILVER }}>Correlacionando vendas Hotmart...</span>
+              </div>
+            ) : (
+              <>
+                {/* KPIs principais */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Vendas no Período</p>
+                    <p className="font-headline font-black text-3xl text-white">{campHotmart.purchases || 0}</p>
+                    <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>transações confirmadas</p>
+                  </div>
+                  <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Faturamento</p>
+                    <p className="font-headline font-black text-3xl" style={{ color: GOLD }}>{R(campHotmart.revenue || 0)}</p>
+                    <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>receita bruta Hotmart</p>
+                  </div>
+                  <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>ROAS</p>
+                    {m.spend > 0 && campHotmart.revenue > 0 ? (
+                      <>
+                        <p className="font-headline font-black text-3xl" style={{ color: (campHotmart.revenue / m.spend) >= 2 ? '#22c55e' : (campHotmart.revenue / m.spend) < 1 ? '#ef4444' : GOLD }}>
+                          {(campHotmart.revenue / m.spend).toFixed(2)}×
+                        </p>
+                        <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>para cada R$1 investido</p>
+                      </>
+                    ) : (
+                      <p className="font-headline font-black text-3xl" style={{ color: SILVER }}>—</p>
+                    )}
+                  </div>
+                  <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: SILVER }}>Ticket Médio</p>
+                        <p className="font-headline font-black text-xl text-white">
+                          {campHotmart.purchases > 0 ? R(campHotmart.revenue / campHotmart.purchases) : '—'}
+                        </p>
+                      </div>
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
+                        <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: SILVER }}>CPA Real</p>
+                        <p className="font-headline font-black text-xl" style={{ color: '#38bdf8' }}>
+                          {m.spend > 0 && campHotmart.purchases > 0 ? R(m.spend / campHotmart.purchases) : '—'}
+                        </p>
+                        <p className="text-[9px] font-bold" style={{ color: SILVER }}>custo por venda</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Produtos matchados */}
+                {campHotmart.matchedProducts.length > 0 && (
+                  <div className="rounded-[16px] p-4" style={{ background: 'rgba(232,120,13,0.06)', border: '1px solid rgba(232,120,13,0.15)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: '#E8380D' }}>
+                      <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                      Produtos Correlacionados ({campHotmart.matchedProducts.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {campHotmart.matchedProducts.map((p: string) => (
+                        <span key={p} className="px-3 py-1.5 rounded-lg text-[11px] font-black" style={{ background: 'rgba(232,120,13,0.12)', border: '1px solid rgba(232,120,13,0.2)', color: '#fb923c' }}>
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {campHotmart.purchases === 0 && !campHotmart.loading && (
+                  <div className="rounded-[16px] p-4 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: SILVER }}>search_off</span>
+                    <p className="text-sm font-bold" style={{ color: SILVER }}>Nenhuma venda Hotmart correlacionada com esta campanha no período.</p>
+                    <p className="text-[10px] font-bold mt-1" style={{ color: SILVER, opacity: 0.6 }}>A correlação é feita por tokens do nome da campanha vs. nome do produto.</p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
