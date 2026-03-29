@@ -41,48 +41,49 @@ async function getToken(clientId: string, clientSecret: string, basicToken: stri
   return data.access_token as string;
 }
 
+async function tryGet(token: string, path: string) {
+  try {
+    const r = await httpsGet(HOTMART_API_HOST, path, { 'Authorization': `Bearer ${token}` });
+    let body: any;
+    try { body = JSON.parse(r.body); } catch { body = r.body; }
+    return { path, status: r.status, body };
+  } catch (e: any) {
+    return { path, status: 0, error: e.message };
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const days        = parseInt(searchParams.get('days') || '30');
-  const transaction = searchParams.get('transaction'); // e.g. HP3970815852
+  const transaction = searchParams.get('transaction');
 
   try {
-    const clientId   = process.env.HOTMART_CLIENT_ID     || '';
+    const clientId     = process.env.HOTMART_CLIENT_ID     || '';
     const clientSecret = process.env.HOTMART_CLIENT_SECRET || '';
-    const basicToken = process.env.HOTMART_BASIC_TOKEN    || '';
-    const token = await getToken(clientId, clientSecret, basicToken);
+    const basicToken   = process.env.HOTMART_BASIC_TOKEN   || '';
+    const token        = await getToken(clientId, clientSecret, basicToken);
 
-    // ── Mode 1: fetch price details for a specific transaction ──────────────
+    // ── Mode 1: inspect commission endpoints for a specific transaction ──────
     if (transaction) {
-      const paths = [
-        `/payments/api/v1/sales/price/details?transaction=${transaction}`,
-        `/payments/api/v1/sales/commissions?transaction_id=${transaction}`,
-        `/payments/api/v1/sales/participants?transaction_id=${transaction}`,
-      ];
-      const results = await Promise.all(paths.map(async (p) => {
-        try {
-          const r = await httpsGet(HOTMART_API_HOST, p, { 'Authorization': `Bearer ${token}` });
-          let body: any;
-          try { body = JSON.parse(r.body); } catch { body = r.body; }
-          return { path: p, status: r.status, body };
-        } catch (e: any) {
-          return { path: p, status: 0, error: e.message };
-        }
-      }));
-      return NextResponse.json({ mode: 'transaction_detail', transaction, results });
+      const results = await Promise.all([
+        // Correct param name is "transaction" not "transaction_id" (per docs)
+        tryGet(token, `/payments/api/v1/sales/commissions?transaction=${transaction}`),
+        tryGet(token, `/payments/api/v1/sales/commissions?transaction=${transaction}&commission_as=PRODUCER`),
+        tryGet(token, `/payments/api/v1/sales/commissions?transaction=${transaction}&commission_as=COPRODUCER`),
+        tryGet(token, `/payments/api/v1/sales/users?transaction=${transaction}`),
+        tryGet(token, `/payments/api/v1/sales/participants?transaction=${transaction}`),
+        tryGet(token, `/payments/api/v1/sales/history?transaction=${transaction}&max_results=1`),
+        tryGet(token, `/payments/api/v1/sales/price/details?transaction=${transaction}`),
+      ]);
+      return NextResponse.json({ mode: 'commission_detail', transaction, results });
     }
 
-    // ── Mode 2: general sales stats ─────────────────────────────────────────
+    // ── Mode 2: general stats + commission samples ───────────────────────────
     const now  = Date.now();
     const past = now - (days * 24 * 60 * 60 * 1000);
 
-    const salesPath = `/payments/api/v1/sales/history?start_date=${past}&end_date=${now}&max_results=500`;
-    const salesResult = await httpsGet(HOTMART_API_HOST, salesPath, { 'Authorization': `Bearer ${token}` });
-
-    let salesData: any;
-    try { salesData = JSON.parse(salesResult.body); } catch { return NextResponse.json({ step: 'sales_parse_fail' }); }
-
-    const items: any[] = salesData?.items || [];
+    const salesResp = await tryGet(token, `/payments/api/v1/sales/history?start_date=${past}&end_date=${now}&max_results=50`);
+    const items: any[] = salesResp.body?.items || [];
 
     const statusCount: Record<string, number> = {};
     items.forEach((s: any) => {
@@ -90,29 +91,31 @@ export async function GET(request: Request) {
       statusCount[st] = (statusCount[st] || 0) + 1;
     });
 
-    // Find samples: one without co-producer, one with commission field
-    const approvedSample    = items.find((s: any) => ['APPROVED','COMPLETE'].includes(s.purchase?.status || ''));
-    const withCommission    = items.find((s: any) => s.purchase?.commission != null || s.commission != null);
-    const installmentSample = items.find((s: any) =>
-      ['APPROVED','COMPLETE'].includes(s.purchase?.status || '') &&
-      (s.purchase?.payment?.installments_number || 1) > 1
+    // Scan all items for any "commission" field at any level
+    const withCommission = items.find((s: any) =>
+      s.commission != null ||
+      s.purchase?.commission != null ||
+      s.purchase?.commission_value != null
     );
 
-    const approvedCount = (statusCount['APPROVED'] || 0) + (statusCount['COMPLETE'] || 0);
+    const approved = items.filter((s: any) => ['APPROVED','COMPLETE'].includes(s.purchase?.status || ''));
+
+    // Try fetching commissions for the most recent approved sale
+    let commissionSample = null;
+    if (approved[0]?.purchase?.transaction) {
+      const tx = approved[0].purchase.transaction;
+      commissionSample = await tryGet(token, `/payments/api/v1/sales/commissions?transaction=${tx}`);
+    }
 
     return NextResponse.json({
-      period_days:      days,
-      total_api_items:  items.length,
+      period_days: days,
+      total_items: items.length,
       status_breakdown: statusCount,
-      approved_complete_count: approvedCount,
-      hint: 'To inspect a specific transaction, add ?transaction=HPXXXXXXXX to the URL',
-      // Field exploration — shows ALL top-level keys of items (to find commission)
-      item_top_level_keys: approvedSample ? Object.keys(approvedSample) : [],
-      purchase_keys:       approvedSample ? Object.keys(approvedSample.purchase || {}) : [],
-      // Samples
-      sample_with_commission: withCommission || null,
-      raw_approved_sample:    approvedSample || null,
-      raw_installment_sample: installmentSample || null,
+      item_top_level_keys:    approved[0] ? Object.keys(approved[0]) : [],
+      purchase_keys:          approved[0] ? Object.keys(approved[0].purchase || {}) : [],
+      item_with_commission:   withCommission || 'none found',
+      commission_api_sample:  commissionSample,
+      hint: 'Add ?transaction=HPXXXXXXXX to inspect a specific sale',
     });
 
   } catch (e: any) {
