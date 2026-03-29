@@ -54,6 +54,7 @@ export async function GET(
       latestTs: number; latestSale: any;
       maxRecurrency: number; isSub: boolean;
       totalInstallments: number;
+      payments: Array<{ date: number; valor: number }>;
     };
     const emailMap = new Map<string, Agg>();
 
@@ -66,11 +67,17 @@ export async function GET(
       const isSub   = s.purchase?.is_subscription === true ||
                       (s.purchase?.offer?.payment_mode || '').toUpperCase() === 'SUBSCRIPTION';
       const install = s.purchase?.payment?.installments_number || 1;
+      const brlVal  = getBRLValue(s.purchase);
 
       const cur = emailMap.get(buyerEmail);
       if (!cur) {
-        emailMap.set(buyerEmail, { latestTs: ts, latestSale: s, maxRecurrency: recur, isSub, totalInstallments: install });
+        emailMap.set(buyerEmail, {
+          latestTs: ts, latestSale: s, maxRecurrency: recur, isSub,
+          totalInstallments: install,
+          payments: [{ date: ts, valor: brlVal }],
+        });
       } else {
+        cur.payments.push({ date: ts, valor: brlVal });
         if (ts > cur.latestTs) { cur.latestTs = ts; cur.latestSale = s; }
         if (recur > cur.maxRecurrency) cur.maxRecurrency = recur;
       }
@@ -107,14 +114,19 @@ export async function GET(
         entryDate:          purchase.approved_date || purchase.order_date || null,
         lastPayDate:        lastPayTs || null,
         turma:              purchase.offer?.code || '—',
-        valor:              valorBRL,        // always BRL
-        currency:           'BRL',           // normalised to BRL
+        valor:              valorBRL,
+        currency:           'BRL',
         transaction:        purchase.transaction || '',
         paymentType:        payType,
         paymentInstallments: install,
         paymentIsSub:       isSub,
-        paymentRecurrency:  maxRecur,        // total sub payments made
+        paymentRecurrency:  maxRecur,
         subStatus,
+        // History: sorted ascending, capped at 24 most recent
+        paymentHistory: agg.payments
+          .filter(p => p.date > 0)
+          .sort((a, b) => a.date - b.date)
+          .slice(-24),
       };
     }).sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
 
