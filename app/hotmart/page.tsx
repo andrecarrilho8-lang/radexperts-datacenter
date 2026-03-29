@@ -58,7 +58,7 @@ export default function HotmartPage() {
     selectedProductTags.length === 0 || selectedProductTags.includes(s.product?.name)
   );
 
-  const totalRevenue    = filteredSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.value || 0), 0);
+  const totalRevenue    = filteredSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0), 0);
   const totalSalesCount = filteredSales.length;
 
   // Ordena do produto com venda mais recente para o mais antigo
@@ -67,7 +67,7 @@ export default function HotmartPage() {
     (data.hotmartSales || []).forEach((s: any) => {
       const name = s.product?.name;
       if (!name) return;
-      const t = new Date(s.purchase?.order_date || 0).getTime();
+      const t = new Date(s.purchase?.approved_date || s.purchase?.order_date || 0).getTime();
       if (!productLastSale[name] || t > productLastSale[name]) productLastSale[name] = t;
     });
     return Object.entries(productLastSale)
@@ -87,7 +87,7 @@ export default function HotmartPage() {
   const currentRevenueByCurrency: Record<string, number> = {};
   filteredSales.forEach((s: any) => {
     const cur = s.purchase?.price?.currency_code || 'BRL';
-    currentRevenueByCurrency[cur] = (currentRevenueByCurrency[cur] || 0) + (s.purchase?.price?.value || 0);
+    currentRevenueByCurrency[cur] = (currentRevenueByCurrency[cur] || 0) + (s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0);
   });
 
   // Moedas com país único e inequívoco
@@ -156,7 +156,7 @@ export default function HotmartPage() {
                   </div>
                   <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>receita bruta em reais · Hotmart</p>
                   <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none">
-                    {R(filteredSales.filter(s => (s.purchase?.price?.currency_code || 'BRL') === 'BRL').reduce((acc: number, s: any) => acc + (s.purchase?.price?.value || 0), 0))}
+                    {R(filteredSales.filter(s => (s.purchase?.price?.currency_code || 'BRL') === 'BRL').reduce((acc: number, s: any) => acc + (s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0), 0))}
                   </p>
                 </div>
 

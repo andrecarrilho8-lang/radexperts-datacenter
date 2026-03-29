@@ -88,31 +88,32 @@ export async function GET(request: Request) {
     const uniqueTxIds = new Set();
     const foreignSales = hotmartSales.filter((s: any) => {
       const txId = s.purchase?.transaction;
-      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(s.purchase?.status);
+      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(s.purchase?.status);
       const isNew = !uniqueTxIds.has(txId);
       if (isApproved && isNew) { uniqueTxIds.add(txId); return true; }
       return false;
     }).filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') !== 'BRL');
 
-    // Convert each foreign sale by its historical rate
+    // Convert each foreign sale by its historical rate (approved_date for consistency with Hotmart dashboard)
     await Promise.all(foreignSales.map(async (s: any) => {
-      const dateIso = s.purchase?.order_date
-        ? new Date(s.purchase.order_date).toISOString().split('T')[0]
+      const dateIso = (s.purchase?.approved_date || s.purchase?.order_date)
+        ? new Date(s.purchase.approved_date || s.purchase.order_date).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
+      const rawValue = s.purchase.price?.actual_value ?? s.purchase.price?.value ?? 0;
       s.purchase.price.converted_value = await convertToBRLOnDate(
-        s.purchase.price.value, s.purchase.price.currency_code, dateIso
+        rawValue, s.purchase.price.currency_code, dateIso
       );
     }));
 
-    // BRL sales keep converted_value = value
+    // BRL sales keep converted_value = actual_value ?? value
     const uniqueTxIds2 = new Set();
     const cleanSales = hotmartSales.filter((s: any) => {
       const txId = s.purchase?.transaction;
-      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(s.purchase?.status);
+      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(s.purchase?.status);
       if (isApproved && !uniqueTxIds2.has(txId)) {
         uniqueTxIds2.add(txId);
         if ((s.purchase?.price?.currency_code || 'BRL') === 'BRL') {
-          s.purchase.price.converted_value = s.purchase.price.value;
+          s.purchase.price.converted_value = s.purchase.price?.actual_value ?? s.purchase.price?.value ?? 0;
         }
         return true;
       }
@@ -183,7 +184,7 @@ export async function GET(request: Request) {
     // ── Build Overview ──
     let overview: any = null;
     if (campaignId) {
-       overview = tableData.find(c => c.id === campaignId) || null;
+       overview = tableData.find((c: any) => c.id === campaignId) || null;
     } else if (summaryInsights.length > 0) {
        const mainMetrics = parseMetrics(summaryInsights[0]);
        overview = {

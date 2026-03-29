@@ -66,7 +66,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const purchase = s.purchase || {};
       const txId = purchase.transaction;
 
-      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status);
+      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(purchase.status);
       if (!isApproved) return;
 
       // Manual override: só produtos selecionados
@@ -82,11 +82,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if ((isManualMatch || isForced || isGenericMatch) && !uniqueTxIds.has(txId)) {
         uniqueTxIds.add(txId);
         matchedProductsNames.add(prodName);
-        const dateIso = purchase.order_date
-          ? new Date(purchase.order_date).toISOString().split('T')[0]
+        const dateIso = (purchase.approved_date || purchase.order_date)
+          ? new Date(purchase.approved_date || purchase.order_date).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
         matchedSales.push({
-          value: purchase.price?.value || 0,
+          value: purchase.price?.actual_value ?? purchase.price?.value ?? 0,
           currency: (purchase.price?.currency_code || 'BRL').toUpperCase(),
           dateIso,
         });
