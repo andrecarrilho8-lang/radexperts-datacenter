@@ -83,7 +83,7 @@ function Step1({ onSelect }: { onSelect: (p: ProductItem) => void }) {
   const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="w-full">
       <h2 className="text-2xl font-black text-white mb-1">Selecione um Produto</h2>
       <p className="text-sm font-bold mb-6" style={{ color: SILVER }}>Os dados de vendas da Hotmart serão carregados para o produto selecionado.</p>
       <div className="relative mb-4">
