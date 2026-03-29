@@ -10,24 +10,33 @@ const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
 const SILVER = '#A8B2C0';
 
+const TRAFEGO_ITEMS = [
+  { label: 'Campanhas', href: '/campanhas',        icon: 'campaign' },
+  { label: 'Análise',   href: '/trafego/analise',  icon: 'analytics' },
+  { label: 'Histórico', href: '/historico',         icon: 'history' },
+];
+
 export function Navbar() {
   const { dateFrom, dateTo, setDateRange, activePreset, setActivePreset, presets, userRole, userName, logout } = useDashboard();
-  const [showCustom, setShowCustom] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [showCustom,   setShowCustom]   = useState(false);
+  const [mobileOpen,   setMobileOpen]   = useState(false);
+  const [trafegoOpen,  setTrafegoOpen]  = useState(false);
   const [tmpFrom, setTmpFrom] = useState(dateFrom);
   const [tmpTo,   setTmpTo]   = useState(dateTo);
   const pathname  = usePathname();
   const customRef = useRef<HTMLDivElement>(null);
+  const trafegoRef= useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function clickOutside(e: MouseEvent) {
       if (customRef.current && !customRef.current.contains(e.target as Node)) setShowCustom(false);
+      if (trafegoRef.current && !trafegoRef.current.contains(e.target as Node)) setTrafegoOpen(false);
     }
     document.addEventListener('mousedown', clickOutside);
     return () => document.removeEventListener('mousedown', clickOutside);
   }, []);
 
-  useEffect(() => { setMobileOpen(false); }, [pathname]);
+  useEffect(() => { setMobileOpen(false); setTrafegoOpen(false); }, [pathname]);
 
   const applyPreset = (p: Preset) => {
     setDateRange(p.from, p.to);
@@ -43,13 +52,14 @@ export function Navbar() {
     setShowCustom(false);
   };
 
-  const allNavItems = [
-    { label: 'Resumo',    href: '/resumo',    roles: ['TOTAL', 'NORMAL'] },
-    { label: 'Campanhas', href: '/campanhas', roles: ['TOTAL', 'NORMAL'] },
-    { label: 'Hotmart',   href: '/hotmart',   roles: ['TOTAL'] },
-    { label: 'Histórico', href: '/historico', roles: ['TOTAL'] },
+  const isTrafegoActive = TRAFEGO_ITEMS.some(i => pathname.startsWith(i.href));
+
+  const topNavItems = [
+    { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL'] },
+    { label: 'Hotmart', href: '/hotmart', roles: ['TOTAL'] },
   ];
-  const navItems = allNavItems.filter(i => i.roles.includes(userRole));
+
+  const navItems = topNavItems.filter(i => i.roles.includes(userRole));
 
   const navStyle: React.CSSProperties = {
     background: 'linear-gradient(90deg, rgba(0,10,28,0.97) 0%, rgba(0,26,53,0.97) 100%)',
@@ -77,15 +87,14 @@ export function Navbar() {
 
           {/* Desktop nav links */}
           <div className="hidden md:flex gap-1 px-6 lg:px-10 items-center h-full">
+
+            {/* Resumo */}
             {navItems.map(item => {
               const isActive = pathname.startsWith(item.href);
               return (
                 <Link key={item.href} href={item.href}
                   className="text-[12px] font-black uppercase tracking-[0.2em] cursor-pointer transition-all relative h-full flex items-center px-5"
-                  style={{
-                    color: isActive ? GOLD : SILVER,
-                    background: isActive ? 'rgba(232,177,79,0.07)' : 'transparent',
-                  }}
+                  style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
                   onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
                   onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
                 >
@@ -97,6 +106,44 @@ export function Navbar() {
                 </Link>
               );
             })}
+
+            {/* TRÁFEGO dropdown */}
+            <div className="relative h-full flex items-center" ref={trafegoRef}>
+              <button
+                onMouseEnter={() => setTrafegoOpen(true)}
+                onClick={() => setTrafegoOpen(o => !o)}
+                className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center gap-1.5 px-5"
+                style={{ color: isTrafegoActive ? GOLD : trafegoOpen ? GOLD : SILVER, background: isTrafegoActive || trafegoOpen ? 'rgba(232,177,79,0.07)' : 'transparent' }}>
+                Tráfego
+                <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${trafegoOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                {isTrafegoActive && (
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
+                    style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                )}
+              </button>
+
+              {trafegoOpen && (
+                <div
+                  onMouseLeave={() => setTrafegoOpen(false)}
+                  className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl"
+                  style={{ background: 'linear-gradient(160deg, rgba(0,16,40,0.99) 0%, rgba(0,10,28,0.99) 100%)', border: '1px solid rgba(232,177,79,0.15)', backdropFilter: 'blur(24px)', marginTop: 0 }}>
+                  {TRAFEGO_ITEMS.map(item => {
+                    const isActive = pathname.startsWith(item.href);
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className="flex items-center gap-3 px-5 py-3.5 text-[11px] font-black uppercase tracking-[0.15em] transition-all"
+                        style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.08)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                        onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.06)'; } }}
+                        onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}>
+                        <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                        {item.label}
+                        {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: GOLD }} />}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -199,6 +246,20 @@ export function Navbar() {
                 </Link>
               );
             })}
+            <div style={{ background: 'rgba(0,0,0,0.2)' }}>
+              <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Tráfego</p>
+              {TRAFEGO_ITEMS.map(item => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link key={item.href} href={item.href}
+                    className="px-8 py-3 text-sm font-black uppercase tracking-widest flex items-center gap-3"
+                    style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
+                    <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
           <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
             <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: SILVER }}>Período</p>
