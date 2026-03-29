@@ -96,7 +96,7 @@ export function CampaignDetailView({ id }: { id: string }) {
       const adsData = await adsRes.json();
       setCampDetailAds(adsData.topAds || []);
 
-      if (data.objective === 'VENDAS' && userRole === 'TOTAL') {
+      if (userRole === 'TOTAL') {
         setCampHotmart(p => ({ ...p, loading: true }));
         const manualParam = manualProducts.length > 0 ? `&manualProducts=${encodeURIComponent(manualProducts.join('|'))}` : '';
         const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}${manualParam}`);
@@ -357,7 +357,7 @@ export function CampaignDetailView({ id }: { id: string }) {
       </div>
 
       {/* Hotmart */}
-      {isVendas && userRole === 'TOTAL' && (
+      {userRole === 'TOTAL' && (
         <div style={{ ...glossy, padding: '32px', marginBottom: 16, background: 'linear-gradient(160deg, rgba(232,120,13,0.1) 0%, rgba(0,10,30,0.55) 100%)', border: '1px solid rgba(232,120,13,0.25)', borderRadius: 28 }}>
           <div style={shine} />
           <div className="relative z-10">
