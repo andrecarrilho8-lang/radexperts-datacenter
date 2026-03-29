@@ -1,93 +1,141 @@
 import { NextResponse } from 'next/server';
-import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { getHotmartToken } from '@/app/lib/hotmartApi';
 import { convertToBRLOnDate } from '@/app/lib/currency';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Status que a Hotmart considera como venda confirmada (equivalente ao dashboard)
+const HOTMART_API_HOST = 'developers.hotmart.com';
+
+// Status que a Hotmart considera como venda confirmada no dashboard de vendas
 const APPROVED_STATUSES = new Set([
   'APPROVED',
   'COMPLETE',
   'PRODUCER_CONFIRMED',
   'CONFIRMED',
-  'ACTIVE',       // assinatura ativa
-  'STARTED',      // algumas plataformas usam este para aprovado
+  'ACTIVE',
 ]);
+
+async function httpsGet(path: string, token: string): Promise<any> {
+  const https = await import('https');
+  return new Promise((resolve, reject) => {
+    const req = https.default.request(
+      { hostname: HOTMART_API_HOST, path, method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+      (res) => {
+        let data = '';
+        res.on('data', (c: any) => { data += c; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch { resolve(null); }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+/**
+ * Busca TODAS as páginas de vendas de um produto específico pelo product_id
+ * Usa o mesmo endpoint que o dashboard Hotmart usa
+ */
+async function fetchSalesByProductId(
+  productId: string | number,
+  startMs: number,
+  endMs: number,
+  token: string
+) {
+  const allItems: any[] = [];
+  let pageToken = '';
+  const maxIterations = 20; // segurança contra loop infinito
+
+  for (let i = 0; i < maxIterations; i++) {
+    let path = `/payments/api/v1/sales/history?product_id=${productId}&start_date=${startMs}&end_date=${endMs}&max_results=500`;
+    if (pageToken) path += `&page_token=${pageToken}`;
+
+    const data = await httpsGet(path, token);
+    if (!data || !data.items || data.items.length === 0) break;
+
+    allItems.push(...data.items);
+    pageToken = data.page_info?.next_page_token || '';
+    if (!pageToken) break;
+  }
+
+  return allItems;
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const dateFrom = searchParams.get('dateFrom');
-  const dateTo   = searchParams.get('dateTo');
-  const product  = searchParams.get('product'); // nome exato do produto (vem do dropdown Hotmart)
+  const dateFrom    = searchParams.get('dateFrom');
+  const dateTo      = searchParams.get('dateTo');
+  const product     = searchParams.get('product');     // nome exato
+  const productId   = searchParams.get('productId');   // ID numérico (preferido)
 
-  if (!dateFrom || !dateTo || !product) {
+  if (!dateFrom || !dateTo || (!product && !productId)) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
   }
 
   try {
-    // Hotmart filtra por approved_date, não order_date
-    const allSales = await fetchHotmartSales(
-      `${dateFrom}T00:00:00-03:00`,
-      `${dateTo}T23:59:59-03:00`
-    );
+    const token   = await getHotmartToken();
+    const startMs = new Date(`${dateFrom}T00:00:00-03:00`).getTime();
+    const endMs   = new Date(`${dateTo}T23:59:59-03:00`).getTime();
 
-    const productTrim = product.trim();
-    const productLower = productTrim.toLowerCase();
+    let targetProductId = productId;
+
+    // Se não temos o productId, descobrimos fazendo uma busca por nome no período estendido
+    if (!targetProductId && product) {
+      const recentMs = new Date(Date.now() - 90 * 86400_000).getTime();
+      const nowMs    = Date.now();
+
+      // Busca sem filtro de produto para descobrir o ID
+      let pPath = `/payments/api/v1/sales/history?start_date=${recentMs}&end_date=${nowMs}&max_results=500`;
+      const pData = await httpsGet(pPath, token);
+      const items: any[] = pData?.items || [];
+
+      const productTrim = product.trim().toLowerCase();
+      const found = items.find((s: any) => (s.product?.name || '').trim().toLowerCase() === productTrim);
+      if (found?.product?.id) {
+        targetProductId = String(found.product.id);
+      }
+    }
+
+    if (!targetProductId) {
+      // Fallback: busca sem product_id mas com match exato (menos preciso)
+      return NextResponse.json({
+        revenue: 0, purchases: 0, matchedProducts: [],
+        currencyBreakdown: {}, _error: 'Product ID not found'
+      });
+    }
+
+    // ── Busca todas as vendas deste produto pelo product_id ──
+    const rawItems = await fetchSalesByProductId(targetProductId, startMs, endMs, token);
 
     const uniqueTxIds = new Set<string>();
-    const matchedSales: {
-      value: number; currency: string; dateIso: string; productName: string; status: string;
-    }[] = [];
-    const matchedProductNames = new Set<string>();
+    const matchedSales: { value: number; currency: string; dateIso: string }[] = [];
 
-    for (const s of allSales as any[]) {
-      const prodName  = (s.product?.name || '').trim();
-      const purchase  = s.purchase || {};
-      const txId      = purchase.transaction;
-      const status    = (purchase.status || '').toUpperCase();
+    for (const s of rawItems) {
+      const purchase = s.purchase || {};
+      const txId     = purchase.transaction;
+      const status   = (purchase.status || '').toUpperCase();
 
-      // Filtro de status igual ao dashboard Hotmart
       if (!APPROVED_STATUSES.has(status)) continue;
-      // Deduplicação por transaction ID
       if (uniqueTxIds.has(txId)) continue;
-
-      // Match: EXATO primeiro (case-insensitive) — nome vem do dropdown, é exato
-      const pLower = prodName.toLowerCase();
-      const isExact = pLower === productLower;
-
-      // Fallback: o nome do produto Da Hotmart contém o que o usuário buscou
-      // (para produtos com variações de nome — ex: "NeuroNews - Plano Anual")
-      const isContains = !isExact && (
-        pLower.startsWith(productLower) ||           // "NeuroNews - Turma X"
-        productLower.startsWith(pLower)              // busca parcial
-      );
-
-      if (!isExact && !isContains) continue;
-
       uniqueTxIds.add(txId);
-      matchedProductNames.add(prodName);
 
-      // Usa approved_date para consistência com o dashboard Hotmart
+      // actual_value = valor real conforme mostrado no dashboard Hotmart
+      const value = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
+      const currency = (purchase.price?.currency_code || 'BRL').toUpperCase();
+
+      // Data: Hotmart dashboard usa approved_date para relatórios
       const dateIso = purchase.approved_date
         ? new Date(purchase.approved_date).toISOString().split('T')[0]
         : purchase.order_date
           ? new Date(purchase.order_date).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
 
-      // actual_value = valor real da transação (o que Hotmart mostra no dashboard)
-      const value = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
-
-      matchedSales.push({
-        value,
-        currency: (purchase.price?.currency_code || 'BRL').toUpperCase(),
-        dateIso,
-        productName: prodName,
-        status,
-      });
+      matchedSales.push({ value, currency, dateIso });
     }
 
-    // Converte cada venda para BRL usando cotação histórica do dia da venda
+    // Converte para BRL usando cotação histórica de cada venda
     const convertedValues = await Promise.all(
       matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso))
     );
@@ -95,7 +143,7 @@ export async function GET(request: Request) {
     const revenue       = convertedValues.reduce((a, b) => a + b, 0);
     const purchaseCount = matchedSales.length;
 
-    // Breakdown por moeda (para diagnóstico)
+    // Breakdown por moeda
     const byCurrency: Record<string, { count: number; originalTotal: number; convertedTotal: number }> = {};
     matchedSales.forEach((s, i) => {
       if (!byCurrency[s.currency]) byCurrency[s.currency] = { count: 0, originalTotal: 0, convertedTotal: 0 };
@@ -104,22 +152,12 @@ export async function GET(request: Request) {
       byCurrency[s.currency].convertedTotal += convertedValues[i];
     });
 
-    // Debug: lista de produtos matchados e seus status (para diagnóstico de divergências)
-    const debug = matchedSales.map((s, i) => ({
-      product: s.productName,
-      status:  s.status,
-      currency: s.currency,
-      original: s.value,
-      converted: convertedValues[i],
-      date: s.dateIso,
-    }));
-
     return NextResponse.json({
       revenue,
       purchases:         purchaseCount,
-      matchedProducts:   Array.from(matchedProductNames),
+      matchedProducts:   [product || `product:${targetProductId}`],
       currencyBreakdown: byCurrency,
-      _debug:            debug, // remova em produção se quiser
+      _productId:        targetProductId,
     });
 
   } catch (error: any) {

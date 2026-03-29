@@ -24,10 +24,12 @@ type AdItem = {
   costPerLead?: number; costPerPurchase?: number;
 };
 type SavedAnalysis = {
-  id: string; savedAt: string; product: string; dateFrom: string; dateTo: string;
+  id: string; savedAt: string; product: string; productId?: string;
+  dateFrom: string; dateTo: string;
   campaigns: Campaign[]; revenue: number; purchases: number; totalSpend: number;
   totalLeads: number; leadSpend: number;
 };
+type ProductItem = { id: string | number; name: string };
 
 function daysActive(createdTime?: string): number {
   if (!createdTime) return 0;
@@ -61,17 +63,22 @@ function StepIndicator({ current }: { current: number }) {
 }
 
 /* ─── STEP 1 ──────────────────────────────────────────────────────── */
-function Step1({ onSelect }: { onSelect: (p: string) => void }) {
-  const [products, setProducts] = useState<string[]>([]);
+function Step1({ onSelect }: { onSelect: (p: ProductItem) => void }) {
+  const [products, setProducts] = useState<ProductItem[]>([]);
   const [search, setSearch]     = useState('');
   const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
     fetch('/api/hotmart/products').then(r => r.json())
-      .then(d => { setProducts(d.products || []); setLoading(false); }).catch(() => setLoading(false));
+      .then(d => {
+        // productMap traz [{id, name}]; fallback para lista simples
+        const map: ProductItem[] = d.productMap || (d.products || []).map((name: string) => ({ id: '', name }));
+        setProducts(map);
+        setLoading(false);
+      }).catch(() => setLoading(false));
   }, []);
 
-  const filtered = products.filter(p => p.toLowerCase().includes(search.toLowerCase()));
+  const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="max-w-xl mx-auto">
@@ -87,13 +94,13 @@ function Step1({ onSelect }: { onSelect: (p: string) => void }) {
         {loading && <div className="py-10 text-center text-sm font-bold animate-pulse" style={{ color: SILVER }}>Carregando produtos...</div>}
         {!loading && filtered.length === 0 && <div className="py-10 text-center text-sm font-bold" style={{ color: SILVER }}>Nenhum produto encontrado.</div>}
         {filtered.map(p => (
-          <button key={p} onClick={() => onSelect(p)}
+          <button key={p.name} onClick={() => onSelect(p)}
             className="w-full text-left px-5 py-4 rounded-2xl font-bold text-sm flex items-center gap-3 transition-all group"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'white' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(232,177,79,0.08)'; e.currentTarget.style.borderColor = 'rgba(232,177,79,0.25)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}>
             <span className="material-symbols-outlined text-[20px]" style={{ color: GOLD }}>inventory_2</span>
-            <span className="flex-1 leading-snug">{p}</span>
+            <span className="flex-1 leading-snug">{p.name}</span>
             <span className="material-symbols-outlined text-[18px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: GOLD }}>arrow_forward</span>
           </button>
         ))}
@@ -241,9 +248,9 @@ function AdRow({ ad, idx, accent }: { ad: AdItem; idx: number; accent: string })
 }
 
 /* ─── STEP 3 ──────────────────────────────────────────────────────── */
-function Step3({ product, campaigns, onBack, onSave }: {
-  product: string; campaigns: Campaign[]; onBack: () => void;
-  onSave: (a: SavedAnalysis) => void;
+function Step3({ product, productId, campaigns, onBack, onSave }: {
+  product: string; productId?: string; campaigns: Campaign[];
+  onBack: () => void; onSave: (a: SavedAnalysis) => void;
 }) {
   const { dateFrom, dateTo } = useDashboard();
   const [hotmart,  setHotmart]  = useState<HotmartData | null>(null);
@@ -267,10 +274,13 @@ function Step3({ product, campaigns, onBack, onSave }: {
     async function load() {
       setLoading(true);
       try {
-        // Usa endpoint dedicado por produto
-        const hRes = await fetch(
-          `/api/hotmart/sales-by-product?dateFrom=${dateFrom}&dateTo=${dateTo}&product=${encodeURIComponent(product)}`
-        );
+        // Usa product_id para filtrar diretamente na API Hotmart (100% match)
+        const params = new URLSearchParams({
+          dateFrom, dateTo,
+          product: product,
+          ...(productId ? { productId } : {}),
+        });
+        const hRes = await fetch(`/api/hotmart/sales-by-product?${params}`);
         setHotmart(await hRes.json());
 
         const adsAll = (await Promise.all(campaigns.map(c =>
@@ -282,7 +292,7 @@ function Step3({ product, campaigns, onBack, onSave }: {
       } finally { setLoading(false); }
     }
     load();
-  }, [product, campaigns, dateFrom, dateTo]);
+  }, [product, productId, campaigns, dateFrom, dateTo]);
 
   const vendaAds    = topAds.filter(a => a.objective === 'VENDAS');
   const captacaoAds = topAds.filter(a => a.objective === 'LEADS');
@@ -558,10 +568,11 @@ function SavedAnalysesList({ analyses, onDelete }: { analyses: SavedAnalysis[]; 
 
 /* ─── PAGE ────────────────────────────────────────────────────────── */
 export function AnalisePage() {
-  const [step,      setStep]      = useState(1);
-  const [product,   setProduct]   = useState('');
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [saved,     setSaved]     = useState<SavedAnalysis[]>(() => {
+  const [step,       setStep]       = useState(1);
+  const [product,    setProduct]    = useState('');
+  const [productId,  setProductId]  = useState<string | undefined>(undefined);
+  const [campaigns,  setCampaigns]  = useState<Campaign[]>([]);
+  const [saved,      setSaved]      = useState<SavedAnalysis[]>(() => {
     if (typeof window === 'undefined') return [];
     try { return JSON.parse(localStorage.getItem('radexperts_analyses') || '[]'); } catch { return []; }
   });
@@ -576,7 +587,7 @@ export function AnalisePage() {
     setSaved(next);
     localStorage.setItem('radexperts_analyses', JSON.stringify(next));
   };
-  const handleReset = () => { setStep(1); setProduct(''); setCampaigns([]); };
+  const handleReset = () => { setStep(1); setProduct(''); setProductId(undefined); setCampaigns([]); };
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-10">
@@ -589,9 +600,9 @@ export function AnalisePage() {
       <StepIndicator current={step} />
 
       <div className="rounded-[28px] p-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)' }}>
-        {step === 1 && <Step1 onSelect={p => { setProduct(p); setStep(2); }} />}
+        {step === 1 && <Step1 onSelect={p => { setProduct(p.name); setProductId(p.id ? String(p.id) : undefined); setStep(2); }} />}
         {step === 2 && <Step2 product={product} onConfirm={c => { setCampaigns(c); setStep(3); }} onBack={() => setStep(1)} />}
-        {step === 3 && <Step3 product={product} campaigns={campaigns} onBack={handleReset} onSave={handleSave} />}
+        {step === 3 && <Step3 product={product} productId={productId} campaigns={campaigns} onBack={handleReset} onSave={handleSave} />}
       </div>
 
       {/* Saved analyses — below the wizard */}
