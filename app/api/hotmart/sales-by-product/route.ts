@@ -159,6 +159,29 @@ export async function GET(request: Request) {
     const grossValues   = await Promise.all(matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso)));
     const grossBRL      = grossValues.reduce((a, b) => a + b, 0);
 
+    // Co-producer total BRL (gross - hotmartFee - producerNet)
+    let coProducersBRL = 0;
+    for (let i = 0; i < matchedSales.length; i++) {
+      const s        = matchedSales[i];
+      const commData = commissionMap.get(s.txId);
+      if (commData?.coProducers && commData.coProducers.length > 0) {
+        // Co-producer amounts are in BRL for BRL sales, USD for LATAM
+        for (const cp of commData.coProducers) {
+          const amount = s.currency === 'BRL'
+            ? cp.amount
+            : await convertToBRLOnDate(cp.amount, 'USD', s.dateIso);
+          coProducersBRL += amount;
+        }
+      } else if (commData?.producerNet != null) {
+        // gross - fee - producerNet (any remainder = co-producers)
+        const gross = grossValues[i];
+        const net   = netValues[i];
+        const fee   = gross * ((commData as any)?.hotmartFeePct ?? 0) / 100;
+        const diff  = gross - fee - net;
+        if (diff > 0.01) coProducersBRL += diff;
+      }
+    }
+
     // Breakdown por moeda
     const byCurrency: Record<string, { count: number; originalTotal: number; convertedTotal: number }> = {};
     matchedSales.forEach((s, i) => {
@@ -171,7 +194,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       revenue,
       grossBRL,
-      hotmartFeesBRL: grossBRL - revenue,
+      hotmartFeesBRL: Math.max(0, grossBRL - revenue - coProducersBRL),
+      coProducersBRL,
       purchases:         purchaseCount,
       matchedProducts:   [product || `product:${targetProductId}`],
       currencyBreakdown: byCurrency,

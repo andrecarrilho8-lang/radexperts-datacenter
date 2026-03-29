@@ -16,7 +16,7 @@ type Campaign = {
 };
 type HotmartData = {
   revenue: number; purchases: number; matchedProducts: string[];
-  grossBRL?: number; hotmartFeesBRL?: number;
+  grossBRL?: number; hotmartFeesBRL?: number; coProducersBRL?: number;
   currencyBreakdown: Record<string, { count: number; originalTotal: number; convertedTotal: number }>;
 };
 type AdItem = {
@@ -513,24 +513,53 @@ function Step3({ product, productId, campaigns, onBack, onSave, prefetchedData }
             style={{ ...glossy, padding: '28px', background: 'linear-gradient(160deg, rgba(232,120,13,0.12) 0%, rgba(0,10,30,0.6) 100%)', border: '1px solid rgba(232,120,13,0.28)' }}>
             <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-5" style={{ background: '#E8380D', transform: 'translate(30%, -30%)' }} />
             <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-5">
+              <div className="flex items-start gap-3 mb-5">
                 <svg width="32" height="38" viewBox="0 0 100 120" fill="none"><path d="M50 0C50 0 85 28 85 62C85 81.8 69.3 98 50 98C30.7 98 15 81.8 15 62C15 28 50 0 50 0Z" fill="#E8380D"/><circle cx="50" cy="72" r="18" fill="white"/></svg>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5" style={{ color: SILVER }}>
-                    Hotmart — Recebido Líquido
-                    <span
-                      className="material-symbols-outlined text-[13px] cursor-help"
-                      style={{ color: GOLD }}
-                      title={[
-                        hotmart?.grossBRL ? `🟡 Bruto: ${R(hotmart.grossBRL)}` : null,
-                        hotmart?.hotmartFeesBRL ? `🔴 Taxa Hotmart: ${R(hotmart.hotmartFeesBRL)}` : null,
-                      ].filter(Boolean).join('\n') || 'Valor líquido após taxas Hotmart'}
-                    >info</span>
+                <div className="flex-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>
+                    Hotmart &mdash; Recebido Líquido
                   </p>
-                  <p className="text-4xl font-black text-white">{R(revenue)}</p>
+                  <p className="text-4xl font-black text-white mt-0.5">{R(revenue)}</p>
                   {hotmart?.matchedProducts && hotmart.matchedProducts.length > 0 && (
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{hotmart.matchedProducts.join(', ')}</p>
                   )}
+                  {/* Tooltip breakdown — igual à página Hotmart */}
+                  <div className="relative inline-flex group mt-2">
+                    <span className="text-[10px] font-bold flex items-center gap-1 cursor-help" style={{ color: SILVER }}>
+                      <span className="material-symbols-outlined text-[13px]">info</span>
+                      Ver detalhamento
+                    </span>
+                    <div
+                      className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      style={{ minWidth: 260, background: '#0d1f33', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}
+                    >
+                      <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: GOLD }}>Detalhamento</p>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px]" style={{ color: SILVER }}>🟡 Bruto</span>
+                          <span className="text-[11px] font-black text-white">{R(hotmart?.grossBRL ?? 0)}</span>
+                        </div>
+                        {(hotmart?.hotmartFeesBRL ?? 0) > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px]" style={{ color: '#f87171' }}>🔴 Taxas Hotmart</span>
+                            <span className="text-[11px] font-black" style={{ color: '#f87171' }}>− {R(hotmart!.hotmartFeesBRL!)}</span>
+                          </div>
+                        )}
+                        {(hotmart?.coProducersBRL ?? 0) > 0.01 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px]" style={{ color: '#fb923c' }}>🟠 Co-produtores</span>
+                            <span className="text-[11px] font-black" style={{ color: '#fb923c' }}>− {R(hotmart!.coProducersBRL!)}</span>
+                          </div>
+                        )}
+                        <div className="border-t mt-1 pt-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>✓ Líquido</span>
+                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{R(revenue)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
