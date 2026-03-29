@@ -489,6 +489,7 @@ export function CampaignDetailView({ id }: { id: string }) {
                       <span className="material-symbols-outlined text-[11px]">currency_exchange</span>
                       cotação histórica do dia
                     </p>
+                    <p className="text-[9px] font-bold mt-1" style={{ color: 'rgba(251,191,36,0.6)' }}>⚠ Valor bruto · pré-taxas Hotmart</p>
                   </div>
                   <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>ROAS</p>

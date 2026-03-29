@@ -191,17 +191,26 @@ export default function HotmartPage() {
                   </p>
                 </div>
 
+
                 {/* Vendas Count */}
-                <div className="flex flex-col gap-1 items-end min-w-[120px]">
-                  <div className="flex items-center gap-2 mb-1">
+                <div className="flex flex-col items-end gap-0 min-w-[140px]" style={{ borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: 28 }}>
+                  <div className="flex items-center gap-2 mb-2 self-start">
                     <span className="material-symbols-outlined text-[18px]" style={{ color: '#22c55e' }}>shopping_cart</span>
-                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#22c55e' }}>Vendas</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: '#22c55e' }}>Vendas</p>
                   </div>
-                  <p className="font-headline font-black text-5xl text-white mr-1">{N(brlCount)}</p>
+                  <div className="flex items-end gap-2 self-start">
+                    <p className="font-headline font-black leading-none" style={{ fontSize: 64, color: 'white', lineHeight: 1 }}>{N(brlCount)}</p>
+                    <p className="text-[12px] font-black mb-1" style={{ color: SILVER }}>BRL</p>
+                  </div>
                   {intlCount > 0 && (
-                    <p className="text-[10px] font-bold" style={{ color: SILVER }}>+ {intlCount} internacional</p>
+                    <div className="flex items-center gap-1.5 mt-2 self-start px-2.5 py-1.5 rounded-lg" style={{ background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)' }}>
+                      <span className="material-symbols-outlined text-[13px]" style={{ color: '#38bdf8' }}>public</span>
+                      <p className="text-[11px] font-black" style={{ color: '#38bdf8' }}>+{intlCount} internacional</p>
+                    </div>
                   )}
-                  <p className="text-[9px] font-bold mt-1" style={{ color: SILVER }}>total: {N(totalSalesCount)}</p>
+                  <div className="mt-1.5 self-start px-2.5 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-[11px] font-black" style={{ color: SILVER }}>Total: {N(totalSalesCount)}</p>
+                  </div>
                 </div>
               </div>
             </div>

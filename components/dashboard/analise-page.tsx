@@ -362,7 +362,8 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
                 <svg width="32" height="38" viewBox="0 0 100 120" fill="none"><path d="M50 0C50 0 85 28 85 62C85 81.8 69.3 98 50 98C30.7 98 15 81.8 15 62C15 28 50 0 50 0Z" fill="#E8380D"/><circle cx="50" cy="72" r="18" fill="white"/></svg>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Hotmart — Faturamento do Produto</p>
-                  <p className="text-3xl font-black text-white">{R(revenue)}</p>
+                  <p className="text-4xl font-black text-white">{R(revenue)}</p>
+                  <p className="text-[9px] font-bold mt-1" style={{ color: 'rgba(251,191,36,0.65)' }}>⚠ Valor bruto · pré-taxas Hotmart</p>
                   {hotmart?.matchedProducts && hotmart.matchedProducts.length > 0 && (
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{hotmart.matchedProducts.join(', ')}</p>
                   )}
