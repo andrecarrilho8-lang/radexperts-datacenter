@@ -1,20 +1,21 @@
 import https from 'https';
 import { getCache, setCache } from './metaApi';
 
-// ── Whitelist produtos RadExperts ──────────────────────────────────────────
 export function isOfficialProduct(product: { id: number, name: string }) {
-  const name = (product.name || '').toUpperCase();
+  // Normaliza acentos para comparação robusta (ex: "Neuroradiología" → "Neuroradiologia")
+  const name = (product.name || '').toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   const officialBrands = [
     'EXPERT', 'NEUROEXPERT', 'BODYEXPERT', 'CEP EXPERT', 'WEXPERT', 'CEP HIGHLIGHTS',
-    'SKELETAL EXPERT', 'NEUROPASS', 'RADIOPASS', 'NEURONEWS', 'RADEXPERTS'
+    'SKELETAL EXPERT', 'NEUROPASS', 'RADIOPASS', 'NEURONEWS', 'RADEXPERTS', 'POSGRADO'
   ];
   if (officialBrands.some(k => name.includes(k))) return true;
 
   const officialKeywords = [
-    'NEURORRADIOLOGIA', 'RADIOLOGIA', 'ALZHEIMER', 'NEUROFTALMOLOGIA',
-    'PELVE FEMININA', 'CABEZA Y CUELLO', 'CABEÇA E PESCOÇO', 'MEDICINA INTERNA',
-    'ANA FONSECA', '100 CASOS', 'NEURORRÁDIO'
+    'NEURORRADIOLOGIA', 'NEURORADIOLOGIA', 'RADIOLOGIA', 'ALZHEIMER', 'NEUROFTALMOLOGIA',
+    'PELVE FEMININA', 'CABEZA Y CUELLO', 'CABECA E PESCOCO', 'MEDICINA INTERNA',
+    'ANA FONSECA', '100 CASOS', 'NEURORRADIO'
   ];
   if (officialKeywords.some(k => name.includes(k))) return true;
 

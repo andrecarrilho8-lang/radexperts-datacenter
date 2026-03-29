@@ -229,20 +229,49 @@ function Step2({ product, onConfirm, onBack }: { product: string; onConfirm: (c:
 }
 
 /* ─── Ad Row ──────────────────────────────────────────────────────── */
-function AdRow({ ad, idx, accent }: { ad: AdItem; idx: number; accent: string }) {
-  const isVenda = ad.objective === 'VENDAS' || ad.objective === 'OUTCOME_SALES';
+function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent: string; showLeads?: boolean }) {
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl transition-all"
-      style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-      <span className="text-[11px] font-black w-5 text-center flex-shrink-0" style={{ color: SILVER }}>{idx + 1}</span>
-      {ad.thumbnail && <img src={ad.thumbnail} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />}
-      <span className="flex-1 text-[13px] font-bold text-white leading-snug truncate">{ad.name}</span>
-      <div className="flex items-center gap-5 flex-shrink-0 text-right">
-        <div><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto</p><p className="text-[13px] font-black" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</p></div>
-        {isVenda && ad.purchases > 0 && <div><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Vendas</p><p className="text-[13px] font-black" style={{ color: accent }}>{N(ad.purchases)}</p></div>}
-        {!isVenda && ad.leads > 0 && <div><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Leads</p><p className="text-[13px] font-black" style={{ color: accent }}>{N(ad.leads)}</p></div>}
-        {ad.ctr > 0 && <div className="hidden sm:block"><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>CTR</p><p className="text-[13px] font-black text-white">{ad.ctr.toFixed(2)}%</p></div>}
+    <div className="grid items-center px-5"
+      style={{ gridTemplateColumns: '32px 1fr 130px 100px 80px', padding: '11px 20px',
+        background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+        borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <span className="text-[11px] font-black" style={{ color: SILVER }}>{idx + 1}</span>
+      <div className="flex items-center gap-3 pr-4 min-w-0">
+        {ad.thumbnail && <img src={ad.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />}
+        <span className="text-[13px] font-bold text-white leading-snug truncate">{ad.name}</span>
       </div>
+      <span className="text-right text-[13px] font-black" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</span>
+      <span className="text-right text-[13px] font-black" style={{ color: accent }}>
+        {showLeads ? (ad.leads > 0 ? N(ad.leads) : '—') : (ad.purchases > 0 ? N(ad.purchases) : '—')}
+      </span>
+      <span className="text-right text-[13px] font-black text-white">{ad.ctr > 0 ? `${ad.ctr.toFixed(2)}%` : '—'}</span>
+    </div>
+  );
+}
+
+function AdTable({ group }: { group: { label: string; ads: AdItem[]; accent: string; icon: string; border: string; bg: string; showLeads?: boolean } }) {
+  const showLeads = group.showLeads || false;
+  return (
+    <div className="rounded-[20px] overflow-hidden mb-4" style={{ border: `1px solid ${group.border}` }}>
+      {/* Header label */}
+      <div className="flex items-center gap-2 px-5 py-3" style={{ background: group.bg, borderBottom: `1px solid ${group.border}` }}>
+        <span className="material-symbols-outlined text-[14px]" style={{ color: group.accent }}>{group.icon}</span>
+        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: group.accent }}>{group.label} ({group.ads.length})</p>
+      </div>
+      {/* Column headers */}
+      <div className="grid px-5 py-2.5" style={{ gridTemplateColumns: '32px 1fr 130px 100px 80px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        {[
+          { label: 'Nº',             align: 'text-left'  },
+          { label: 'Nome do Anúncio', align: 'text-left'  },
+          { label: 'Investimento',    align: 'text-right' },
+          { label: showLeads ? 'Leads' : 'Vendas', align: 'text-right' },
+          { label: 'CTR',             align: 'text-right' },
+        ].map(h => (
+          <span key={h.label} className={`text-[10px] font-black uppercase tracking-widest ${h.align}`} style={{ color: SILVER }}>{h.label}</span>
+        ))}
+      </div>
+      {/* Rows */}
+      {group.ads.slice(0, 10).map((ad, idx) => <AdRow key={ad.id} ad={ad} idx={idx} accent={group.accent} showLeads={showLeads} />)}
     </div>
   );
 }
@@ -319,8 +348,10 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
 
       {/* Actions */}
       <div className="flex items-center justify-between mb-6 no-print gap-3 flex-wrap">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER }}>
-          <span className="material-symbols-outlined text-[16px]">arrow_back</span>Nova Análise
+        <button onClick={onBack}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }}>
+          <span className="material-symbols-outlined text-[16px]">refresh</span>Nova Análise
         </button>
         <div className="flex items-center gap-3">
           <button onClick={handleSave}
@@ -445,13 +476,12 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
           {/* ── Campanhas ── */}
           <div className="rounded-[20px] overflow-hidden mb-5" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {/* Header */}
-            <div className="grid px-5 py-3" style={{ gridTemplateColumns: '1fr 80px 100px 80px 130px', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="grid px-5 py-3" style={{ gridTemplateColumns: '1fr 100px 80px 130px', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               {[
-                { label: 'Nome da Campanha', align: 'text-left' },
-                { label: 'Tipo', align: 'text-center' },
-                { label: 'Status', align: 'text-center' },
-                { label: 'Dias no Ar', align: 'text-right' },
-                { label: 'Invest. em Tráfego', align: 'text-right' },
+                { label: 'Nome da Campanha',  align: 'text-left'  },
+                { label: 'Status',            align: 'text-center'},
+                { label: 'Dias no Ar',        align: 'text-right' },
+                { label: 'Investimento',      align: 'text-right' },
               ].map(h => (
                 <span key={h.label} className={`text-[10px] font-black uppercase tracking-widest ${h.align}`} style={{ color: SILVER }}>{h.label}</span>
               ))}
@@ -465,24 +495,18 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
                 : '—';
               return (
                 <div key={c.id} className="grid px-5 items-center"
-                  style={{ gridTemplateColumns: '1fr 80px 100px 80px 130px', padding: '12px 20px', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', borderBottom: i < campaigns.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                  <div className="pr-4">
-                    <p className="text-[13px] font-bold text-white leading-snug">{c.name}</p>
-                    <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Início: {dateStr}</p>
-                  </div>
-                  <span className="flex justify-center">
-                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg"
-                      style={{ background: isVenda ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.1)', color: isVenda ? '#22c55e' : '#fbbf24' }}>
-                      {isVenda ? 'Vendas' : 'Leads'}
-                    </span>
-                  </span>
-                  <span className="flex items-center justify-center gap-1.5 text-[11px] font-bold" style={{ color: active ? '#22c55e' : '#ef4444' }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#22c55e' : '#ef4444' }} />
-                    {active ? 'Ativa' : 'Pausada'}
-                  </span>
-                  <span className="text-right text-[13px] font-bold" style={{ color: SILVER }}>{days > 0 ? `${days}d` : '—'}</span>
-                  <span className="text-right text-[14px] font-black" style={{ color: 'white' }}>{R(c.spend || 0)}</span>
+                style={{ gridTemplateColumns: '1fr 100px 80px 130px', padding: '12px 20px', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', borderBottom: i < campaigns.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div className="pr-4">
+                  <p className="text-[13px] font-bold text-white leading-snug">{c.name}</p>
+                  <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Início: {dateStr}</p>
                 </div>
+                <span className="flex items-center justify-center gap-1.5 text-[11px] font-bold" style={{ color: active ? '#22c55e' : '#ef4444' }}>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#22c55e' : '#ef4444' }} />
+                  {active ? 'Ativa' : 'Pausada'}
+                </span>
+                <span className="text-right text-[13px] font-bold" style={{ color: SILVER }}>{days > 0 ? `${days}d` : '—'}</span>
+                <span className="text-right text-[14px] font-black" style={{ color: 'white' }}>{R(c.spend || 0)}</span>
+              </div>
               );
             })}
             <div className="flex justify-between items-center px-5 py-3" style={{ background: 'rgba(255,255,255,0.04)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
@@ -496,19 +520,11 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
 
           {/* ── Anúncios ── */}
           {[
-            { label: 'Anúncios de Vendas', ads: vendaAds, accent: '#22c55e', icon: 'shopping_cart', border: 'rgba(34,197,94,0.15)', bg: 'rgba(34,197,94,0.05)' },
-            { label: 'Anúncios de Captação', ads: captacaoAds, accent: GOLD, icon: 'person_add', border: 'rgba(232,177,79,0.15)', bg: 'rgba(232,177,79,0.04)' },
-            ...(outrosAds.length > 0 ? [{ label: 'Outros Anúncios', ads: outrosAds, accent: SILVER, icon: 'ads_click', border: 'rgba(255,255,255,0.07)', bg: 'rgba(255,255,255,0.03)' }] : []),
+            { label: 'Anúncios de Vendas',   ads: vendaAds,    accent: '#22c55e', icon: 'shopping_cart', border: 'rgba(34,197,94,0.18)',   bg: 'rgba(34,197,94,0.05)',  showLeads: false },
+            { label: 'Anúncios de Captação', ads: captacaoAds, accent: GOLD,      icon: 'person_add',   border: 'rgba(232,177,79,0.18)', bg: 'rgba(232,177,79,0.04)', showLeads: true  },
+            ...(outrosAds.length > 0 ? [{ label: 'Outros Anúncios', ads: outrosAds, accent: SILVER, icon: 'ads_click', border: 'rgba(255,255,255,0.07)', bg: 'rgba(255,255,255,0.03)', showLeads: false }] : []),
           ].filter(g => g.ads.length > 0).map(group => (
-            <div key={group.label} className="rounded-[20px] p-5 mb-4" style={{ background: group.bg, border: `1px solid ${group.border}` }}>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: group.accent }}>
-                <span className="material-symbols-outlined text-[14px]">{group.icon}</span>
-                {group.label} ({group.ads.length})
-              </p>
-              <div className="flex flex-col gap-1">
-                {group.ads.slice(0, 8).map((ad, idx) => <AdRow key={ad.id} ad={ad} idx={idx} accent={group.accent} />)}
-              </div>
-            </div>
+            <AdTable key={group.label} group={group} />
           ))}
 
           {topAds.length === 0 && (
