@@ -2,7 +2,6 @@ import https from 'https';
 import { getCache, setCache } from './metaApi';
 
 export function isOfficialProduct(product: { id: number, name: string }) {
-  // Normaliza acentos para comparação robusta (ex: "Neuroradiología" → "Neuroradiologia")
   const name = (product.name || '').toUpperCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
@@ -108,16 +107,20 @@ export async function fetchHotmartSales(startDate: string, endDate: string, cust
   return allItems;
 }
 
-// ── Fetch Commissions (batch por período) ────────────────────────────────────
-// Retorna Map<transaction, producer_net_value>
+// ── Commissions ──────────────────────────────────────────────────────────────
 // Confirmado via debug HP3970815852:
-//   source:"PRODUCER" commission.value = R$2161.50 = "Você recebeu" no painel Hotmart
-//   (já deduzido Hotmart fee + co-produtor)
+//   source:"PRODUCER"   commission.value = R$2161.50 = "Você recebeu" no painel Hotmart
+//   source:"COPRODUCER" commission.value = R$2161.50 = comissão do co-produtor (Guinel Hernandez Filho)
+export type CommissionData = {
+  producerNet: number;
+  coProducers: { name: string; amount: number }[];
+};
+
 export async function fetchHotmartCommissions(
   startDate: string,
   endDate: string,
   concurrency = 4
-): Promise<Map<string, number>> {
+): Promise<Map<string, CommissionData>> {
   const token   = await getHotmartToken();
   const startMs = new Date(startDate).getTime();
   const endMs   = new Date(endDate).getTime();
@@ -130,7 +133,7 @@ export async function fetchHotmartCommissions(
     cur += CHUNK + 1;
   }
 
-  const producerNet = new Map<string, number>();
+  const commMap = new Map<string, CommissionData>();
 
   for (let i = 0; i < chunks.length; i += concurrency) {
     const batch = chunks.slice(i, i + concurrency);
@@ -146,10 +149,13 @@ export async function fetchHotmartCommissions(
           items.forEach((item: any) => {
             const tx = item.transaction;
             if (!tx) return;
-            // source:"PRODUCER" = o que a RadExperts recebeu de fato
-            const producerEntry = (item.commissions || []).find((c: any) => c.source === 'PRODUCER');
+            const comms: any[] = item.commissions || [];
+            const producerEntry  = comms.find((c: any) => c.source === 'PRODUCER');
+            const coProducers    = comms
+              .filter((c: any) => c.source === 'COPRODUCER')
+              .map((c: any) => ({ name: c.user?.name || 'Co-produtor', amount: c.commission?.value ?? 0 }));
             if (producerEntry?.commission?.value != null) {
-              producerNet.set(tx, producerEntry.commission.value);
+              commMap.set(tx, { producerNet: producerEntry.commission.value, coProducers });
             }
           });
           pageToken = data.page_info?.next_page_token || '';
@@ -158,7 +164,7 @@ export async function fetchHotmartCommissions(
     }));
   }
 
-  return producerNet;
+  return commMap;
 }
 
 // ── Top Customers ───────────────────────────────────────────────────────────

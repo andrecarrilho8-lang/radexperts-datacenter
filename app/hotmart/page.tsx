@@ -104,13 +104,31 @@ export default function HotmartPage() {
   const resetPage = () => setPage(1);
 
   // Revenue calcs based on ALL filtered (not just page)
-  const brlSales      = productFiltered.filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') === 'BRL');
-  const intlSales     = productFiltered.filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') !== 'BRL');
-  const brlRevenue    = brlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.value ?? 0), 0);
-  const intlRevenueBRL = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
+  const brlSales       = productFiltered.filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') === 'BRL');
+  const intlSales      = productFiltered.filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') !== 'BRL');
   const totalSalesCount = productFiltered.length;
-  const brlCount      = brlSales.length;
-  const intlCount     = intlSales.length;
+  const brlCount       = brlSales.length;
+  const intlCount      = intlSales.length;
+
+  // Net (líquido) = producer_net quando disponível, senão bruto - hotmart_fee
+  const getBrlNet = (s: any): number => {
+    const net = s.purchase?.producer_net;
+    if (net != null) return net;
+    const gross = s.purchase?.price?.value ?? 0;
+    const fee   = s.purchase?.hotmart_fee?.total ?? 0;
+    return Math.max(0, gross - fee);
+  };
+  const brlNetRevenue   = brlSales.reduce((acc: number, s: any) => acc + getBrlNet(s), 0);
+  const brlGrossRevenue = brlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.value ?? 0), 0);
+  const brlHotmartFees  = brlSales.reduce((acc: number, s: any) => acc + (s.purchase?.hotmart_fee_total ?? s.purchase?.hotmart_fee?.total ?? 0), 0);
+  const brlCoProducerFees = brlSales.reduce((acc: number, s: any) => {
+    const net   = s.purchase?.producer_net;
+    const gross = s.purchase?.price?.value ?? 0;
+    const fee   = s.purchase?.hotmart_fee_total ?? s.purchase?.hotmart_fee?.total ?? 0;
+    return acc + (net != null ? Math.max(0, gross - fee - net) : 0);
+  }, 0);
+
+  const intlRevenueBRL = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
 
   // Unique products sorted by most recent sale
   const uniqueProducts: string[] = useMemo(() => {
@@ -208,15 +226,47 @@ export default function HotmartPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="material-symbols-outlined text-[20px]" style={{ color: GOLD }}>payments</span>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Faturamento BRL</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Faturamento Líquido BRL</p>
                   </div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: SILVER }}>receita bruta em reais · Hotmart</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: SILVER }}>receita líquida em reais · após hotmart + co-produtores</p>
                   <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none mb-1">
-                    {R(brlRevenue)}
+                    {R(brlNetRevenue)}
                   </p>
-                  <p className="text-[9px] font-bold mt-1" style={{ color: 'rgba(251,191,36,0.7)' }}>
-                    ⚠ Valor bruto · a Hotmart deduz suas taxas antes do repasse
-                  </p>
+                  {/* Info tooltip */}
+                  <div className="relative inline-flex group mt-1">
+                    <span className="text-[10px] font-bold flex items-center gap-1 cursor-help" style={{ color: SILVER }}>
+                      <span className="material-symbols-outlined text-[13px]">info</span>
+                      Ver breakdown
+                    </span>
+                    <div className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      style={{ minWidth: 240, background: '#0d1f33', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+                      <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: GOLD }}>Detalhamento BRL</p>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px]" style={{ color: SILVER }}>🟡 Bruto</span>
+                          <span className="text-[11px] font-black text-white">{R(brlGrossRevenue)}</span>
+                        </div>
+                        {brlHotmartFees > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px]" style={{ color: '#f87171' }}>🔴 Taxas Hotmart</span>
+                            <span className="text-[11px] font-black" style={{ color: '#f87171' }}>− {R(brlHotmartFees)}</span>
+                          </div>
+                        )}
+                        {brlCoProducerFees > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px]" style={{ color: '#fb923c' }}>🟠 Co-produtores</span>
+                            <span className="text-[11px] font-black" style={{ color: '#fb923c' }}>− {R(brlCoProducerFees)}</span>
+                          </div>
+                        )}
+                        <div className="border-t mt-1 pt-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>✓ Líquido</span>
+                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{R(brlNetRevenue)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="hidden md:block w-px h-16" style={{ background: 'rgba(255,255,255,0.1)' }} />
@@ -490,17 +540,10 @@ export default function HotmartPage() {
                         <td className="py-3 px-4 text-right">
                           <div className="flex flex-col items-end gap-1">
 
-                            {/* VALOR LÍQUIDO — principal, o que voce recebeu */}
+                            {/* LÍQUIDO — principal */}
                             <span className="font-headline font-black text-xl" style={{ color: '#4ade80' }}>
                               {fmt(netValue)}
                             </span>
-
-                            {/* Bruto (secundario, apenas quando diferente do liquido) */}
-                            {netValue !== grossValue && (
-                              <span className="text-[10px] font-bold" style={{ color: SILVER }}>
-                                Bruto: {fmt(grossValue)}
-                              </span>
-                            )}
 
                             {/* BRL aprox. se moeda estrangeira */}
                             {currency !== 'BRL' && s.purchase?.price?.converted_value && (
@@ -509,22 +552,64 @@ export default function HotmartPage() {
                               </span>
                             )}
 
-                            {/* Deducoes (Hotmart + co-prod) em fonte menor */}
-                            {hotmartFee > 0 && (
-                              <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>
-                                − Hotmart{hotmartFeePct > 0 ? ` ${hotmartFeePct}%` : ''}: {fmt(hotmartFee)}
-                              </span>
-                            )}
-                            {hasCoProducer && (
-                              <span className="text-[9px] font-bold" style={{ color: '#fb923c' }}>
-                                − Co-prod.: {fmt(coProducerAmt)}
-                              </span>
-                            )}
-
                             {/* Badge parcela/ciclo */}
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md mt-0.5" style={installStyle}>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>
                               {installLabel}
                             </span>
+
+                            {/* ⓘ Tooltip de breakdown */}
+                            <div className="relative group">
+                              <span className="flex items-center gap-0.5 cursor-help" style={{ color: SILVER }}>
+                                <span className="material-symbols-outlined text-[12px]">info</span>
+                                <span className="text-[9px] font-bold">bruto {fmt(grossValue)}</span>
+                              </span>
+                              {/* Tooltip */}
+                              <div
+                                className="absolute right-0 bottom-full mb-2 z-[999] pointer-events-none
+                                  opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                                style={{
+                                  minWidth: 220, background: '#0d1f33',
+                                  border: '1px solid rgba(255,255,255,0.14)',
+                                  borderRadius: 10, padding: '10px 12px',
+                                  boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+                                }}>
+                                <p className="text-[9px] font-black uppercase tracking-wider mb-2" style={{ color: GOLD }}>Detalhamento</p>
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-[10px]" style={{ color: SILVER }}>🟡 Bruto</span>
+                                    <span className="text-[10px] font-black text-white">{fmt(grossValue)}</span>
+                                  </div>
+                                  {hotmartFee > 0 && (
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-[10px]" style={{ color: '#f87171' }}>🔴 Hotmart {hotmartFeePct > 0 ? `${hotmartFeePct}%` : ''}</span>
+                                      <span className="text-[10px] font-black" style={{ color: '#f87171' }}>− {fmt(hotmartFee)}</span>
+                                    </div>
+                                  )}
+                                  {/* Co-produtores com nome */}
+                                  {(s.purchase?.co_producers || []).length > 0
+                                    ? (s.purchase.co_producers as {name:string;amount:number}[]).map((cp, ci) => (
+                                      <div key={ci} className="flex justify-between gap-4">
+                                        <span className="text-[10px]" style={{ color: '#fb923c' }}>🟠 {cp.name}</span>
+                                        <span className="text-[10px] font-black" style={{ color: '#fb923c' }}>− {fmt(cp.amount)}</span>
+                                      </div>
+                                    ))
+                                    : hasCoProducer && (
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-[10px]" style={{ color: '#fb923c' }}>🟠 Co-produtor</span>
+                                        <span className="text-[10px] font-black" style={{ color: '#fb923c' }}>− {fmt(coProducerAmt)}</span>
+                                      </div>
+                                    )
+                                  }
+                                  <div className="border-t pt-1 mt-0.5" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                                    <div className="flex justify-between gap-4">
+                                      <span className="text-[10px] font-black" style={{ color: '#4ade80' }}>✓ Você recebeu</span>
+                                      <span className="text-[10px] font-black" style={{ color: '#4ade80' }}>{fmt(netValue)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
                           </div>
                         </td>
 
