@@ -13,7 +13,6 @@ const APPROVED_STATUSES = new Set([
   'COMPLETE',
   'PRODUCER_CONFIRMED',
   'CONFIRMED',
-  'ACTIVE',
 ]);
 
 async function httpsGet(path: string, token: string): Promise<any> {

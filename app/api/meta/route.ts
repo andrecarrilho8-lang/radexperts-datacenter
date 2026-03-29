@@ -88,7 +88,7 @@ export async function GET(request: Request) {
     const uniqueTxIds = new Set();
     const foreignSales = hotmartSales.filter((s: any) => {
       const txId = s.purchase?.transaction;
-      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(s.purchase?.status);
+      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(s.purchase?.status);
       const isNew = !uniqueTxIds.has(txId);
       if (isApproved && isNew) { uniqueTxIds.add(txId); return true; }
       return false;
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
     const uniqueTxIds2 = new Set();
     const cleanSales = hotmartSales.filter((s: any) => {
       const txId = s.purchase?.transaction;
-      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(s.purchase?.status);
+      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(s.purchase?.status);
       if (isApproved && !uniqueTxIds2.has(txId)) {
         uniqueTxIds2.add(txId);
         if ((s.purchase?.price?.currency_code || 'BRL') === 'BRL') {

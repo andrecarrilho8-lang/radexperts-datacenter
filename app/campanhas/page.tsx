@@ -108,7 +108,7 @@ export default function CampanhasPage() {
                       const seenTxns = new Set<string>(); let hmRevenue = 0; let hmQty = 0;
                       (data.hotmartSales || []).forEach((s: any) => {
                         const pName = s.product?.name || ''; const txn = s.purchase?.transaction || '';
-                        const isOk = ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED','ACTIVE'].includes(s.purchase?.status || '');
+                        const isOk = ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes(s.purchase?.status || '');
                         if (isOk && allMatchedProducts.has(pName) && !seenTxns.has(txn)) { seenTxns.add(txn); hmRevenue += s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0; hmQty += 1; }
                       });
                       return (<>

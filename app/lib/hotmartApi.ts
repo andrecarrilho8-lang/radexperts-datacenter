@@ -123,7 +123,7 @@ export async function fetchHotmartTopCustomers() {
     const purchase = s.purchase || {};
     const buyer    = s.buyer   || {};
     const product  = s.product || {};
-    if (!['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(purchase.status)) return;
+    if (!['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status)) return;
 
     const email = buyer.email?.toLowerCase();
     if (!email) return;
@@ -166,7 +166,7 @@ export function parseHotmartMonthly(sales: any[]) {
   const uniqueTxIds = new Set<string>();
   sales.forEach(s => {
     const purchase = s.purchase || {};
-    if (['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(purchase.status) && !uniqueTxIds.has(purchase.transaction)) {
+    if (['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status) && !uniqueTxIds.has(purchase.transaction)) {
       uniqueTxIds.add(purchase.transaction);
       const date  = new Date(purchase.approved_date || purchase.order_date);
       const month = date.getMonth() + 1;

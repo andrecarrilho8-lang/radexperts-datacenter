@@ -66,7 +66,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const purchase = s.purchase || {};
       const txId = purchase.transaction;
 
-      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED', 'ACTIVE'].includes(purchase.status);
+      const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status);
       if (!isApproved) return;
 
       // Manual override: só produtos selecionados
