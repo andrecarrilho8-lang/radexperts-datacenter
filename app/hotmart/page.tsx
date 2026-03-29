@@ -438,12 +438,29 @@ export default function HotmartPage() {
                     const dt             = formatDateTime(s.purchase.order_date);
                     const paymentMethod  = s.purchase?.payment?.type || s.purchase?.payment_type || s.purchase?.payment?.method || '';
                     const installTotal   = s.purchase?.payment?.installments_number || 1;
-                    const installCurrent = s.purchase?.payment?.installments_current;
+                    // recurrency_number = número da parcela atual (debug confirmado)
+                    const installCurrent = s.purchase?.recurrency_number || null;
+                    const isSubscription = s.purchase?.is_subscription === true;
                     const grossValue     = s.purchase?.price?.value ?? 0;
-                    const coProducerFee  = s.purchase?.commission?.VALUE ?? s.purchase?.commission?.value ?? 0;
-                    const netValue       = grossValue - coProducerFee;
-                    const hasCoProducer  = coProducerFee > 0;
                     const currency       = s.purchase?.price?.currency_code || 'BRL';
+                    // hotmart_fee.total = taxa real cobrada pela Hotmart (debug confirmado)
+                    const hotmartFee     = s.purchase?.hotmart_fee?.total ?? 0;
+                    const hotmartFeePct  = s.purchase?.hotmart_fee?.percentage ?? 0;
+                    const netValue       = grossValue - hotmartFee;
+
+                    // Label da parcela/recorrência
+                    let installLabel = '';
+                    let installStyle = {};
+                    if (isSubscription) {
+                      installLabel = installCurrent ? `Assinatura #${installCurrent}` : 'Assinatura';
+                      installStyle = { background: 'rgba(56,189,248,0.12)', color: '#38bdf8' };
+                    } else if (installTotal > 1) {
+                      installLabel = installCurrent ? `Parcela ${installCurrent}/${installTotal}` : `${installTotal}× parcelado`;
+                      installStyle = { background: 'rgba(99,102,241,0.15)', color: '#818cf8' };
+                    } else {
+                      installLabel = 'Pgto. Único';
+                      installStyle = { background: 'rgba(34,197,94,0.1)', color: '#4ade80' };
+                    }
 
                     return (
                       <tr key={idx}
@@ -466,35 +483,30 @@ export default function HotmartPage() {
                           <div className="flex flex-col items-end gap-1">
                             {/* Valor bruto */}
                             <span className="font-headline font-black text-xl" style={{ color: GOLD }}>
-                              {R(grossValue)}
+                              {currency !== 'BRL' ? RF(grossValue, currency) : R(grossValue)}
                             </span>
-                            {/* Valor em moeda original se não for BRL */}
-                            {currency !== 'BRL' && (
+                            {/* BRL convertido se for moeda estrangeira */}
+                            {currency !== 'BRL' && s.purchase?.price?.converted_value && (
                               <span className="text-[11px] font-bold" style={{ color: SILVER }}>
-                                {RF(grossValue, currency)}
+                                ≈ {R(s.purchase.price.converted_value)}
                               </span>
                             )}
-                            {/* Taxa co-produtor */}
-                            {hasCoProducer && (
+                            {/* Taxa Hotmart */}
+                            {hotmartFee > 0 && (
                               <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#f87171' }}>
                                 <span className="material-symbols-outlined text-[11px]">remove_circle</span>
-                                Co-prod.: {R(coProducerFee)}
+                                Hotmart {hotmartFeePct > 0 ? `${hotmartFeePct}%` : ''}: {currency !== 'BRL' ? RF(hotmartFee, currency) : R(hotmartFee)}
                               </span>
                             )}
-                            {/* Valor líquido (apenas quando há co-produtor) */}
-                            {hasCoProducer && (
+                            {/* Valor líquido (o que entra de fato) */}
+                            {hotmartFee > 0 && (
                               <span className="text-[11px] font-black px-2 py-0.5 rounded-md" style={{ background: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
-                                Líq.: {R(netValue)}
+                                Líq.: {currency !== 'BRL' ? RF(netValue, currency) : R(netValue)}
                               </span>
                             )}
-                            {/* Parcela */}
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md"
-                              style={installTotal > 1
-                                ? { background: 'rgba(99,102,241,0.15)', color: '#818cf8' }
-                                : { background: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
-                              {installTotal > 1
-                                ? (installCurrent ? `Parcela ${installCurrent}/${installTotal}` : `${installTotal}× parcelado`)
-                                : 'Pgto. Único'}
+                            {/* Badge parcela/assinatura */}
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>
+                              {installLabel}
                             </span>
                           </div>
                         </td>
