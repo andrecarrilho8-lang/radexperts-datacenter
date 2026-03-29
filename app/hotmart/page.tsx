@@ -128,7 +128,31 @@ export default function HotmartPage() {
     return acc + (net != null ? Math.max(0, gross - fee - net) : 0);
   }, 0);
 
-  const intlRevenueBRL = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
+  // Intl: líquido em BRL = converted_BRL × (producer_net / gross_original) ou fallback
+  const getIntlNetBRL = (s: any): number => {
+    const convertedGross = s.purchase?.price?.converted_value || 0;
+    const gross          = s.purchase?.price?.value ?? 0;
+    const producerNet    = s.purchase?.producer_net;
+    if (producerNet != null && gross > 0) {
+      return convertedGross * (producerNet / gross);
+    }
+    // fallback: aplica ratio (gross - hotmart_fee) / gross
+    const fee = s.purchase?.hotmart_fee?.total ?? 0;
+    const ratio = gross > 0 ? Math.max(0, gross - fee) / gross : 1;
+    return convertedGross * ratio;
+  };
+  const intlNetBRL        = intlSales.reduce((acc: number, s: any) => acc + getIntlNetBRL(s), 0);
+  const intlGrossBRL      = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
+  const intlHotmartFeesBRL = intlSales.reduce((acc: number, s: any) => {
+    const cv  = s.purchase?.price?.converted_value || 0;
+    const g   = s.purchase?.price?.value ?? 0;
+    const fee = s.purchase?.hotmart_fee?.total ?? 0;
+    return acc + (g > 0 ? cv * (fee / g) : 0);
+  }, 0);
+  const intlCoProducerFeesBRL = intlGrossBRL - intlHotmartFeesBRL - intlNetBRL;
+
+  // keep for backwards compat (used inside LATAM table)
+  const intlRevenueBRL = intlNetBRL;
 
   // Unique products sorted by most recent sale
   const uniqueProducts: string[] = useMemo(() => {
@@ -275,12 +299,48 @@ export default function HotmartPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="material-symbols-outlined text-[20px]" style={{ color: '#38bdf8' }}>currency_exchange</span>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: '#38bdf8' }}>Internacional (Convertido)</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: '#38bdf8' }}>Internacional Líquido (BRL)</p>
                   </div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>estimativa em BRL · demais moedas</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: SILVER }}>líquido estimado em reais · demais moedas</p>
                   <p className="font-headline font-black text-4xl text-white tracking-tighter leading-none">
-                    {R(intlRevenueBRL)}
+                    {R(intlNetBRL)}
                   </p>
+                  {/* Info tooltip - intl */}
+                  <div className="relative inline-flex group mt-1">
+                    <span className="text-[10px] font-bold flex items-center gap-1 cursor-help" style={{ color: SILVER }}>
+                      <span className="material-symbols-outlined text-[13px]">info</span>
+                      Ver breakdown
+                    </span>
+                    <div className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      style={{ minWidth: 240, background: '#0d1f33', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
+                      <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: '#38bdf8' }}>Detalhamento Internacional</p>
+                      <p className="text-[9px] mb-2" style={{ color: SILVER }}>Valores convertidos proporcionalmente</p>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px]" style={{ color: SILVER }}>🟡 Bruto</span>
+                          <span className="text-[11px] font-black text-white">{R(intlGrossBRL)}</span>
+                        </div>
+                        {intlHotmartFeesBRL > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px]" style={{ color: '#f87171' }}>🔴 Taxas Hotmart</span>
+                            <span className="text-[11px] font-black" style={{ color: '#f87171' }}>− {R(intlHotmartFeesBRL)}</span>
+                          </div>
+                        )}
+                        {intlCoProducerFeesBRL > 0.01 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px]" style={{ color: '#fb923c' }}>🟠 Co-produtores</span>
+                            <span className="text-[11px] font-black" style={{ color: '#fb923c' }}>− {R(intlCoProducerFeesBRL)}</span>
+                          </div>
+                        )}
+                        <div className="border-t mt-1 pt-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>✓ Líquido</span>
+                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{R(intlNetBRL)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Count */}
@@ -340,8 +400,22 @@ export default function HotmartPage() {
                                 </div>
                               </td>
                               <td className="py-2 text-right font-black">{productFiltered.filter((s: any) => s.purchase.price.currency_code === cur).length}</td>
-                              <td className="py-2 text-right font-black text-[9px]">{RF(val, cur)}</td>
-                              <td className="py-2 text-right font-black" style={{ color: GOLD }}>{R(converted)}</td>
+                              <td className="py-2 text-right font-black text-[9px]" style={{ color: SILVER }}>{RF(val, cur)}</td>
+                              <td className="py-2 text-right">
+                                <div className="flex flex-col items-end">
+                                  {/* Líquido em verde */}
+                                  <span className="font-black" style={{ color: '#4ade80' }}>
+                                    {R((() => {
+                                      const sales = productFiltered.filter((s: any) => s.purchase.price.currency_code === cur);
+                                      return sales.reduce((acc: number, s: any) => acc + getIntlNetBRL(s), 0);
+                                    })())}
+                                  </span>
+                                  {/* Bruto em cinza */}
+                                  <span className="text-[8px]" style={{ color: SILVER }}>
+                                    bruto {R(productFiltered.filter((s: any) => s.purchase.price.currency_code === cur).reduce((acc: number, s: any) => acc + (s.purchase.price.converted_value || 0), 0))}
+                                  </span>
+                                </div>
+                              </td>
                             </tr>
                           );
                         })}
