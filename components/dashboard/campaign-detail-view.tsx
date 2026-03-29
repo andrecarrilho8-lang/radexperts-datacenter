@@ -455,7 +455,7 @@ export function CampaignDetailView({ id }: { id: string }) {
                         <span className={`material-symbols-outlined text-[12px] transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`}>expand_more</span>
                       </button>
                       {productDropdownOpen && (
-                        <div className="absolute left-0 top-full mt-2 w-full min-w-[360px] rounded-2xl shadow-2xl z-[9999] overflow-hidden"
+                        <div className="absolute right-0 top-full mt-2 w-[380px] rounded-2xl shadow-2xl z-[9999] overflow-hidden"
                           style={{ background: 'linear-gradient(160deg, rgba(0,26,53,0.99) 0%, rgba(0,10,30,0.99) 100%)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
                           <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
                             <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: GOLD }}>Selecionar produto manualmente</p>
