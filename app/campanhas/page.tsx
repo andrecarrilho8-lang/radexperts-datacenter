@@ -106,7 +106,7 @@ export default function CampanhasPage() {
                     {obj === 'VENDAS' ? (() => {
                       const allMatchedProducts = new Set<string>();
                       selected.forEach(c => (c.matchedProducts || []).forEach((p: string) => allMatchedProducts.add(p)));
-                      const seenTxns = new Set<string>(); let hmRevenue = 0; let hmGross = 0; let hmQty = 0;
+                      const seenTxns = new Set<string>(); let hmRevenue = 0; let hmGross = 0; let hmCoProducers = 0; let hmQty = 0;
                       (data.hotmartSales || []).forEach((s: any) => {
                         const pName = s.product?.name || ''; const txn = s.purchase?.transaction || '';
                         const isOk = ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes(s.purchase?.status || '');
@@ -118,8 +118,13 @@ export default function CampanhasPage() {
                           hmRevenue += net != null ? net : convertedGross;
                           hmGross   += convertedGross;
                           hmQty += 1;
+                          // co-producers: sum from enriched field (already in BRL for BRL sales)
+                          const coProds: { name: string; amount: number }[] = s.purchase?.co_producers || [];
+                          coProds.forEach(cp => { hmCoProducers += cp.amount; });
                         }
                       });
+                      // Hotmart fee = gross - producerNet - coProducers
+                      const hmFees = Math.max(0, hmGross - hmRevenue - hmCoProducers);
                       return (<>
                         <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px' }}>
                           <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: GOLD + 'aa' }}>Recebido Líquido</p>
@@ -128,7 +133,8 @@ export default function CampanhasPage() {
                             <InfoTooltip
                               lines={[
                                 { emoji: '🟡', label: 'Bruto', value: R(hmGross) },
-                                ...((hmGross - hmRevenue) > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(hmGross - hmRevenue)}`, color: '#f87171' }] : []),
+                                ...(hmFees > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(hmFees)}`, color: '#f87171' }] : []),
+                                ...(hmCoProducers > 0.01 ? [{ emoji: '🟠', label: 'Co-produtores', value: `− ${R(hmCoProducers)}`, color: '#fb923c' }] : []),
                               ]}
                               total={{ label: 'Líquido', value: R(hmRevenue) }}
                             />

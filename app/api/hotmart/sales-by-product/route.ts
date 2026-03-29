@@ -113,7 +113,7 @@ export async function GET(request: Request) {
     const commissionMap = await fetchHotmartCommissions(dSince, dUntil).catch(() => new Map());
 
     const uniqueTxIds = new Set<string>();
-    const matchedSales: { value: number; currency: string; dateIso: string; txId: string }[] = [];
+    const matchedSales: { value: number; currency: string; dateIso: string; txId: string; hotmartFeePct: number }[] = [];
 
     for (const s of rawItems) {
       const purchase = s.purchase || {};
@@ -124,15 +124,16 @@ export async function GET(request: Request) {
       if (uniqueTxIds.has(txId)) continue;
       uniqueTxIds.add(txId);
 
-      const currency   = (purchase.price?.currency_code || 'BRL').toUpperCase();
-      const grossValue  = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
-      const dateIso     = purchase.approved_date
+      const currency      = (purchase.price?.currency_code || 'BRL').toUpperCase();
+      const grossValue    = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
+      const hotmartFeePct = purchase.hotmart_fee?.percentage ?? 0;
+      const dateIso       = purchase.approved_date
         ? new Date(purchase.approved_date).toISOString().split('T')[0]
         : purchase.order_date
           ? new Date(purchase.order_date).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
 
-      matchedSales.push({ value: grossValue, currency, dateIso, txId });
+      matchedSales.push({ value: grossValue, currency, dateIso, txId, hotmartFeePct });
     }
 
     // Compute net values using commissions (producer_net)
@@ -159,13 +160,17 @@ export async function GET(request: Request) {
     const grossValues   = await Promise.all(matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso)));
     const grossBRL      = grossValues.reduce((a, b) => a + b, 0);
 
-    // Co-producer total BRL (gross - hotmartFee - producerNet)
+    // Co-producer total BRL
+    // Strategy: if commData has coProducers list, convert+sum those amounts.
+    // Fallback: grossBRL - hotmartFee(%) - producerNet = co-producer slice.
     let coProducersBRL = 0;
     for (let i = 0; i < matchedSales.length; i++) {
       const s        = matchedSales[i];
       const commData = commissionMap.get(s.txId);
+      const gross    = grossValues[i];
+      const net      = netValues[i];
       if (commData?.coProducers && commData.coProducers.length > 0) {
-        // Co-producer amounts are in BRL for BRL sales, USD for LATAM
+        // Direct sum: amounts in payout currency (BRL for BRL sales, USD for LATAM)
         for (const cp of commData.coProducers) {
           const amount = s.currency === 'BRL'
             ? cp.amount
@@ -173,11 +178,9 @@ export async function GET(request: Request) {
           coProducersBRL += amount;
         }
       } else if (commData?.producerNet != null) {
-        // gross - fee - producerNet (any remainder = co-producers)
-        const gross = grossValues[i];
-        const net   = netValues[i];
-        const fee   = gross * ((commData as any)?.hotmartFeePct ?? 0) / 100;
-        const diff  = gross - fee - net;
+        // Fallback: anything left after hotmart fee% and producer net
+        const hotmartFee = gross * (s.hotmartFeePct / 100);
+        const diff       = gross - hotmartFee - net;
         if (diff > 0.01) coProducersBRL += diff;
       }
     }
