@@ -237,9 +237,9 @@ function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent
     <div className="grid items-center font-bold"
       style={{
         gridTemplateColumns: showLeads
-          ? '28px 48px 1fr 120px 80px 90px 90px 90px'
-          : '28px 48px 1fr 120px 80px 90px 90px 90px 90px',
-        padding: '10px 20px',
+          ? '28px 48px 1fr 130px 80px 100px 100px 100px'
+          : '28px 48px 1fr 130px 80px 100px 100px 100px 100px',
+        padding: '16px 24px',
         background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
@@ -249,23 +249,23 @@ function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent
         : <div style={{ width: 38, height: 38, borderRadius: 8, background: 'rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 15, color: SILVER }}>image</span>
           </div>}
-      <span className="text-[13px] text-white leading-snug truncate" style={{ padding: '0 12px' }}>{ad.name}</span>
-      <span className="text-right text-[13px]" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</span>
-      <span className="text-right text-[14px] font-black" style={{ color: accent }}>
+      <span className="text-[13px] text-white leading-snug truncate" style={{ padding: '0 14px' }}>{ad.name}</span>
+      <span className="text-[13px]" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</span>
+      <span className="text-[14px] font-black" style={{ color: accent }}>
         {showLeads ? (ad.leads > 0 ? N(ad.leads) : '—') : (ad.purchases > 0 ? N(ad.purchases) : '—')}
       </span>
-      <span className="text-right text-[13px]" style={{ color: 'white' }}>{ad.ctr > 0 ? `${ad.ctr.toFixed(2)}%` : '—'}</span>
-      {/* Rate columns */}
+      <span className="text-[13px]" style={{ color: 'white' }}>{ad.ctr > 0 ? `${ad.ctr.toFixed(2)}%` : '—'}</span>
+      {/* Rate columns — left-aligned para respirar */}
       {showLeads ? (
         <>
-          <span className="text-right text-[13px]" style={{ color: GOLD }}>{fmt1(ad.connectRate)}</span>
-          <span className="text-right text-[13px]" style={{ color: '#22c55e' }}>{fmt1(ad.conversionRate)}</span>
+          <span className="text-[13px]" style={{ color: GOLD }}>{fmt1(ad.connectRate)}</span>
+          <span className="text-[13px]" style={{ color: '#22c55e' }}>{fmt1(ad.conversionRate)}</span>
         </>
       ) : (
         <>
-          <span className="text-right text-[13px]" style={{ color: GOLD }}>{fmt1(ad.connectRate)}</span>
-          <span className="text-right text-[13px]" style={{ color: '#38bdf8' }}>{fmt1(ad.checkoutRate)}</span>
-          <span className="text-right text-[13px]" style={{ color: '#22c55e' }}>{fmt1(ad.purchaseRate)}</span>
+          <span className="text-[13px]" style={{ color: GOLD }}>{fmt1(ad.connectRate)}</span>
+          <span className="text-[13px]" style={{ color: '#38bdf8' }}>{fmt1(ad.checkoutRate)}</span>
+          <span className="text-[13px]" style={{ color: '#22c55e' }}>{fmt1(ad.purchaseRate)}</span>
         </>
       )}
     </div>
@@ -278,11 +278,14 @@ function AdTable({ group }: { group: { label: string; ads: AdItem[]; accent: str
     ? ['Nº','','Nome do Anúncio','Investimento','Leads','CTR','Connect Rate','Conv. Rate']
     : ['Nº','','Nome do Anúncio','Investimento','Vendas','CTR','Connect','Checkout','Purchase'];
   const grid = showLeads
-    ? '28px 48px 1fr 120px 80px 90px 90px 90px'
-    : '28px 48px 1fr 120px 80px 90px 90px 90px 90px';
-  const aligns: string[] = showLeads
-    ? ['text-left','text-left','text-left pl-3','text-right','text-right','text-right','text-right','text-right']
-    : ['text-left','text-left','text-left pl-3','text-right','text-right','text-right','text-right','text-right','text-right'];
+    ? '28px 48px 1fr 130px 80px 100px 100px 100px'
+    : '28px 48px 1fr 130px 80px 100px 100px 100px 100px';
+  // todas as colunas de métrica: text-left para respirar
+  const aligns: string[] = [
+    'text-left', 'text-left', 'text-left pl-3',
+    'text-left', 'text-left', 'text-left',
+    'text-left', 'text-left', 'text-left',
+  ];
 
   return (
     <div className="rounded-[20px] overflow-hidden mb-4" style={{ border: `1px solid ${group.border}` }}>
@@ -290,7 +293,7 @@ function AdTable({ group }: { group: { label: string; ads: AdItem[]; accent: str
         <span className="material-symbols-outlined text-[15px]" style={{ color: group.accent }}>{group.icon}</span>
         <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: group.accent }}>{group.label} ({group.ads.length})</p>
       </div>
-      <div className="grid py-3" style={{ gridTemplateColumns: grid, padding: '10px 20px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="grid" style={{ gridTemplateColumns: grid, padding: '12px 24px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         {cols.map((h, i) => (
           <span key={i} className={`text-[10px] font-black uppercase tracking-wider ${aligns[i] || 'text-right'}`} style={{ color: SILVER }}>{h}</span>
         ))}
