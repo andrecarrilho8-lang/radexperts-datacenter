@@ -267,9 +267,9 @@ function Step3({ product, campaigns, onBack, onSave }: {
     async function load() {
       setLoading(true);
       try {
+        // Usa endpoint dedicado por produto
         const hRes = await fetch(
-          `/api/meta/campaign/${campaigns[0]?.id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}` +
-          `&campaignName=${encodeURIComponent(product)}&manualProducts=${encodeURIComponent(product)}`
+          `/api/hotmart/sales-by-product?dateFrom=${dateFrom}&dateTo=${dateTo}&product=${encodeURIComponent(product)}`
         );
         setHotmart(await hRes.json());
 
@@ -360,7 +360,7 @@ function Step3({ product, campaigns, onBack, onSave }: {
               </div>
 
               {/* KPIs em linha */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>Vendas (Hotmart)</p>
                   <p className="text-2xl font-black text-white">{N(purchases)}</p>
@@ -374,12 +374,7 @@ function Step3({ product, campaigns, onBack, onSave }: {
                 <div className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>ROAS</p>
                   <p className="text-2xl font-black" style={{ color: roas >= 1 ? '#22c55e' : '#ef4444' }}>{roas.toFixed(2)}x</p>
-                  <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>retorno s/ investimento</p>
-                </div>
-                <div className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>ROAS Líq. Meta</p>
-                  <p className="text-2xl font-black" style={{ color: GOLD }}>{roas >= 1 ? '+' : ''}{((roas - 1) * 100).toFixed(1)}%</p>
-                  <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>acima do investimento</p>
+                  <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>retorno sobre investimento</p>
                 </div>
               </div>
             </div>
@@ -388,20 +383,15 @@ function Step3({ product, campaigns, onBack, onSave }: {
           {/* ── Métricas: CAC, Ticket, Leads ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
-              { label: 'CAC', value: R(cac), icon: 'person_add', accent: '#f97316', sub: 'custo por venda' },
-              { label: 'Ticket Médio', value: R(ticketMedio), icon: 'receipt', accent: GOLD, sub: 'valor médio por venda' },
-              ...(leadCamps.length > 0 ? [
-                { label: 'Leads Captados', value: N(totalLeads), icon: 'group_add', accent: '#38bdf8', sub: `${leadCamps.length} campanha${leadCamps.length !== 1 ? 's' : ''} de captação` },
-                { label: 'Custo por Lead', value: R(cpl), icon: 'paid', accent: '#a78bfa', sub: 'investimento em leads' },
-              ] : [
-                { label: 'Campanhas', value: N(campaigns.length), icon: 'campaign', accent: SILVER, sub: 'analisadas' },
-                { label: 'Período', value: `${Math.ceil((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000)}d`, icon: 'calendar_today', accent: SILVER, sub: 'dias analisados' },
-              ]),
+              { label: 'CAC', value: cac > 0 ? R(cac) : '—', icon: 'person_add', accent: '#f97316', sub: 'custo por venda' },
+              { label: 'Ticket Médio', value: ticketMedio > 0 ? R(ticketMedio) : '—', icon: 'receipt', accent: GOLD, sub: 'valor médio por venda' },
+              { label: 'Leads Captados', value: totalLeads > 0 ? N(totalLeads) : '—', icon: 'group_add', accent: '#38bdf8', sub: `${leadCamps.length} campanha${leadCamps.length !== 1 ? 's' : ''} de captação` },
+              { label: 'Custo por Lead', value: cpl > 0 ? R(cpl) : leadCamps.length === 0 ? 'Sem captação' : '—', icon: 'paid', accent: '#a78bfa', sub: leadCamps.length > 0 ? 'investimento em leads' : 'nenhuma campanha de leads' },
             ].map(k => (
               <div key={k.label} className="rounded-[20px] p-4 flex items-center gap-3"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', opacity: k.value === 'Sem captação' ? 0.45 : 1 }}>
                 <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `rgba(${k.accent === GOLD ? '232,177,79' : k.accent === '#22c55e' ? '34,197,94' : k.accent === '#f97316' ? '249,115,22' : k.accent === '#38bdf8' ? '56,189,248' : k.accent === '#a78bfa' ? '167,139,250' : '168,178,192'},0.12)` }}>
+                  style={{ background: `rgba(${k.accent === GOLD ? '232,177,79' : k.accent === '#22c55e' ? '34,197,94' : k.accent === '#f97316' ? '249,115,22' : k.accent === '#38bdf8' ? '56,189,248' : '167,139,250'},0.12)` }}>
                   <span className="material-symbols-outlined text-[20px]" style={{ color: k.accent }}>{k.icon}</span>
                 </div>
                 <div>
@@ -442,36 +432,52 @@ function Step3({ product, campaigns, onBack, onSave }: {
           )}
 
           {/* ── Campanhas ── */}
-          <div className="rounded-[20px] p-5 mb-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
-              <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>campaign</span>Campanhas Analisadas
-            </p>
-            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 text-[9px] font-black uppercase tracking-widest pb-2 mb-1" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <span>Nome</span><span className="text-center">Tipo</span><span className="text-center">Status</span><span className="text-right">Dias no ar</span><span className="text-right">Investimento</span>
+          <div className="rounded-[20px] overflow-hidden mb-5" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+            {/* Header */}
+            <div className="grid px-5 py-3" style={{ gridTemplateColumns: '1fr 80px 100px 80px 130px', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              {[
+                { label: 'Nome da Campanha', align: 'text-left' },
+                { label: 'Tipo', align: 'text-center' },
+                { label: 'Status', align: 'text-center' },
+                { label: 'Dias no Ar', align: 'text-right' },
+                { label: 'Invest. em Tráfego', align: 'text-right' },
+              ].map(h => (
+                <span key={h.label} className={`text-[10px] font-black uppercase tracking-widest ${h.align}`} style={{ color: SILVER }}>{h.label}</span>
+              ))}
             </div>
-            {campaigns.map(c => {
+            {campaigns.map((c, i) => {
               const isVenda = c.objective === 'VENDAS';
               const active  = c.status === 'ACTIVE';
               const days    = daysActive(c.createdTime);
+              const dateStr = c.createdTime
+                ? new Date(c.createdTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                : '—';
               return (
-                <div key={c.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 items-center py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <span className="text-[13px] font-bold text-white leading-snug pr-2 truncate">{c.name}</span>
-                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded whitespace-nowrap"
-                    style={{ background: isVenda ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.1)', color: isVenda ? '#22c55e' : '#fbbf24' }}>
-                    {isVenda ? 'Vendas' : 'Leads'}
+                <div key={c.id} className="grid px-5 items-center"
+                  style={{ gridTemplateColumns: '1fr 80px 100px 80px 130px', padding: '12px 20px', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', borderBottom: i < campaigns.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                  <div className="pr-4">
+                    <p className="text-[13px] font-bold text-white leading-snug">{c.name}</p>
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Início: {dateStr}</p>
+                  </div>
+                  <span className="flex justify-center">
+                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg"
+                      style={{ background: isVenda ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.1)', color: isVenda ? '#22c55e' : '#fbbf24' }}>
+                      {isVenda ? 'Vendas' : 'Leads'}
+                    </span>
                   </span>
-                  <span className="flex items-center gap-1 text-[10px] font-bold whitespace-nowrap" style={{ color: active ? '#22c55e' : '#ef4444' }}>
+                  <span className="flex items-center justify-center gap-1.5 text-[11px] font-bold" style={{ color: active ? '#22c55e' : '#ef4444' }}>
                     <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#22c55e' : '#ef4444' }} />
                     {active ? 'Ativa' : 'Pausada'}
                   </span>
-                  <span className="text-right text-[12px] font-bold whitespace-nowrap" style={{ color: SILVER }}>{days}d</span>
-                  <span className="text-right text-[13px] font-black whitespace-nowrap" style={{ color: SILVER }}>{R(c.spend || 0)}</span>
+                  <span className="text-right text-[13px] font-bold" style={{ color: SILVER }}>{days > 0 ? `${days}d` : '—'}</span>
+                  <span className="text-right text-[14px] font-black" style={{ color: 'white' }}>{R(c.spend || 0)}</span>
                 </div>
               );
             })}
-            <div className="flex justify-end pt-3">
+            <div className="flex justify-between items-center px-5 py-3" style={{ background: 'rgba(255,255,255,0.04)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{campaigns.length} campanha{campaigns.length !== 1 ? 's' : ''}</span>
               <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total investido</p>
+                <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Investido</p>
                 <p className="text-lg font-black" style={{ color: '#ef4444' }}>{R(totalSpend)}</p>
               </div>
             </div>
