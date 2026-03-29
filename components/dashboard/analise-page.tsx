@@ -808,13 +808,38 @@ export function AnalisePage() {
       {!isViewing && <StepIndicator current={step} />}
 
       <div className="rounded-[28px] p-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)' }}>
-        {step === 1 && <Step1 onSelect={p => { setProduct(p.name); setProductId(p.id ? String(p.id) : undefined); setStep(2); }} />}
-        {step === 2 && <Step2 product={product} onConfirm={c => { setCampaigns(c); setStep(3); }} onBack={() => setStep(1)} />}
-        {step === 3 && <Step3 product={product} productId={productId} campaigns={campaigns} onBack={handleReset} onSave={handleSave} />}
+        {/* Wizard normal */}
+        {!isViewing && step === 1 && <Step1 onSelect={p => { setProduct(p.name); setProductId(p.id ? String(p.id) : undefined); setStep(2); }} />}
+        {!isViewing && step === 2 && <Step2 product={product} onConfirm={c => { setCampaigns(c); setStep(3); }} onBack={() => setStep(1)} />}
+        {!isViewing && step === 3 && <Step3 product={product} productId={productId} campaigns={campaigns} onBack={handleReset} onSave={handleSave} />}
+
+        {/* Modo viewer: abre análise salva como Step3 completo */}
+        {isViewing && viewingSaved && (
+          <Step3
+            product={viewingSaved.product}
+            productId={viewingSaved.productId}
+            campaigns={viewingSaved.campaigns}
+            onBack={handleReset}
+            onSave={handleSave}
+            prefetchedData={{
+              hotmart: {
+                revenue: viewingSaved.revenue,
+                purchases: viewingSaved.purchases,
+                matchedProducts: [],
+                currencyBreakdown: {},
+              },
+              topAds: viewingSaved.topAds || [],
+              dateFrom: viewingSaved.dateFrom,
+              dateTo: viewingSaved.dateTo,
+            }}
+          />
+        )}
       </div>
 
-      {/* Saved analyses — below the wizard */}
-      <SavedAnalysesList analyses={saved} onDelete={handleDelete} onView={a => setViewingSaved(a)} />
+      {/* Saved analyses — esconde enquanto está no viewer */}
+      {!isViewing && (
+        <SavedAnalysesList analyses={saved} onDelete={handleDelete} onView={a => { setViewingSaved(a); }} />
+      )}
     </div>
   );
 }
