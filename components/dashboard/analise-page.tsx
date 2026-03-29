@@ -237,8 +237,8 @@ function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent
     <div className="grid items-center font-bold"
       style={{
         gridTemplateColumns: showLeads
-          ? '28px 48px 1fr 120px 80px 100px 80px'
-          : '28px 48px 1fr 120px 80px 90px 90px 90px',
+          ? '28px 48px 1fr 120px 80px 90px 90px 90px'
+          : '28px 48px 1fr 120px 80px 90px 90px 90px 90px',
         padding: '10px 20px',
         background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
@@ -275,9 +275,11 @@ function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent
 function AdTable({ group }: { group: { label: string; ads: AdItem[]; accent: string; icon: string; border: string; bg: string; showLeads?: boolean } }) {
   const showLeads = group.showLeads || false;
   const cols = showLeads
-    ? ['Nº','','Nome do Anúncio','Investimento', showLeads ? 'Leads' : 'Vendas','CTR','Connect Rate','Conv. Rate']
+    ? ['Nº','','Nome do Anúncio','Investimento','Leads','CTR','Connect Rate','Conv. Rate']
     : ['Nº','','Nome do Anúncio','Investimento','Vendas','CTR','Connect','Checkout','Purchase'];
-  const grid = showLeads ? '28px 48px 1fr 120px 80px 100px 80px' : '28px 48px 1fr 120px 80px 90px 90px 90px';
+  const grid = showLeads
+    ? '28px 48px 1fr 120px 80px 90px 90px 90px'
+    : '28px 48px 1fr 120px 80px 90px 90px 90px 90px';
   const aligns: string[] = showLeads
     ? ['text-left','text-left','text-left pl-3','text-right','text-right','text-right','text-right','text-right']
     : ['text-left','text-left','text-left pl-3','text-right','text-right','text-right','text-right','text-right','text-right'];
