@@ -58,8 +58,15 @@ export default function HotmartPage() {
     selectedProductTags.length === 0 || selectedProductTags.includes(s.product?.name)
   );
 
-  const totalRevenue    = filteredSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0), 0);
+  // Separa BRL de outras moedas (Hotmart dashboard padrão filtra por moeda)
+  const brlSales   = filteredSales.filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') === 'BRL');
+  const intlSales  = filteredSales.filter((s: any) => (s.purchase?.price?.currency_code || 'BRL') !== 'BRL');
+  const brlRevenue = brlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.value ?? 0), 0);
+  const intlRevenueBRL = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
+  const totalRevenue    = brlRevenue + intlRevenueBRL;
   const totalSalesCount = filteredSales.length;
+  const brlCount        = brlSales.length;
+  const intlCount       = intlSales.length;
 
   // Ordena do produto com venda mais recente para o mais antigo
   const uniqueProducts: string[] = (() => {
@@ -85,9 +92,15 @@ export default function HotmartPage() {
   };
 
   const currentRevenueByCurrency: Record<string, number> = {};
+  const currentCountByCurrency: Record<string, number> = {};
   filteredSales.forEach((s: any) => {
     const cur = s.purchase?.price?.currency_code || 'BRL';
-    currentRevenueByCurrency[cur] = (currentRevenueByCurrency[cur] || 0) + (s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0);
+    // Para BRL: usa price.value; para outras: usa converted_value (BRL convertido)
+    const val = cur === 'BRL'
+      ? (s.purchase?.price?.value ?? 0)
+      : (s.purchase?.price?.value ?? 0); // mantém original para display de "Original"
+    currentRevenueByCurrency[cur]  = (currentRevenueByCurrency[cur]  || 0) + val;
+    currentCountByCurrency[cur]    = (currentCountByCurrency[cur]    || 0) + 1;
   });
 
   // Moedas com país único e inequívoco
@@ -154,9 +167,12 @@ export default function HotmartPage() {
                     <span className="material-symbols-outlined text-[20px]" style={{ color: GOLD }}>payments</span>
                     <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Faturamento BRL</p>
                   </div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: SILVER }}>receita bruta em reais · Hotmart</p>
-                  <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none">
-                    {R(filteredSales.filter(s => (s.purchase?.price?.currency_code || 'BRL') === 'BRL').reduce((acc: number, s: any) => acc + (s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0), 0))}
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: SILVER }}>receita bruta em reais · Hotmart</p>
+                  <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none mb-1">
+                    {R(brlRevenue)}
+                  </p>
+                  <p className="text-[9px] font-bold mt-1" style={{ color: 'rgba(251,191,36,0.7)' }}>
+                    ⚠ Valor bruto · a Hotmart deduz suas taxas antes do repasse
                   </p>
                 </div>
 
@@ -181,7 +197,11 @@ export default function HotmartPage() {
                     <span className="material-symbols-outlined text-[18px]" style={{ color: '#22c55e' }}>shopping_cart</span>
                     <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#22c55e' }}>Vendas</p>
                   </div>
-                  <p className="font-headline font-black text-5xl text-white mr-1">{N(totalSalesCount)}</p>
+                  <p className="font-headline font-black text-5xl text-white mr-1">{N(brlCount)}</p>
+                  {intlCount > 0 && (
+                    <p className="text-[10px] font-bold" style={{ color: SILVER }}>+ {intlCount} internacional</p>
+                  )}
+                  <p className="text-[9px] font-bold mt-1" style={{ color: SILVER }}>total: {N(totalSalesCount)}</p>
                 </div>
               </div>
             </div>
