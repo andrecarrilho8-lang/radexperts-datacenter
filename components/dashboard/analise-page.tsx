@@ -304,21 +304,28 @@ function AdTable({ group }: { group: { label: string; ads: AdItem[]; accent: str
 }
 
 /* ─── STEP 3 ──────────────────────────────────────────────────────── */
-function Step3({ product, productId, campaigns, onBack, onSave }: {
+type Step3PrefetchedData = {
+  hotmart: HotmartData;
+  topAds: AdItem[];
+  dateFrom: string;
+  dateTo: string;
+};
+function Step3({ product, productId, campaigns, onBack, onSave, prefetchedData }: {
   product: string; productId?: string; campaigns: Campaign[];
   onBack: () => void; onSave: (a: SavedAnalysis) => void;
+  prefetchedData?: Step3PrefetchedData;
 }) {
   const { dateFrom: ctxFrom, dateTo: ctxTo } = useDashboard();
   // Permite alterar o período localmente sem afetar o restante do dashboard
-  const [localFrom, setLocalFrom] = useState(ctxFrom);
-  const [localTo,   setLocalTo]   = useState(ctxTo);
+  const [localFrom, setLocalFrom] = useState(prefetchedData?.dateFrom || ctxFrom);
+  const [localTo,   setLocalTo]   = useState(prefetchedData?.dateTo   || ctxTo);
   const [showPeriod, setShowPeriod] = useState(false);
   const dateFrom = localFrom;
   const dateTo   = localTo;
 
-  const [hotmart,  setHotmart]  = useState<HotmartData | null>(null);
-  const [topAds,   setTopAds]   = useState<AdItem[]>([]);
-  const [loading,  setLoading]  = useState(true);
+  const [hotmart,  setHotmart]  = useState<HotmartData | null>(prefetchedData?.hotmart || null);
+  const [topAds,   setTopAds]   = useState<AdItem[]>(prefetchedData?.topAds || []);
+  const [loading,  setLoading]  = useState(!prefetchedData);
   const [saved,    setSaved]    = useState(false);
 
   const vendaCamps   = campaigns.filter(c => c.objective === 'VENDAS');
@@ -341,6 +348,8 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
   };
 
   useEffect(() => {
+    // Se temos dados prefetchados, não re-fetch
+    if (prefetchedData) { setLoading(false); return; }
     async function load() {
       setLoading(true);
       try {
@@ -357,6 +366,7 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
       } finally { setLoading(false); }
     }
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product, productId, campaigns, dateFrom, dateTo]);
 
   const vendaAds    = topAds.filter(a => a.objective === 'VENDAS');
@@ -445,7 +455,33 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
             <span className="material-symbols-outlined text-[18px]">{saved ? 'check_circle' : 'bookmark_add'}</span>
             {saved ? 'Salvo!' : 'Salvar Análise'}
           </button>
-          <button onClick={() => window.print()}
+          <button
+            onClick={async () => {
+              try {
+                const target = document.getElementById('analise-report');
+                if (!target) { window.print(); return; }
+                const html2canvas = (await import('html2canvas')).default;
+                const { jsPDF } = await import('jspdf');
+                const canvas = await html2canvas(target, {
+                  scale: 2,
+                  useCORS: true,
+                  backgroundColor: '#001220',
+                  logging: false,
+                });
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+                const pdfW = pdf.internal.pageSize.getWidth();
+                const pdfH = (canvas.height / canvas.width) * pdfW;
+                let y = 0;
+                const pageH = pdf.internal.pageSize.getHeight();
+                while (y < pdfH) {
+                  if (y > 0) pdf.addPage();
+                  pdf.addImage(imgData, 'PNG', 0, -y, pdfW, pdfH);
+                  y += pageH;
+                }
+                pdf.save(`analise-${product.replace(/\s+/g,'-').toLowerCase()}.pdf`);
+              } catch { window.print(); }
+            }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
             style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
             <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>Salvar PDF
@@ -453,6 +489,8 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
         </div>
       </div>
 
+      {/* Wrap do conteúdo que será capturado no PDF */}
+      <div id="analise-report">
       {/* Report header */}
       <div className="mb-6 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: GOLD }}>Relatório de Análise de Tráfego</p>
@@ -620,12 +658,13 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
           )}
         </>
       )}
+      </div>{/* fim analise-report */}
     </div>
   );
 }
 
 /* ─── Saved Analyses List ─────────────────────────────────────────── */
-function SavedAnalysesList({ analyses, onDelete }: { analyses: SavedAnalysis[]; onDelete: (id: string) => void }) {
+function SavedAnalysesList({ analyses, onDelete, onView }: { analyses: SavedAnalysis[]; onDelete: (id: string) => void; onView: (a: SavedAnalysis) => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   if (analyses.length === 0) return null;
 
@@ -647,11 +686,10 @@ function SavedAnalysesList({ analyses, onDelete }: { analyses: SavedAnalysis[]; 
           return (
             <div key={a.id} className="rounded-[20px] overflow-hidden transition-all"
               style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isOpen ? 'rgba(232,177,79,0.25)' : 'rgba(255,255,255,0.07)'}` }}>
-              {/* Header */}
+              {/* Header — clicar abre o viewer */}
               <div className="px-5 py-4 flex items-center gap-4 cursor-pointer select-none"
-                onClick={() => setExpanded(isOpen ? null : a.id)}>
-                <span className="material-symbols-outlined text-[20px] transition-transform flex-shrink-0"
-                  style={{ color: GOLD, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
+                onClick={() => onView(a)}>
+                <span className="material-symbols-outlined text-[20px] flex-shrink-0" style={{ color: GOLD }}>open_in_new</span>
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-white text-[14px] truncate">{a.product}</p>
                   <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>
@@ -694,7 +732,7 @@ function SavedAnalysesList({ analyses, onDelete }: { analyses: SavedAnalysis[]; 
                     ].map(k => (
                       <div key={k.label} className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                         <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>{k.label}</p>
-                        <p className="text-[15px] font-black" style={{ color: k.color }}>{k.value}</p>
+                  <p className="text-[15px] font-black" style={{ color: k.color }}>{k.value}</p>
                       </div>
                     ))}
                   </div>
@@ -720,36 +758,54 @@ function SavedAnalysesList({ analyses, onDelete }: { analyses: SavedAnalysis[]; 
 
 /* ─── PAGE ────────────────────────────────────────────────────────── */
 export function AnalisePage() {
-  const [step,       setStep]       = useState(1);
-  const [product,    setProduct]    = useState('');
-  const [productId,  setProductId]  = useState<string | undefined>(undefined);
-  const [campaigns,  setCampaigns]  = useState<Campaign[]>([]);
-  const [saved,      setSaved]      = useState<SavedAnalysis[]>(() => {
+  const { userUsername } = useDashboard();
+  const storageKey = `radexperts_analyses_${userUsername || 'guest'}`;
+
+  const [step,      setStep]      = useState(1);
+  const [product,   setProduct]   = useState('');
+  const [productId, setProductId] = useState<string | undefined>(undefined);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  // Modo viewer de uma análise salva
+  const [viewingSaved, setViewingSaved] = useState<SavedAnalysis | null>(null);
+
+  const [saved, setSaved] = useState<SavedAnalysis[]>(() => {
     if (typeof window === 'undefined') return [];
-    try { return JSON.parse(localStorage.getItem('radexperts_analyses') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
   });
+
+  // Recarrega a lista quando o username muda (login)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { setSaved(JSON.parse(localStorage.getItem(storageKey) || '[]')); } catch { setSaved([]); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
 
   const handleSave = (a: SavedAnalysis) => {
     const next = [a, ...saved];
     setSaved(next);
-    localStorage.setItem('radexperts_analyses', JSON.stringify(next));
+    localStorage.setItem(storageKey, JSON.stringify(next));
   };
   const handleDelete = (id: string) => {
     const next = saved.filter(a => a.id !== id);
     setSaved(next);
-    localStorage.setItem('radexperts_analyses', JSON.stringify(next));
+    localStorage.setItem(storageKey, JSON.stringify(next));
   };
-  const handleReset = () => { setStep(1); setProduct(''); setProductId(undefined); setCampaigns([]); };
+  const handleReset = () => { setViewingSaved(null); setStep(1); setProduct(''); setProductId(undefined); setCampaigns([]); };
+
+  // Quando está no modo viewer, mostra o Step3 com dados salvos
+  const isViewing = viewingSaved !== null;
 
   return (
     <div className="max-w-[1600px] mx-auto px-6 py-10">
-      <div className="mb-8 no-print">
-        <p className="text-[11px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: GOLD }}>Tráfego · Análise</p>
-        <h1 className="text-4xl font-black text-white">Análise de Performance</h1>
-        <p className="text-sm font-bold mt-1" style={{ color: SILVER }}>Combine dados da Hotmart com investimentos Meta Ads em 3 passos.</p>
-      </div>
+      {!isViewing && (
+        <div className="mb-8 no-print">
+          <p className="text-[11px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: GOLD }}>Tráfego · Análise</p>
+          <h1 className="text-4xl font-black text-white">Análise de Performance</h1>
+          <p className="text-sm font-bold mt-1" style={{ color: SILVER }}>Combine dados da Hotmart com investimentos Meta Ads em 3 passos.</p>
+        </div>
+      )}
 
-      <StepIndicator current={step} />
+      {!isViewing && <StepIndicator current={step} />}
 
       <div className="rounded-[28px] p-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)' }}>
         {step === 1 && <Step1 onSelect={p => { setProduct(p.name); setProductId(p.id ? String(p.id) : undefined); setStep(2); }} />}
@@ -758,7 +814,7 @@ export function AnalisePage() {
       </div>
 
       {/* Saved analyses — below the wizard */}
-      <SavedAnalysesList analyses={saved} onDelete={handleDelete} />
+      <SavedAnalysesList analyses={saved} onDelete={handleDelete} onView={a => setViewingSaved(a)} />
     </div>
   );
 }
