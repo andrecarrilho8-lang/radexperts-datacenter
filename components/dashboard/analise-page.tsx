@@ -388,51 +388,57 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
         }
       `}</style>
 
-      {/* Actions */}
-      <div className="flex items-center justify-between mb-6 no-print gap-3 flex-wrap">
-        <button onClick={onBack}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }}>
-          <span className="material-symbols-outlined text-[16px]">refresh</span>Nova Análise
-        </button>
-
-        {/* Seletor de período — dropdown posicionado, sem quebrar linha */}
-        <div className="relative">
-          <button onClick={() => setShowPeriod(p => !p)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all whitespace-nowrap"
-            style={{ background: showPeriod ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showPeriod ? 'rgba(56,189,248,0.3)' : 'rgba(255,255,255,0.1)'}`, color: showPeriod ? '#38bdf8' : SILVER }}>
-            <span className="material-symbols-outlined text-[16px]">date_range</span>
-            {fmtDate(dateFrom)} → {fmtDate(dateTo)}
+      {/* Actions: esquerda = Nova Análise + Período | direita = Salvar + PDF */}
+      <div className="flex items-center justify-between mb-6 no-print">
+        {/* Esquerda */}
+        <div className="flex items-center gap-2">
+          <button onClick={onBack}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all whitespace-nowrap"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }}>
+            <span className="material-symbols-outlined text-[16px]">refresh</span>Nova Análise
           </button>
-          {showPeriod && (
-            <div className="absolute top-full left-0 mt-2 z-50 flex items-center gap-3 px-5 py-4 rounded-2xl"
-              style={{ background: '#0d1f35', border: '1px solid rgba(56,189,248,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', minWidth: 360 }}>
-              <div className="flex flex-col gap-1 flex-1">
-                <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>De</label>
-                <input type="date" value={localFrom} onChange={e => setLocalFrom(e.target.value)}
-                  className="rounded-xl px-3 py-2 text-[13px] font-bold outline-none w-full"
-                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }} />
+
+          {/* Seletor de período — dropdown posicionado, sem quebrar linha */}
+          <div className="relative">
+            <button onClick={() => setShowPeriod(p => !p)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all whitespace-nowrap"
+              style={{ background: showPeriod ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showPeriod ? 'rgba(56,189,248,0.3)' : 'rgba(255,255,255,0.1)'}`, color: showPeriod ? '#38bdf8' : SILVER }}>
+              <span className="material-symbols-outlined text-[16px]">date_range</span>
+              {fmtDate(dateFrom)} → {fmtDate(dateTo)}
+            </button>
+            {showPeriod && (
+              <div className="absolute top-full left-0 mt-2 z-50 flex items-center gap-3 px-5 py-4 rounded-2xl"
+                style={{ background: '#0d1f35', border: '1px solid rgba(56,189,248,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', minWidth: 360 }}>
+                <div className="flex flex-col gap-1 flex-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>De</label>
+                  <input type="date" value={localFrom} onChange={e => setLocalFrom(e.target.value)}
+                    className="rounded-xl px-3 py-2 text-[13px] font-bold outline-none w-full"
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }} />
+                </div>
+                <span style={{ color: SILVER }} className="text-[13px] mt-4">→</span>
+                <div className="flex flex-col gap-1 flex-1">
+                  <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Até</label>
+                  <input type="date" value={localTo} onChange={e => setLocalTo(e.target.value)}
+                    className="rounded-xl px-3 py-2 text-[13px] font-bold outline-none w-full"
+                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }} />
+                </div>
+                <button onClick={() => setShowPeriod(false)}
+                  className="mt-4 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest"
+                  style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8' }}>
+                  OK
+                </button>
               </div>
-              <span style={{ color: SILVER }} className="text-[13px] mt-4">→</span>
-              <div className="flex flex-col gap-1 flex-1">
-                <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Até</label>
-                <input type="date" value={localTo} onChange={e => setLocalTo(e.target.value)}
-                  className="rounded-xl px-3 py-2 text-[13px] font-bold outline-none w-full"
-                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }} />
-              </div>
-              <button onClick={() => setShowPeriod(false)}
-                className="mt-4 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest"
-                style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8' }}>
-                OK
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
+        {/* Direita */}
         <div className="flex items-center gap-3">
           <button onClick={handleSave}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-            style={{ background: saved ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${saved ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.12)'}`, color: saved ? '#22c55e' : SILVER }}>
+            style={saved
+              ? { background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }
+              : { background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.35)', color: '#a78bfa' }}>
             <span className="material-symbols-outlined text-[18px]">{saved ? 'check_circle' : 'bookmark_add'}</span>
             {saved ? 'Salvo!' : 'Salvar Análise'}
           </button>
