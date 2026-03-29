@@ -122,7 +122,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         }
 
         for (const ad of topAds as any[]) {
-          if (thumbMap[ad.id])  ad.thumbnailUrl = thumbMap[ad.id];
+          if (thumbMap[ad.id])  { ad.thumbnail = thumbMap[ad.id]; ad.thumbnailUrl = thumbMap[ad.id]; }
           if (igMap[ad.id])     ad.instagramPermalink = igMap[ad.id];
           if (urlMap[ad.id])    ad.landingPageUrl = urlMap[ad.id];
           if (bodyMap[ad.id])   ad.body = bodyMap[ad.id];

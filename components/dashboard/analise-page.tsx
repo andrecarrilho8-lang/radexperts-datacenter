@@ -232,59 +232,41 @@ function Step2({ product, onConfirm, onBack }: { product: string; onConfirm: (c:
 
 /* ─── Ad Row ──────────────────────────────────────────────────────── */
 function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent: string; showLeads?: boolean }) {
-  const hasRates = !showLeads && (ad.connectRate || ad.checkoutRate || ad.purchaseRate);
-  const hasCaptRates = showLeads && (ad.connectRate || ad.conversionRate);
+  const fmt1 = (v?: number) => v && v > 0 ? `${v.toFixed(1)}%` : '—';
   return (
-    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-      {/* Main row */}
-      <div className="grid items-center" style={{ gridTemplateColumns: '28px 44px 1fr 130px 100px 80px', padding: '10px 20px' }}>
-        <span className="text-[11px] font-black" style={{ color: SILVER }}>{idx + 1}</span>
-        {ad.thumbnail
-          ? <img src={ad.thumbnail} alt="" className="w-9 h-9 rounded-lg object-cover" />
-          : <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <span className="material-symbols-outlined text-[14px]" style={{ color: SILVER }}>image</span>
-            </div>}
-        <span className="text-[13px] font-bold text-white leading-snug truncate px-3">{ad.name}</span>
-        <span className="text-right text-[13px] font-black" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</span>
-        <span className="text-right text-[13px] font-black" style={{ color: accent }}>
-          {showLeads ? (ad.leads > 0 ? N(ad.leads) : '—') : (ad.purchases > 0 ? N(ad.purchases) : '—')}
-        </span>
-        <span className="text-right text-[13px] font-black" style={{ color: 'white' }}>{ad.ctr > 0 ? `${ad.ctr.toFixed(2)}%` : '—'}</span>
-      </div>
-      {/* Rate metrics sub-row */}
-      {(hasRates || hasCaptRates) && (
-        <div className="flex items-center gap-6 px-5 pb-2.5" style={{ paddingLeft: 92 }}>
-          {!showLeads && ad.connectRate != null && ad.connectRate > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Connect Rate</span>
-              <span className="text-[11px] font-black" style={{ color: GOLD }}>{ad.connectRate.toFixed(1)}%</span>
-            </div>
-          )}
-          {!showLeads && ad.checkoutRate != null && ad.checkoutRate > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Checkout Rate</span>
-              <span className="text-[11px] font-black" style={{ color: '#38bdf8' }}>{ad.checkoutRate.toFixed(1)}%</span>
-            </div>
-          )}
-          {!showLeads && ad.purchaseRate != null && ad.purchaseRate > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Purchase Rate</span>
-              <span className="text-[11px] font-black" style={{ color: '#22c55e' }}>{ad.purchaseRate.toFixed(1)}%</span>
-            </div>
-          )}
-          {showLeads && ad.connectRate != null && ad.connectRate > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Connect Rate</span>
-              <span className="text-[11px] font-black" style={{ color: GOLD }}>{ad.connectRate.toFixed(1)}%</span>
-            </div>
-          )}
-          {showLeads && ad.conversionRate != null && ad.conversionRate > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Taxa de Conversão</span>
-              <span className="text-[11px] font-black" style={{ color: '#22c55e' }}>{ad.conversionRate.toFixed(1)}%</span>
-            </div>
-          )}
-        </div>
+    <div className="grid items-center font-bold"
+      style={{
+        gridTemplateColumns: showLeads
+          ? '28px 48px 1fr 120px 80px 100px 80px'
+          : '28px 48px 1fr 120px 80px 90px 90px 90px',
+        padding: '10px 20px',
+        background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+      }}>
+      <span className="text-[12px]" style={{ color: SILVER }}>{idx + 1}</span>
+      {ad.thumbnail
+        ? <img src={ad.thumbnail} alt="" style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover' }} />
+        : <div style={{ width: 38, height: 38, borderRadius: 8, background: 'rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15, color: SILVER }}>image</span>
+          </div>}
+      <span className="text-[13px] text-white leading-snug truncate" style={{ padding: '0 12px' }}>{ad.name}</span>
+      <span className="text-right text-[13px]" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</span>
+      <span className="text-right text-[14px] font-black" style={{ color: accent }}>
+        {showLeads ? (ad.leads > 0 ? N(ad.leads) : '—') : (ad.purchases > 0 ? N(ad.purchases) : '—')}
+      </span>
+      <span className="text-right text-[13px]" style={{ color: 'white' }}>{ad.ctr > 0 ? `${ad.ctr.toFixed(2)}%` : '—'}</span>
+      {/* Rate columns */}
+      {showLeads ? (
+        <>
+          <span className="text-right text-[13px]" style={{ color: GOLD }}>{fmt1(ad.connectRate)}</span>
+          <span className="text-right text-[13px]" style={{ color: '#22c55e' }}>{fmt1(ad.conversionRate)}</span>
+        </>
+      ) : (
+        <>
+          <span className="text-right text-[13px]" style={{ color: GOLD }}>{fmt1(ad.connectRate)}</span>
+          <span className="text-right text-[13px]" style={{ color: '#38bdf8' }}>{fmt1(ad.checkoutRate)}</span>
+          <span className="text-right text-[13px]" style={{ color: '#22c55e' }}>{fmt1(ad.purchaseRate)}</span>
+        </>
       )}
     </div>
   );
@@ -292,22 +274,23 @@ function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent
 
 function AdTable({ group }: { group: { label: string; ads: AdItem[]; accent: string; icon: string; border: string; bg: string; showLeads?: boolean } }) {
   const showLeads = group.showLeads || false;
+  const cols = showLeads
+    ? ['Nº','','Nome do Anúncio','Investimento', showLeads ? 'Leads' : 'Vendas','CTR','Connect Rate','Conv. Rate']
+    : ['Nº','','Nome do Anúncio','Investimento','Vendas','CTR','Connect','Checkout','Purchase'];
+  const grid = showLeads ? '28px 48px 1fr 120px 80px 100px 80px' : '28px 48px 1fr 120px 80px 90px 90px 90px';
+  const aligns: string[] = showLeads
+    ? ['text-left','text-left','text-left pl-3','text-right','text-right','text-right','text-right','text-right']
+    : ['text-left','text-left','text-left pl-3','text-right','text-right','text-right','text-right','text-right','text-right'];
+
   return (
     <div className="rounded-[20px] overflow-hidden mb-4" style={{ border: `1px solid ${group.border}` }}>
       <div className="flex items-center gap-2 px-5 py-3" style={{ background: group.bg, borderBottom: `1px solid ${group.border}` }}>
-        <span className="material-symbols-outlined text-[14px]" style={{ color: group.accent }}>{group.icon}</span>
-        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: group.accent }}>{group.label} ({group.ads.length})</p>
+        <span className="material-symbols-outlined text-[15px]" style={{ color: group.accent }}>{group.icon}</span>
+        <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: group.accent }}>{group.label} ({group.ads.length})</p>
       </div>
-      <div className="grid px-5 py-2.5" style={{ gridTemplateColumns: '28px 44px 1fr 130px 100px 80px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        {[
-          { label: 'Nº',              align: 'text-left'  },
-          { label: '',                align: 'text-left'  },
-          { label: 'Nome do Anúncio', align: 'text-left pl-3' },
-          { label: 'Investimento',    align: 'text-right' },
-          { label: showLeads ? 'Leads' : 'Vendas', align: 'text-right' },
-          { label: 'CTR',             align: 'text-right' },
-        ].map((h, i) => (
-          <span key={i} className={`text-[10px] font-black uppercase tracking-widest ${h.align}`} style={{ color: SILVER }}>{h.label}</span>
+      <div className="grid py-3" style={{ gridTemplateColumns: grid, padding: '10px 20px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        {cols.map((h, i) => (
+          <span key={i} className={`text-[10px] font-black uppercase tracking-wider ${aligns[i] || 'text-right'}`} style={{ color: SILVER }}>{h}</span>
         ))}
       </div>
       {group.ads.slice(0, 10).map((ad, idx) => <AdRow key={ad.id} ad={ad} idx={idx} accent={group.accent} showLeads={showLeads} />)}
@@ -411,23 +394,35 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
           <span className="material-symbols-outlined text-[16px]">refresh</span>Nova Análise
         </button>
 
-        {/* Seletor de período */}
-        <div className="flex items-center gap-2">
+        {/* Seletor de período — dropdown posicionado, sem quebrar linha */}
+        <div className="relative">
           <button onClick={() => setShowPeriod(p => !p)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all whitespace-nowrap"
             style={{ background: showPeriod ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showPeriod ? 'rgba(56,189,248,0.3)' : 'rgba(255,255,255,0.1)'}`, color: showPeriod ? '#38bdf8' : SILVER }}>
             <span className="material-symbols-outlined text-[16px]">date_range</span>
             {fmtDate(dateFrom)} → {fmtDate(dateTo)}
           </button>
           {showPeriod && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl" style={{ background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.2)' }}>
-              <input type="date" value={localFrom} onChange={e => setLocalFrom(e.target.value)}
-                className="rounded-lg px-3 py-1.5 text-[11px] font-bold outline-none"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }} />
-              <span style={{ color: SILVER }} className="text-[11px]">até</span>
-              <input type="date" value={localTo} onChange={e => setLocalTo(e.target.value)}
-                className="rounded-lg px-3 py-1.5 text-[11px] font-bold outline-none"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }} />
+            <div className="absolute top-full left-0 mt-2 z-50 flex items-center gap-3 px-5 py-4 rounded-2xl"
+              style={{ background: '#0d1f35', border: '1px solid rgba(56,189,248,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', minWidth: 360 }}>
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>De</label>
+                <input type="date" value={localFrom} onChange={e => setLocalFrom(e.target.value)}
+                  className="rounded-xl px-3 py-2 text-[13px] font-bold outline-none w-full"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }} />
+              </div>
+              <span style={{ color: SILVER }} className="text-[13px] mt-4">→</span>
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Até</label>
+                <input type="date" value={localTo} onChange={e => setLocalTo(e.target.value)}
+                  className="rounded-xl px-3 py-2 text-[13px] font-bold outline-none w-full"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }} />
+              </div>
+              <button onClick={() => setShowPeriod(false)}
+                className="mt-4 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest"
+                style={{ background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.3)', color: '#38bdf8' }}>
+                OK
+              </button>
             </div>
           )}
         </div>
@@ -588,11 +583,11 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
               </div>
               );
             })}
-            <div className="flex justify-between items-center px-5 py-3" style={{ background: 'rgba(255,255,255,0.04)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{campaigns.length} campanha{campaigns.length !== 1 ? 's' : ''}</span>
+            <div className="flex justify-between items-center px-5 py-4" style={{ background: 'rgba(255,255,255,0.04)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{campaigns.length} campanha{campaigns.length !== 1 ? 's' : ''} analisada{campaigns.length !== 1 ? 's' : ''}</span>
               <div className="text-right">
                 <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Investido</p>
-                <p className="text-lg font-black" style={{ color: '#ef4444' }}>{R(totalSpend)}</p>
+                <p className="text-xl font-black" style={{ color: '#ef4444' }}>{R(totalSpend)}</p>
               </div>
             </div>
           </div>
@@ -736,9 +731,9 @@ export function AnalisePage() {
   const handleReset = () => { setStep(1); setProduct(''); setProductId(undefined); setCampaigns([]); };
 
   return (
-    <div className="max-w-[1200px] mx-auto px-4 py-10">
+    <div className="max-w-[1600px] mx-auto px-6 py-10">
       <div className="mb-8 no-print">
-        <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: GOLD }}>Tráfego · Análise</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: GOLD }}>Tráfego · Análise</p>
         <h1 className="text-4xl font-black text-white">Análise de Performance</h1>
         <p className="text-sm font-bold mt-1" style={{ color: SILVER }}>Combine dados da Hotmart com investimentos Meta Ads em 3 passos.</p>
       </div>

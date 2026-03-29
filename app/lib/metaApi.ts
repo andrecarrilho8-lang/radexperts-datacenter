@@ -67,6 +67,8 @@ export const parseMetrics = (data: any) => {
   const spend        = parseFloat(data.spend) || 0;
   const connectRate  = Math.min((landingPageViews / outboundClicks) * 100, 100);
   const checkoutRate = landingPageViews > 0 ? Math.min((checkouts / landingPageViews) * 100, 100) : 0;
+  const purchaseRate = checkouts > 0 ? Math.min((purchases / checkouts) * 100, 100) : 0;
+  const conversionRate = landingPageViews > 0 ? Math.min((leads / landingPageViews) * 100, 100) : 0;
 
   return {
     spend,
@@ -75,7 +77,7 @@ export const parseMetrics = (data: any) => {
     cpa:           purchases > 0 ? spend     / purchases : 0,
     costPerLead:   leads > 0     ? spend     / leads      : 0,
     purchases, leads, landingPageViews, checkouts, outboundClicks,
-    connectRate, checkoutRate,
+    connectRate, checkoutRate, purchaseRate, conversionRate,
     impressions:   parseInt(data.impressions, 10) || 0,
     clicks:        parseInt(data.clicks, 10)      || 0,
     ctr:           parseFloat(data.ctr)           || 0,
