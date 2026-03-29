@@ -58,7 +58,7 @@ export function CampaignDetailView({ id }: { id: string }) {
   const [campDetail, setCampDetail]     = useState<any | null>(null);
   const [campDetailAds, setCampDetailAds] = useState<any[]>([]);
   const [campDetailAdSets, setCampDetailAdSets] = useState<any[]>([]);
-  const [campHotmart, setCampHotmart]   = useState({ revenue: 0, purchases: 0, matchedProducts: [] as string[], currencyBreakdown: {} as Record<string, { count: number; originalTotal: number; convertedTotal: number }>, loading: false });
+  const [campHotmart, setCampHotmart]   = useState({ revenue: 0, grossBRL: 0, hotmartFeesBRL: 0, purchases: 0, matchedProducts: [] as string[], currencyBreakdown: {} as Record<string, { count: number; originalTotal: number; convertedTotal: number }>, loading: false });
   const [manualProducts, setManualProducts] = useState<string[]>([]); // produtos selecionados manualmente
   const [availableProducts, setAvailableProducts] = useState<string[]>([]); // lista de todos produtos Hotmart
   const [productDropdownOpen, setProductDropdownOpen] = useState(false);
@@ -117,7 +117,7 @@ export function CampaignDetailView({ id }: { id: string }) {
     try {
       const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(campName)}${manualParam}`);
       const hData = await hRes.json();
-      setCampHotmart({ revenue: hData.revenue || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
+      setCampHotmart({ revenue: hData.revenue || 0, grossBRL: hData.grossBRL || 0, hotmartFeesBRL: hData.hotmartFeesBRL || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
     } catch {
       setCampHotmart(p => ({ ...p, loading: false }));
     }
@@ -482,14 +482,23 @@ export function CampaignDetailView({ id }: { id: string }) {
                     <p className="font-headline font-black text-3xl text-white">{campHotmart.purchases || 0}</p>
                     <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>transações confirmadas</p>
                   </div>
-                  <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Faturamento em BRL</p>
+                  <div className="rounded-[16px] p-5 relative" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2 flex items-center gap-1.5" style={{ color: SILVER }}>
+                      Recebido Líquido (BRL)
+                      <span
+                        className="material-symbols-outlined text-[13px] cursor-help"
+                        style={{ color: GOLD }}
+                        title={[
+                          `🟡 Bruto: ${R(campHotmart.grossBRL)}`,
+                          `🔴 Taxa Hotmart: ${R(campHotmart.hotmartFeesBRL)}`,
+                        ].join('\n')}
+                      >info</span>
+                    </p>
                     <p className="font-headline font-black text-3xl" style={{ color: GOLD }}>{R(campHotmart.revenue || 0)}</p>
                     <p className="text-[10px] font-bold mt-1 flex items-center gap-1" style={{ color: '#22c55e' }}>
                       <span className="material-symbols-outlined text-[11px]">currency_exchange</span>
-                      cotação histórica do dia
+                      valor líquido · cotação histórica
                     </p>
-                    <p className="text-[9px] font-bold mt-1" style={{ color: 'rgba(251,191,36,0.6)' }}>⚠ Valor bruto · pré-taxas Hotmart</p>
                   </div>
                   <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>ROAS</p>

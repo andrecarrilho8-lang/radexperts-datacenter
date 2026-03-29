@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { fetchHotmartSales, fetchHotmartCommissions } from '@/app/lib/hotmartApi';
 import { convertToBRLOnDate } from '@/app/lib/currency';
 
 function cleanStr(s: string) {
@@ -32,7 +32,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const dSince = `${dateFrom}T00:00:00-03:00`;
     const dUntil = `${dateTo}T23:59:59-03:00`;
 
-    const allSales = await fetchHotmartSales(dSince, dUntil);
+    const allSales         = await fetchHotmartSales(dSince, dUntil);
+    const commissionMap    = await fetchHotmartCommissions(dSince, dUntil).catch(() => new Map());
 
     const normCampName = cleanStr(campaignName);
     const campTokens = campaignName.toLowerCase()
@@ -58,16 +59,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Collect matched sales (deduped)
     const matchedProductsNames: Set<string> = new Set();
     const uniqueTxIds = new Set<string>();
-    const matchedSales: { value: number; currency: string; dateIso: string }[] = [];
+    const matchedSales: { value: number; netBRL: number; currency: string; dateIso: string }[] = [];
 
-    allSales.forEach((s: any) => {
+    for (const s of allSales) {
       const prodName = s.product?.name || '';
       const cleanProduct = cleanStr(prodName);
       const purchase = s.purchase || {};
       const txId = purchase.transaction;
 
       const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status);
-      if (!isApproved) return;
+      if (!isApproved) continue;
 
       // Manual override: só produtos selecionados
       const isManualMatch = manualProductSet ? manualProductSet.has(prodName) : false;
@@ -85,38 +86,60 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         const dateIso = (purchase.approved_date || purchase.order_date)
           ? new Date(purchase.approved_date || purchase.order_date).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
-        matchedSales.push({
-          value: purchase.price?.actual_value ?? purchase.price?.value ?? 0,
-          currency: (purchase.price?.currency_code || 'BRL').toUpperCase(),
-          dateIso,
-        });
+
+        const currency = (purchase.price?.currency_code || 'BRL').toUpperCase();
+        const grossValue = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
+
+        // Liquid net: use commission PRODUCER source when available
+        const commData    = commissionMap.get(txId);
+        const isBRL       = currency === 'BRL';
+        let netValue: number;
+        if (commData?.producerNet != null) {
+          if (isBRL) {
+            // BRL: commission already in BRL
+            netValue = commData.producerNet;
+          } else {
+            // LATAM: commission.value is in USD payout currency — convert to BRL at historical rate
+            netValue = await convertToBRLOnDate(commData.producerNet, 'USD', dateIso);
+          }
+        } else {
+          // Fallback: gross × (1 - hotmartFee%)
+          const feePct = purchase.hotmart_fee?.percentage ?? 0;
+          const grossBRLFb = await convertToBRLOnDate(grossValue, currency, dateIso);
+          netValue = grossBRLFb * (1 - feePct / 100);
+        }
+
+        matchedSales.push({ value: grossValue, netBRL: netValue, currency, dateIso });
       }
-    });
+    }
 
-    // Convert each sale to BRL using the historical rate of its date
-    const convertedValues = await Promise.all(
-      matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso))
-    );
-
-    const revenueBRL = convertedValues.reduce((a, b) => a + b, 0);
+    const revenueBRL  = matchedSales.reduce((a, s) => a + s.netBRL, 0);
     const purchaseCount = matchedSales.length;
 
-    // Currency breakdown
+    // Currency breakdown — convertedTotal now reflects net BRL
     const byCurrency: Record<string, { count: number; originalTotal: number; convertedTotal: number }> = {};
-    matchedSales.forEach((s, i) => {
+    for (const s of matchedSales) {
       if (!byCurrency[s.currency]) byCurrency[s.currency] = { count: 0, originalTotal: 0, convertedTotal: 0 };
       byCurrency[s.currency].count++;
       byCurrency[s.currency].originalTotal += s.value;
-      byCurrency[s.currency].convertedTotal += convertedValues[i];
-    });
+      byCurrency[s.currency].convertedTotal += s.netBRL;
+    }
+
+    // Gross BRL para tooltip
+    const grossConversions = await Promise.all(
+      matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso))
+    );
+    const grossBRL = grossConversions.reduce((a, b) => a + b, 0);
 
     return NextResponse.json({
       success: true,
-      revenue: revenueBRL,          // Total em BRL (convertido historicamente)
+      revenue: revenueBRL,          // Líquido em BRL (producer_net)
       revenueBRL,                   // alias explícito
+      grossBRL,                     // bruto BRL (para tooltip)
+      hotmartFeesBRL: grossBRL - revenueBRL,
       purchases: purchaseCount,
       matchedProducts: Array.from(matchedProductsNames),
-      currencyBreakdown: byCurrency, // detalhe por moeda
+      currencyBreakdown: byCurrency,
     });
 
   } catch (error: any) {

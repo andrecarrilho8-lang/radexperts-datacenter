@@ -105,15 +105,30 @@ export default function CampanhasPage() {
                     {obj === 'VENDAS' ? (() => {
                       const allMatchedProducts = new Set<string>();
                       selected.forEach(c => (c.matchedProducts || []).forEach((p: string) => allMatchedProducts.add(p)));
-                      const seenTxns = new Set<string>(); let hmRevenue = 0; let hmQty = 0;
+                      const seenTxns = new Set<string>(); let hmRevenue = 0; let hmGross = 0; let hmQty = 0;
                       (data.hotmartSales || []).forEach((s: any) => {
                         const pName = s.product?.name || ''; const txn = s.purchase?.transaction || '';
                         const isOk = ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes(s.purchase?.status || '');
-                        if (isOk && allMatchedProducts.has(pName) && !seenTxns.has(txn)) { seenTxns.add(txn); hmRevenue += s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0; hmQty += 1; }
+                        if (isOk && allMatchedProducts.has(pName) && !seenTxns.has(txn)) {
+                          seenTxns.add(txn);
+                          const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
+                          const gross = s.purchase?.price?.actual_value ?? s.purchase?.price?.value ?? 0;
+                          const convertedGross = s.purchase?.price?.converted_value ?? gross;
+                          hmRevenue += net != null ? net : convertedGross;
+                          hmGross   += convertedGross;
+                          hmQty += 1;
+                        }
                       });
                       return (<>
-                        <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px' }}>
-                          <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: GOLD + 'aa' }}>Faturamento Hotmart</p>
+                        <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px', position: 'relative' }}>
+                          <p className="text-[10px] uppercase font-bold tracking-widest mb-1 flex items-center gap-1.5" style={{ color: GOLD + 'aa' }}>
+                            Recebido Líquido
+                            <span
+                              className="material-symbols-outlined text-[12px] cursor-help"
+                              style={{ color: GOLD }}
+                              title={`🟡 Bruto: ${(hmGross).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })}\n🔴 Taxa Hotmart: ${(hmGross - hmRevenue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })}`}
+                            >info</span>
+                          </p>
                           <p className="text-2xl font-black" style={{ color: GOLD }}>{R(hmRevenue)}</p>
                         </div>
                         <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: '20px 24px' }}>
@@ -302,8 +317,8 @@ export default function CampanhasPage() {
                     </div>
                     {camp.objective === 'VENDAS' ? (<>
                       <div className="text-right md:text-left">
-                        <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Fat. (H)</p>
-                        <p className="font-black text-lg leading-none" style={{ color: GOLD }}>{R(camp.hotmartRevenue || 0)}</p>
+                      <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Líq. (H)</p>
+                      <p className="font-black text-lg leading-none" style={{ color: GOLD }}>{R(camp.hotmartRevenue || 0)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Vendas Meta</p>

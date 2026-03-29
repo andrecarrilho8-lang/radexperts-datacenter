@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getHotmartToken } from '@/app/lib/hotmartApi';
+import { getHotmartToken, fetchHotmartCommissions } from '@/app/lib/hotmartApi';
 import { convertToBRLOnDate } from '@/app/lib/currency';
 
 export const dynamic = 'force-dynamic';
@@ -107,9 +107,13 @@ export async function GET(request: Request) {
 
     // ── Busca todas as vendas deste produto pelo product_id ──
     const rawItems = await fetchSalesByProductId(targetProductId, startMs, endMs, token);
+    // ── Busca comissões no mesmo período ──
+    const dSince = new Date(startMs).toISOString();
+    const dUntil = new Date(endMs).toISOString();
+    const commissionMap = await fetchHotmartCommissions(dSince, dUntil).catch(() => new Map());
 
     const uniqueTxIds = new Set<string>();
-    const matchedSales: { value: number; currency: string; dateIso: string }[] = [];
+    const matchedSales: { value: number; currency: string; dateIso: string; txId: string }[] = [];
 
     for (const s of rawItems) {
       const purchase = s.purchase || {};
@@ -120,27 +124,40 @@ export async function GET(request: Request) {
       if (uniqueTxIds.has(txId)) continue;
       uniqueTxIds.add(txId);
 
-      // actual_value = valor real conforme mostrado no dashboard Hotmart
-      const value = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
-      const currency = (purchase.price?.currency_code || 'BRL').toUpperCase();
-
-      // Data: Hotmart dashboard usa approved_date para relatórios
-      const dateIso = purchase.approved_date
+      const currency   = (purchase.price?.currency_code || 'BRL').toUpperCase();
+      const grossValue  = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
+      const dateIso     = purchase.approved_date
         ? new Date(purchase.approved_date).toISOString().split('T')[0]
         : purchase.order_date
           ? new Date(purchase.order_date).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
 
-      matchedSales.push({ value, currency, dateIso });
+      matchedSales.push({ value: grossValue, currency, dateIso, txId });
     }
 
-    // Converte para BRL usando cotação histórica de cada venda
-    const convertedValues = await Promise.all(
-      matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso))
-    );
+    // Compute net values using commissions (producer_net)
+    const netValues: number[] = [];
+    for (const s of matchedSales) {
+      const commData = commissionMap.get(s.txId);
+      const isBRL    = s.currency === 'BRL';
+      if (commData?.producerNet != null) {
+        if (isBRL) {
+          netValues.push(commData.producerNet);
+        } else {
+          netValues.push(await convertToBRLOnDate(commData.producerNet, 'USD', s.dateIso));
+        }
+      } else {
+        // Fallback: full historical conversion (gross → BRL)
+        netValues.push(await convertToBRLOnDate(s.value, s.currency, s.dateIso));
+      }
+    }
 
-    const revenue       = convertedValues.reduce((a, b) => a + b, 0);
+    const revenue       = netValues.reduce((a, b) => a + b, 0);
     const purchaseCount = matchedSales.length;
+
+    // Gross BRL for tooltip
+    const grossValues   = await Promise.all(matchedSales.map(s => convertToBRLOnDate(s.value, s.currency, s.dateIso)));
+    const grossBRL      = grossValues.reduce((a, b) => a + b, 0);
 
     // Breakdown por moeda
     const byCurrency: Record<string, { count: number; originalTotal: number; convertedTotal: number }> = {};
@@ -148,11 +165,13 @@ export async function GET(request: Request) {
       if (!byCurrency[s.currency]) byCurrency[s.currency] = { count: 0, originalTotal: 0, convertedTotal: 0 };
       byCurrency[s.currency].count++;
       byCurrency[s.currency].originalTotal += s.value;
-      byCurrency[s.currency].convertedTotal += convertedValues[i];
+      byCurrency[s.currency].convertedTotal += netValues[i];
     });
 
     return NextResponse.json({
       revenue,
+      grossBRL,
+      hotmartFeesBRL: grossBRL - revenue,
       purchases:         purchaseCount,
       matchedProducts:   [product || `product:${targetProductId}`],
       currencyBreakdown: byCurrency,

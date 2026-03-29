@@ -187,7 +187,8 @@ export async function GET(request: Request) {
                          campTokens.some(token => cleanProduct.includes(cleanStr(token)));
 
           if (isMatch) {
-            rev += (s.purchase?.price?.converted_value || 0);
+            const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
+            rev += net != null ? net : (s.purchase?.price?.converted_value || 0);
             qty += 1;
             if (!matchedProducts.includes(prodName)) matchedProducts.push(prodName);
           }

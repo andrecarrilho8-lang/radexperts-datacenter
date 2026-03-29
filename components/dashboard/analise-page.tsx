@@ -16,6 +16,7 @@ type Campaign = {
 };
 type HotmartData = {
   revenue: number; purchases: number; matchedProducts: string[];
+  grossBRL?: number; hotmartFeesBRL?: number;
   currencyBreakdown: Record<string, { count: number; originalTotal: number; convertedTotal: number }>;
 };
 type AdItem = {
@@ -515,9 +516,18 @@ function Step3({ product, productId, campaigns, onBack, onSave, prefetchedData }
               <div className="flex items-center gap-3 mb-5">
                 <svg width="32" height="38" viewBox="0 0 100 120" fill="none"><path d="M50 0C50 0 85 28 85 62C85 81.8 69.3 98 50 98C30.7 98 15 81.8 15 62C15 28 50 0 50 0Z" fill="#E8380D"/><circle cx="50" cy="72" r="18" fill="white"/></svg>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Hotmart — Faturamento do Produto</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5" style={{ color: SILVER }}>
+                    Hotmart — Recebido Líquido
+                    <span
+                      className="material-symbols-outlined text-[13px] cursor-help"
+                      style={{ color: GOLD }}
+                      title={[
+                        hotmart?.grossBRL ? `🟡 Bruto: ${R(hotmart.grossBRL)}` : null,
+                        hotmart?.hotmartFeesBRL ? `🔴 Taxa Hotmart: ${R(hotmart.hotmartFeesBRL)}` : null,
+                      ].filter(Boolean).join('\n') || 'Valor líquido após taxas Hotmart'}
+                    >info</span>
+                  </p>
                   <p className="text-4xl font-black text-white">{R(revenue)}</p>
-                  <p className="text-[9px] font-bold mt-1" style={{ color: 'rgba(251,191,36,0.65)' }}>⚠ Valor bruto · pré-taxas Hotmart</p>
                   {hotmart?.matchedProducts && hotmart.matchedProducts.length > 0 && (
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{hotmart.matchedProducts.join(', ')}</p>
                   )}
@@ -576,7 +586,7 @@ function Step3({ product, productId, campaigns, onBack, onSave, prefetchedData }
               </p>
               <table className="w-full text-sm">
                 <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {['Moeda','Vendas','Valor Original','≈ BRL'].map(h => (
+                  {['Moeda','Vendas','Valor Original','Líquido BRL'].map(h => (
                     <th key={h} className={`pb-2 font-black text-[10px] uppercase tracking-wider ${h !== 'Moeda' ? 'text-right' : 'text-left'}`} style={{ color: SILVER }}>{h}</th>
                   ))}
                 </tr></thead>
