@@ -128,30 +128,23 @@ export default function HotmartPage() {
     return acc + (net != null ? Math.max(0, gross - fee - net) : 0);
   }, 0);
 
-  // Intl: líquido em BRL = converted_BRL × (producer_net / gross_original) ou fallback
+  // Intl: líquido em BRL = convertedGross × (1 - hotmartFeePct/100)
+  // NOTA: Não subtraímos co-produtor aqui porque o commission.value das vendas LATAM
+  // vem em BRL (moeda de payout), não na moeda original (COP, ARS...), causando
+  // um ratio incorreto. Deduzimos apenas a taxa Hotmart (% confiável do payload).
   const getIntlNetBRL = (s: any): number => {
     const convertedGross = s.purchase?.price?.converted_value || 0;
-    const gross          = s.purchase?.price?.value ?? 0;
-    const producerNet    = s.purchase?.producer_net;
-    if (producerNet != null && gross > 0) {
-      return convertedGross * (producerNet / gross);
-    }
-    // fallback: aplica ratio (gross - hotmart_fee) / gross
-    const fee = s.purchase?.hotmart_fee?.total ?? 0;
-    const ratio = gross > 0 ? Math.max(0, gross - fee) / gross : 1;
-    return convertedGross * ratio;
+    const hotmartFeePct  = s.purchase?.hotmart_fee?.percentage ?? 0;
+    if (convertedGross === 0) return 0;
+    return convertedGross * (1 - hotmartFeePct / 100);
   };
-  const intlNetBRL        = intlSales.reduce((acc: number, s: any) => acc + getIntlNetBRL(s), 0);
-  const intlGrossBRL      = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
-  const intlHotmartFeesBRL = intlSales.reduce((acc: number, s: any) => {
-    const cv  = s.purchase?.price?.converted_value || 0;
-    const g   = s.purchase?.price?.value ?? 0;
-    const fee = s.purchase?.hotmart_fee?.total ?? 0;
-    return acc + (g > 0 ? cv * (fee / g) : 0);
-  }, 0);
-  const intlCoProducerFeesBRL = intlGrossBRL - intlHotmartFeesBRL - intlNetBRL;
+  const intlNetBRL         = intlSales.reduce((acc: number, s: any) => acc + getIntlNetBRL(s), 0);
+  const intlGrossBRL       = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
+  const intlHotmartFeesBRL = intlGrossBRL - intlNetBRL;
+  // Co-produtor internacional não calculado (ver nota acima)
+  const intlCoProducerFeesBRL = 0;
 
-  // keep for backwards compat (used inside LATAM table)
+  // keep alias
   const intlRevenueBRL = intlNetBRL;
 
   // Unique products sorted by most recent sale
@@ -314,7 +307,8 @@ export default function HotmartPage() {
                     <div className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                       style={{ minWidth: 240, background: '#0d1f33', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
                       <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: '#38bdf8' }}>Detalhamento Internacional</p>
-                      <p className="text-[9px] mb-2" style={{ color: SILVER }}>Valores convertidos proporcionalmente</p>
+                      <p className="text-[9px] mb-2" style={{ color: SILVER }}>Bruto convertido para BRL pela cotação histórica.
+Apenas a taxa Hotmart (%) é deduzida com precisão.</p>
                       <div className="flex flex-col gap-1.5">
                         <div className="flex justify-between items-center">
                           <span className="text-[11px]" style={{ color: SILVER }}>🟡 Bruto</span>
@@ -543,9 +537,9 @@ export default function HotmartPage() {
               <table className="w-full text-left" style={{ tableLayout: 'fixed', borderCollapse: 'collapse' }}>
                 <colgroup>
                   <col style={{ width: '110px' }} />
-                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '180px' }} />
                   <col style={{ width: '130px' }} />
-                  <col style={{ width: '240px' }} />
+                  <col style={{ width: '300px' }} />
                   <col />
                 </colgroup>
                 <thead>
@@ -695,7 +689,7 @@ export default function HotmartPage() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2 leading-tight">
                               {getFlagImgByCurrency(s.purchase?.price?.currency_code, 18)}
-                              <span className="text-sm font-black text-white">{s.buyer.name}</span>
+                              <span className="text-sm font-black text-white uppercase">{s.buyer.name}</span>
                             </div>
                             <span className="text-[10px] font-bold" style={{ color: SILVER }}>{s.buyer.email}</span>
                           </div>
