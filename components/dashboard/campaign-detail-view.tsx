@@ -97,7 +97,7 @@ export function CampaignDetailView({ id }: { id: string }) {
       const adsData = await adsRes.json();
       setCampDetailAds(adsData.topAds || []);
 
-      if (isVendas && userRole === 'TOTAL') {
+      if (data.objective === 'VENDAS' && userRole === 'TOTAL') {
         setCampHotmart(p => ({ ...p, loading: true }));
         const manualParam = manualProducts.length > 0 ? `&manualProducts=${encodeURIComponent(manualProducts.join('|'))}` : '';
         const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}${manualParam}`);
@@ -379,6 +379,72 @@ export function CampaignDetailView({ id }: { id: string }) {
                   <span className="material-symbols-outlined text-[12px]">info</span>
                   Correspondência por aproximação
                 </span>
+                {/* Botão Correspondência Manual — agora no header */}
+                <div className="relative" ref={productDropdownRef}>
+                  <button onClick={() => setProductDropdownOpen(o => !o)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                    style={{ background: manualProducts.length > 0 ? 'rgba(232,177,79,0.12)' : 'rgba(255,255,255,0.06)', border: manualProducts.length > 0 ? '1px solid rgba(232,177,79,0.3)' : '1px solid rgba(255,255,255,0.12)', color: manualProducts.length > 0 ? GOLD : '#94a3b8' }}>
+                    <span className="material-symbols-outlined text-[13px]">tune</span>
+                    Correspondência Manual
+                    {manualProducts.length > 0 && <span className="w-1.5 h-1.5 rounded-full" style={{ background: GOLD }} />}
+                    <span className={`material-symbols-outlined text-[12px] transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                  </button>
+                  {productDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-[380px] rounded-2xl shadow-2xl z-[9999] overflow-hidden"
+                      style={{ background: 'linear-gradient(160deg, rgba(0,26,53,0.99) 0%, rgba(0,10,30,0.99) 100%)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
+                      <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                        <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: GOLD }}>Correspondência Manual</p>
+                        <div className="relative">
+                          <span className="material-symbols-outlined text-[14px] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94a3b8' }}>search</span>
+                          <input
+                            type="text"
+                            placeholder="Buscar produto..."
+                            value={productSearch}
+                            onChange={e => setProductSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-2 rounded-lg text-[12px] font-bold outline-none"
+                            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-52 overflow-y-auto">
+                        {availableProducts.length === 0 ? (
+                          <div className="px-4 py-4 text-center text-sm font-bold" style={{ color: '#94a3b8' }}>Carregando produtos...</div>
+                        ) : availableProducts
+                            .filter(p => p.toLowerCase().includes(productSearch.toLowerCase()))
+                            .map(p => {
+                              const isSelected = manualProducts.includes(p);
+                              return (
+                                <button key={p} onClick={() => setManualProducts(prev => isSelected ? prev.filter(x => x !== p) : [...prev, p])}
+                                  className="w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm font-bold transition-all"
+                                  style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isSelected ? 'rgba(232,177,79,0.08)' : 'transparent', color: isSelected ? GOLD : 'white' }}
+                                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(232,177,79,0.08)' : 'transparent'; }}>
+                                  <span className="material-symbols-outlined text-[16px] flex-shrink-0" style={{ color: isSelected ? GOLD : '#94a3b8' }}>
+                                    {isSelected ? 'check_box' : 'check_box_outline_blank'}
+                                  </span>
+                                  <span className="leading-snug text-left">{p}</span>
+                                </button>
+                              );
+                            })}
+                        {availableProducts.filter(p => p.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && availableProducts.length > 0 && (
+                          <div className="px-4 py-4 text-center text-sm font-bold" style={{ color: '#94a3b8' }}>Nenhum produto encontrado</div>
+                        )}
+                      </div>
+                      {manualProducts.length > 0 && (
+                        <div className="px-4 py-2 flex items-center justify-between" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                          <span className="text-[10px] font-bold" style={{ color: '#94a3b8' }}>{manualProducts.length} selecionado(s)</span>
+                          <button onClick={() => setManualProducts([])}
+                            className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1"
+                            style={{ color: '#ef4444' }}>
+                            <span className="material-symbols-outlined text-[13px]">close</span>
+                            Limpar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg"
                   style={{ color: '#E8380D', background: 'rgba(232,56,13,0.1)', border: '1px solid rgba(232,56,13,0.2)' }}>Período Analisado</span>
               </div>
@@ -438,96 +504,30 @@ export function CampaignDetailView({ id }: { id: string }) {
                   </div>
                 </div>
 
-                {/* Produtos matchados + seleção manual */}
+                {/* Produtos matchados */}
                 <div className="rounded-[16px] p-4" style={{ background: 'rgba(232,120,13,0.06)', border: '1px solid rgba(232,120,13,0.15)' }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: '#E8380D' }}>
-                      <span className="material-symbols-outlined text-[14px]">inventory_2</span>
-                      Produtos Correlacionados ({campHotmart.matchedProducts.length})
-                    </p>
-                    {/* Dropdown associação manual */}
-                    <div className="relative" ref={productDropdownRef}>
-                      <button onClick={() => setProductDropdownOpen(o => !o)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
-                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
-                        <span className="material-symbols-outlined text-[13px]" style={{ color: GOLD }}>add_circle</span>
-                        Associar produto
-                        <span className={`material-symbols-outlined text-[12px] transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                      </button>
-                      {productDropdownOpen && (
-                        <div className="absolute right-0 top-full mt-2 w-[380px] rounded-2xl shadow-2xl z-[9999] overflow-hidden"
-                          style={{ background: 'linear-gradient(160deg, rgba(0,26,53,0.99) 0%, rgba(0,10,30,0.99) 100%)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
-                          <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                            <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: GOLD }}>Selecionar produto manualmente</p>
-                            {/* Campo de busca */}
-                            <div className="relative">
-                              <span className="material-symbols-outlined text-[14px] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
-                              <input
-                                type="text"
-                                placeholder="Buscar produto..."
-                                value={productSearch}
-                                onChange={e => setProductSearch(e.target.value)}
-                                className="w-full pl-8 pr-3 py-2 rounded-lg text-[12px] font-bold outline-none"
-                                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
-                                autoFocus
-                              />
-                            </div>
-                          </div>
-                          <div className="max-h-52 overflow-y-auto">
-                            {availableProducts.length === 0 ? (
-                              <div className="px-4 py-4 text-center text-sm font-bold" style={{ color: SILVER }}>Carregando produtos...</div>
-                            ) : availableProducts
-                                .filter(p => p.toLowerCase().includes(productSearch.toLowerCase()))
-                                .map(p => {
-                                const isSelected = manualProducts.includes(p);
-                                return (
-                                  <button key={p} onClick={() => {
-                                    setManualProducts(prev => isSelected ? prev.filter(x => x !== p) : [...prev, p]);
-                                  }}
-                                    className="w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm font-bold transition-all"
-                                    style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isSelected ? 'rgba(232,177,79,0.08)' : 'transparent', color: isSelected ? GOLD : 'white' }}
-                                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(232,177,79,0.08)' : 'transparent'; }}>
-                                    <span className="material-symbols-outlined text-[16px] flex-shrink-0" style={{ color: isSelected ? GOLD : SILVER }}>
-                                      {isSelected ? 'check_box' : 'check_box_outline_blank'}
-                                    </span>
-                                    <span className="leading-snug text-left">{p}</span>
-                                  </button>
-                                );
-                              })}
-                              {availableProducts.filter(p => p.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
-                                <div className="px-4 py-4 text-center text-sm font-bold" style={{ color: SILVER }}>Nenhum produto encontrado</div>
-                              )}
-                          </div>
-                          {manualProducts.length > 0 && (
-                            <div className="px-4 py-2 flex items-center justify-between" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                              <span className="text-[10px] font-bold" style={{ color: SILVER }}>{manualProducts.length} selecionado(s)</span>
-                              <button onClick={() => setManualProducts([])}
-                                className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1"
-                                style={{ color: '#ef4444' }}>
-                                <span className="material-symbols-outlined text-[13px]">close</span>
-                                Limpar
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: '#E8380D' }}>
+                    <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                    Produtos Correlacionados ({campHotmart.matchedProducts.length})
+                    {manualProducts.length > 0 && (
+                      <span className="px-2 py-0.5 rounded text-[9px] font-black flex items-center gap-1" style={{ background: 'rgba(232,177,79,0.15)', color: GOLD }}>
+                        <span className="material-symbols-outlined text-[11px]">tune</span>
+                        manual
+                      </span>
+                    )}
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {campHotmart.matchedProducts.map((p: string) => (
                       <span key={p} className="px-3 py-1.5 rounded-lg text-[11px] font-black" style={{ background: 'rgba(232,120,13,0.12)', border: '1px solid rgba(232,120,13,0.2)', color: '#fb923c' }}>
                         {p}
                       </span>
                     ))}
-                    {manualProducts.length > 0 && (
-                      <span className="px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1" style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.2)', color: GOLD }}>
-                        <span className="material-symbols-outlined text-[12px]">edit</span>
-                        seleção manual ativa
-                      </span>
+                    {campHotmart.matchedProducts.length === 0 && !campHotmart.loading && (
+                      <span className="text-[11px] font-bold" style={{ color: SILVER }}>Nenhum produto correlacionado automaticamente. Use CorresponÚncia Manual acima.</span>
                     )}
                   </div>
                 </div>
+
 
                 {/* Breakdown por moeda */}
                 {Object.keys(campHotmart.currencyBreakdown).length > 0 && (
