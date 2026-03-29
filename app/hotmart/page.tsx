@@ -447,12 +447,13 @@ export default function HotmartPage() {
                     const hotmartFee     = s.purchase?.hotmart_fee?.total ?? 0;
                     const hotmartFeePct  = s.purchase?.hotmart_fee?.percentage ?? 0;
 
-                    // commission.value = o que o produtor recebeu (confirmado: HP3970815852)
-                    // R$4500 bruto → R$176,50 Hotmart → R$2161,50 co-prod → R$2161,50 para nós
-                    const commissionVal  = s.purchase?.commission?.value ?? null;
-                    const hasCommission  = commissionVal !== null;
-                    const netValue       = hasCommission ? (commissionVal as number) : Math.max(0, grossValue - hotmartFee);
-                    const coProducerAmt  = hasCommission ? Math.max(0, grossValue - hotmartFee - (commissionVal as number)) : 0;
+                    // Prioridade para producer_net (injetado pelo backend via /sales/commissions)
+                    // Confirmado: source:"PRODUCER" = valor exato que a RadExperts recebeu
+                    // Fallback: commission.value no item | bruto - hotmartFee
+                    const producerNet    = s.purchase?.producer_net ?? s.purchase?.commission?.value ?? null;
+                    const hasProducerNet = producerNet !== null;
+                    const netValue       = hasProducerNet ? (producerNet as number) : Math.max(0, grossValue - hotmartFee);
+                    const coProducerAmt  = hasProducerNet ? Math.max(0, grossValue - hotmartFee - (producerNet as number)) : 0;
                     const hasCoProducer  = coProducerAmt > 0.01;
                     const fmt = (v: number) => currency !== 'BRL' ? RF(v, currency) : R(v);
 

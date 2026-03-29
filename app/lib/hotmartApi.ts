@@ -74,7 +74,6 @@ export async function fetchHotmartSales(startDate: string, endDate: string, cust
   const token = await getHotmartToken();
   const startMs = new Date(startDate).getTime();
   const endMs   = new Date(endDate).getTime();
-  // Chunks de 15 dias para não exceder limites da API
   const CHUNK_SIZE = customChunkSize || (15 * 24 * 60 * 60 * 1000);
 
   const chunks: { start: number; end: number }[] = [];
@@ -107,6 +106,59 @@ export async function fetchHotmartSales(startDate: string, endDate: string, cust
   }
 
   return allItems;
+}
+
+// ── Fetch Commissions (batch por período) ────────────────────────────────────
+// Retorna Map<transaction, producer_net_value>
+// Confirmado via debug HP3970815852:
+//   source:"PRODUCER" commission.value = R$2161.50 = "Você recebeu" no painel Hotmart
+//   (já deduzido Hotmart fee + co-produtor)
+export async function fetchHotmartCommissions(
+  startDate: string,
+  endDate: string,
+  concurrency = 4
+): Promise<Map<string, number>> {
+  const token   = await getHotmartToken();
+  const startMs = new Date(startDate).getTime();
+  const endMs   = new Date(endDate).getTime();
+  const CHUNK   = 15 * 24 * 60 * 60 * 1000;
+
+  const chunks: { start: number; end: number }[] = [];
+  let cur = startMs;
+  while (cur < endMs) {
+    chunks.push({ start: cur, end: Math.min(cur + CHUNK, endMs) });
+    cur += CHUNK + 1;
+  }
+
+  const producerNet = new Map<string, number>();
+
+  for (let i = 0; i < chunks.length; i += concurrency) {
+    const batch = chunks.slice(i, i + concurrency);
+    await Promise.all(batch.map(async (chunk) => {
+      let pageToken = '';
+      try {
+        do {
+          const path = `/payments/api/v1/sales/commissions?start_date=${chunk.start}&end_date=${chunk.end}${pageToken ? `&page_token=${pageToken}` : ''}`;
+          const resp = await httpsRequest('GET', HOTMART_API_HOST, path, { 'Authorization': `Bearer ${token}` });
+          if (resp.status !== 200) break;
+          const data = JSON.parse(resp.body);
+          const items: any[] = data.items || [];
+          items.forEach((item: any) => {
+            const tx = item.transaction;
+            if (!tx) return;
+            // source:"PRODUCER" = o que a RadExperts recebeu de fato
+            const producerEntry = (item.commissions || []).find((c: any) => c.source === 'PRODUCER');
+            if (producerEntry?.commission?.value != null) {
+              producerNet.set(tx, producerEntry.commission.value);
+            }
+          });
+          pageToken = data.page_info?.next_page_token || '';
+        } while (pageToken);
+      } catch (e) { console.error('Hotmart commissions chunk error:', e); }
+    }));
+  }
+
+  return producerNet;
 }
 
 // ── Top Customers ───────────────────────────────────────────────────────────

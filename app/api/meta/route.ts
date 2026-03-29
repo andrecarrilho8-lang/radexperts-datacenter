@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCache, setCache, initSDK, mapObjective, parseMetrics, INSIGHT_FIELDS } from '@/app/lib/metaApi';
-import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { fetchHotmartSales, fetchHotmartCommissions } from '@/app/lib/hotmartApi';
 import { getAllRates, getConvertedValue, convertToBRLOnDate } from '@/app/lib/currency';
 
 export const dynamic         = 'force-dynamic';
@@ -65,14 +65,16 @@ export async function GET(request: Request) {
     });
 
     // ── Fetch data in parallel via HTTP with proper URL encoding ──
-    const [summaryRes, campaignsRes, campInsightsRes, hotmartSales] = await Promise.all([
+    const hotmartStart = dSince ? `${dSince}T00:00:00-03:00` : '2026-01-01T00:00:00-03:00';
+    const hotmartEnd   = dUntil ? `${dUntil}T23:59:59-03:00` : '2026-12-31T23:59:59-03:00';
+
+    const [summaryRes, campaignsRes, campInsightsRes, hotmartSales, commissionMap] = await Promise.all([
       fetch(`${META_BASE}/${adAccountId}/insights?${buildInsightParams('account')}`).then(r => r.json()),
       fetch(`${META_BASE}/${adAccountId}/campaigns?${campaignParams}`).then(r => r.json()),
       fetch(`${META_BASE}/${adAccountId}/insights?${buildInsightParams('campaign')}`).then(r => r.json()),
-      fetchHotmartSales(
-        dSince ? `${dSince}T00:00:00-03:00` : '2026-01-01T00:00:00-03:00',
-        dUntil ? `${dUntil}T23:59:59-03:00` : '2026-12-31T23:59:59-03:00'
-      ).catch(() => [])
+      fetchHotmartSales(hotmartStart, hotmartEnd).catch(() => [] as any[]),
+      // Busca comissões em paralelo — dá o valor líquido real (já deduzido co-produtor + Hotmart)
+      fetchHotmartCommissions(hotmartStart, hotmartEnd).catch(() => new Map<string, number>()),
     ]);
 
     if (summaryRes.error)      throw new Error(JSON.stringify(summaryRes.error));
@@ -120,7 +122,21 @@ export async function GET(request: Request) {
       return false;
     });
 
-    const globalHotmartRevenue = cleanSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || s.purchase?.price?.value || 0), 0);
+    // ── Enrich each clean sale with producer_net from commissions API ──────────
+    // producer_net = o que a RadExperts recebeu de fato (já deduzido: Hotmart fee + co-produtor)
+    // Confirmado via debug HP3970815852: source:"PRODUCER" commission.value = R$2161.50
+    cleanSales.forEach((s: any) => {
+      const tx = s.purchase?.transaction;
+      if (tx && commissionMap.has(tx)) {
+        s.purchase.producer_net = commissionMap.get(tx);
+      }
+    });
+
+    const globalHotmartRevenue = cleanSales.reduce((acc: number, s: any) => {
+      // Usa o valor líquido (producer_net) quando disponível, senão converted_value
+      const net = s.purchase?.producer_net;
+      return acc + (net != null ? net : (s.purchase?.price?.converted_value || s.purchase?.price?.value || 0));
+    }, 0);
     const globalHotmartPurchases = cleanSales.length;
 
     // ── Map Meta Insights ──
