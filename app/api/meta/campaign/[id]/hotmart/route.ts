@@ -7,6 +7,14 @@ function cleanStr(s: string) {
     .replace(/[^a-z0-9]/g, ''); // Keep only letters and numbers
 }
 
+// Mapeamentos explícitos: se o nome da campanha contiver a keyword,
+// inclui automaticamente os produtos listados no matching.
+const CAMPAIGN_KEYWORD_MAP: { keyword: string; products: string[] }[] = [
+  { keyword: 'latam', products: ['NeuroExpert - Posgrado en Neuroradiología'] },
+  // Adicione mais regras abaixo conforme necessário:
+  // { keyword: 'alzheimer', products: ['Avanços na Doença de Alzheimer'] },
+];
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { searchParams } = new URL(request.url);
@@ -40,6 +48,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     let userCommission = 0;
     let purchaseCount = 0;
 
+    // Resolve explicit keyword overrides for this campaign
+    const campNameLower = campaignName.toLowerCase();
+    const forcedProducts = new Set<string>();
+    for (const map of CAMPAIGN_KEYWORD_MAP) {
+      if (campNameLower.includes(map.keyword.toLowerCase())) {
+        map.products.forEach(p => forcedProducts.add(p));
+      }
+    }
+
     allSales.forEach(s => {
       const prodName = s.product?.name || '';
       const cleanProduct = cleanStr(prodName);
@@ -48,20 +65,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
       // Status check (Approved only)
       const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status);
-      if (!isApproved) return false;
+      if (!isApproved) return;
 
-      // Match Logic: 
-      // It must share at least one MAJOR token from the campaign tag system (e.g. "riodejaneiro")
-      // OR have a direct substring match
-      const isMatch = cleanProduct.includes(normCampName) || 
-                      normCampName.includes(cleanProduct) ||
-                      campTokens.some(token => cleanProduct.includes(cleanStr(token)));
+      // Explicit override first (e.g. latam → NeuroExpert Posgrado)
+      const isForced = forcedProducts.has(prodName);
 
-      if (isMatch && !uniqueTxIds.has(txId)) {
+      // Generic token match as fallback
+      const isGenericMatch = !isForced && (
+        cleanProduct.includes(normCampName) ||
+        normCampName.includes(cleanProduct) ||
+        campTokens.some(token => cleanProduct.includes(cleanStr(token)))
+      );
+
+      if ((isForced || isGenericMatch) && !uniqueTxIds.has(txId)) {
         uniqueTxIds.add(txId);
         matchedProductsNames.add(prodName);
-        
-        // Correcting field names for Hotmart API (Standard fields)
         grossRevenue += (purchase.price?.value || 0);
         userCommission += (purchase.commission?.value || 0);
         purchaseCount++;
