@@ -119,54 +119,98 @@ function Step2({ product, onConfirm, onBack }: { product: string; onConfirm: (c:
   const filtered = campaigns.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <button onClick={onBack} className="flex items-center gap-1 text-[11px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>
+    <div>
+      <button onClick={onBack} className="flex items-center gap-1 text-[11px] font-black uppercase tracking-widest mb-3" style={{ color: SILVER }}>
         <span className="material-symbols-outlined text-[16px]">arrow_back</span>Voltar
       </button>
       <h2 className="text-2xl font-black text-white mb-1">Selecione as Campanhas</h2>
       <p className="text-sm font-bold mb-1" style={{ color: SILVER }}>Produto: <span style={{ color: GOLD }}>{product}</span></p>
       <p className="text-xs font-bold mb-5" style={{ color: SILVER }}>Selecione quantas quiser — o investimento total será somado.</p>
-      <div className="flex items-center gap-3 mb-4">
+
+      {/* Search + actions */}
+      <div className="flex items-center gap-3 mb-5">
         <div className="relative flex-1">
           <span className="material-symbols-outlined text-[18px] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
           <input type="text" placeholder="Buscar campanha..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-11 pr-4 py-3 rounded-2xl text-sm font-bold outline-none"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
         </div>
-        <button onClick={() => setSelected(new Set(filtered.map(c => c.id)))} className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Todas</button>
-        <button onClick={() => setSelected(new Set())} className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Limpar</button>
+        <button onClick={() => setSelected(new Set(filtered.map(c => c.id)))}
+          className="px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Todas</button>
+        <button onClick={() => setSelected(new Set())}
+          className="px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Limpar</button>
       </div>
-      <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1 mb-5">
-        {loading && <div className="py-10 text-center text-sm font-bold animate-pulse" style={{ color: SILVER }}>Carregando campanhas...</div>}
-        {!loading && filtered.length === 0 && <div className="py-10 text-center text-sm font-bold" style={{ color: SILVER }}>Nenhuma campanha encontrada.</div>}
-        {filtered.map(c => {
+
+      {/* Table */}
+      <div className="rounded-[20px] overflow-hidden mb-5" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+        {/* Header */}
+        <div className="grid px-4 py-3" style={{ gridTemplateColumns: '40px 1fr 90px 90px 80px 130px', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <span />
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Nome da Campanha</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-center" style={{ color: SILVER }}>Tipo</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-center" style={{ color: SILVER }}>Status</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Dias no Ar</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Investimento</span>
+        </div>
+
+        {loading && (
+          <div className="py-12 text-center text-sm font-bold animate-pulse" style={{ color: SILVER, background: 'rgba(255,255,255,0.02)' }}>Carregando campanhas...</div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div className="py-12 text-center text-sm font-bold" style={{ color: SILVER, background: 'rgba(255,255,255,0.02)' }}>Nenhuma campanha encontrada.</div>
+        )}
+
+        {filtered.map((c, i) => {
           const isSel   = selected.has(c.id);
           const isVenda = c.objective === 'VENDAS';
           const active  = c.status === 'ACTIVE';
           const days    = daysActive(c.createdTime);
+          const isLast  = i === filtered.length - 1;
           return (
             <button key={c.id} onClick={() => toggle(c.id)}
-              className="w-full text-left px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-3 transition-all"
-              style={{ background: isSel ? 'rgba(232,177,79,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? 'rgba(232,177,79,0.3)' : 'rgba(255,255,255,0.07)'}`, color: isSel ? 'white' : SILVER }}>
-              <span className="material-symbols-outlined text-[20px]" style={{ color: isSel ? GOLD : 'rgba(255,255,255,0.2)' }}>
-                {isSel ? 'check_box' : 'check_box_outline_blank'}
+              className="w-full grid px-4 py-3.5 items-center text-left transition-all"
+              style={{
+                gridTemplateColumns: '40px 1fr 90px 90px 80px 130px',
+                background: isSel ? 'rgba(232,177,79,0.07)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.05)',
+              }}>
+              <span className="flex items-center justify-center">
+                <span className="material-symbols-outlined text-[20px]" style={{ color: isSel ? GOLD : 'rgba(255,255,255,0.2)' }}>
+                  {isSel ? 'check_box' : 'check_box_outline_blank'}
+                </span>
               </span>
-              <span className="flex-1 leading-snug text-[13px]">{c.name}</span>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className={`w-1.5 h-1.5 rounded-full`} style={{ background: active ? '#22c55e' : '#ef4444' }} title={active ? 'Ativa' : 'Pausada'} />
-                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
+              <span className="text-[13px] font-bold leading-snug pr-4 text-left" style={{ color: isSel ? 'white' : SILVER }}>
+                {c.name}
+              </span>
+              <span className="flex justify-center">
+                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg"
                   style={{ background: isVenda ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.1)', color: isVenda ? '#22c55e' : '#fbbf24' }}>
                   {isVenda ? 'Vendas' : 'Leads'}
                 </span>
-                {days > 0 && <span className="text-[10px] font-bold" style={{ color: SILVER }}>{days}d</span>}
-                {c.spend > 0 && <span className="text-[11px] font-black" style={{ color: SILVER }}>{R(c.spend)}</span>}
-              </div>
+              </span>
+              <span className="flex items-center justify-center gap-1.5 text-[11px] font-bold" style={{ color: active ? '#22c55e' : '#ef4444' }}>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: active ? '#22c55e' : '#ef4444' }} />
+                {active ? 'Ativa' : 'Pausada'}
+              </span>
+              <span className="text-right text-[13px] font-bold" style={{ color: SILVER }}>{days > 0 ? `${days}d` : '—'}</span>
+              <span className="text-right text-[13px] font-black" style={{ color: isSel ? GOLD : 'white' }}>{c.spend > 0 ? R(c.spend) : '—'}</span>
             </button>
           );
         })}
       </div>
+
+      {/* Footer */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-bold" style={{ color: SILVER }}>{selected.size} selecionada{selected.size !== 1 ? 's' : ''}</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm font-bold" style={{ color: SILVER }}>{selected.size} campanha{selected.size !== 1 ? 's' : ''} selecionada{selected.size !== 1 ? 's' : ''}</span>
+          {selected.size > 0 && (
+            <span className="text-sm font-black" style={{ color: GOLD }}>
+              Total: {R(campaigns.filter(c => selected.has(c.id)).reduce((s, c) => s + (c.spend || 0), 0))}
+            </span>
+          )}
+        </div>
         <button onClick={() => onConfirm(campaigns.filter(c => selected.has(c.id)))} disabled={selected.size === 0}
           className="flex items-center gap-2 px-8 py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all"
           style={{ background: selected.size > 0 ? GOLD : 'rgba(255,255,255,0.06)', color: selected.size > 0 ? NAVY : SILVER, opacity: selected.size > 0 ? 1 : 0.5, cursor: selected.size > 0 ? 'pointer' : 'not-allowed' }}>
