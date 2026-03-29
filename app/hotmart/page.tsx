@@ -6,6 +6,7 @@ import { useDashboardData } from '@/app/lib/hooks';
 import { R, RF, N, D } from '@/app/lib/utils';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -129,18 +130,20 @@ export default function HotmartPage() {
   }, 0);
 
   // Intl: líquido em BRL
-  // producer_net_brl = exato (backend: producer_net_USD × BRL/USD na data da venda)
-  // = "Valor que você recebeu convertido" do painel/CSV Hotmart
-  // Fallback: converted_gross × (1 - hotmartFeePct/100) quando commissions não disponível
   const getIntlNetBRL = (s: any): number => {
     if (s.purchase?.producer_net_brl != null) return s.purchase.producer_net_brl;
     const pct = s.purchase?.hotmart_fee?.percentage ?? 0;
     return (s.purchase?.price?.converted_value || 0) * (1 - pct / 100);
   };
-  const intlNetBRL         = intlSales.reduce((acc: number, s: any) => acc + getIntlNetBRL(s), 0);
-  const intlGrossBRL       = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
-  const intlHotmartFeesBRL = intlGrossBRL - intlNetBRL;
-  const intlCoProducerFeesBRL = 0;
+  const intlNetBRL   = intlSales.reduce((acc: number, s: any) => acc + getIntlNetBRL(s), 0);
+  const intlGrossBRL = intlSales.reduce((acc: number, s: any) => acc + (s.purchase?.price?.converted_value || 0), 0);
+  // Hotmart fee = gross × fee% (exact, avoids mixing co-producer amounts)
+  const intlHotmartFeesBRL = intlSales.reduce((acc: number, s: any) => {
+    const feePct = s.purchase?.hotmart_fee?.percentage ?? 0;
+    return acc + (s.purchase?.price?.converted_value || 0) * (feePct / 100);
+  }, 0);
+  // Co-producers = gross - hotmartFee% - producerNet (remainder after exact fees)
+  const intlCoProducerFeesBRL = Math.max(0, intlGrossBRL - intlHotmartFeesBRL - intlNetBRL);
   const intlRevenueBRL = intlNetBRL;
 
   // Unique products sorted by most recent sale
@@ -245,40 +248,18 @@ export default function HotmartPage() {
                   <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none mb-1">
                     {R(brlNetRevenue)}
                   </p>
-                  {/* Info tooltip */}
-                  <div className="relative inline-flex group mt-1">
-                    <span className="text-[10px] font-bold flex items-center gap-1 cursor-help" style={{ color: SILVER }}>
-                      <span className="material-symbols-outlined text-[13px]">info</span>
-                      Ver breakdown
-                    </span>
-                    <div className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-                      style={{ minWidth: 240, background: '#0d1f33', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
-                      <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: GOLD }}>Detalhamento BRL</p>
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[11px]" style={{ color: SILVER }}>🟡 Bruto</span>
-                          <span className="text-[11px] font-black text-white">{R(brlGrossRevenue)}</span>
-                        </div>
-                        {brlHotmartFees > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px]" style={{ color: '#f87171' }}>🔴 Taxas Hotmart</span>
-                            <span className="text-[11px] font-black" style={{ color: '#f87171' }}>− {R(brlHotmartFees)}</span>
-                          </div>
-                        )}
-                        {brlCoProducerFees > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px]" style={{ color: '#fb923c' }}>🟠 Co-produtores</span>
-                            <span className="text-[11px] font-black" style={{ color: '#fb923c' }}>− {R(brlCoProducerFees)}</span>
-                          </div>
-                        )}
-                        <div className="border-t mt-1 pt-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>✓ Líquido</span>
-                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{R(brlNetRevenue)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Info tooltip BRL — portal */}
+                  <div className="mt-1">
+                    <InfoTooltip
+                      title="Detalhamento BRL"
+                      triggerLabel="Ver breakdown"
+                      lines={[
+                        { emoji: '🟡', label: 'Bruto', value: R(brlGrossRevenue) },
+                        ...(brlHotmartFees > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(brlHotmartFees)}`, color: '#f87171' }] : []),
+                        ...(brlCoProducerFees > 0 ? [{ emoji: '🟠', label: 'Co-produtores', value: `− ${R(brlCoProducerFees)}`, color: '#fb923c' }] : []),
+                      ]}
+                      total={{ label: 'Líquido', value: R(brlNetRevenue) }}
+                    />
                   </div>
                 </div>
 
@@ -294,42 +275,18 @@ export default function HotmartPage() {
                   <p className="font-headline font-black text-4xl text-white tracking-tighter leading-none">
                     {R(intlNetBRL)}
                   </p>
-                  {/* Info tooltip - intl */}
-                  <div className="relative inline-flex group mt-1">
-                    <span className="text-[10px] font-bold flex items-center gap-1 cursor-help" style={{ color: SILVER }}>
-                      <span className="material-symbols-outlined text-[13px]">info</span>
-                      Ver breakdown
-                    </span>
-                    <div className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-                      style={{ minWidth: 240, background: '#0d1f33', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
-                      <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: '#38bdf8' }}>Detalhamento Internacional</p>
-                      <p className="text-[9px] mb-2" style={{ color: SILVER }}>Bruto convertido para BRL pela cotação histórica.
-Apenas a taxa Hotmart (%) é deduzida com precisão.</p>
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[11px]" style={{ color: SILVER }}>🟡 Bruto</span>
-                          <span className="text-[11px] font-black text-white">{R(intlGrossBRL)}</span>
-                        </div>
-                        {intlHotmartFeesBRL > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px]" style={{ color: '#f87171' }}>🔴 Taxas Hotmart</span>
-                            <span className="text-[11px] font-black" style={{ color: '#f87171' }}>− {R(intlHotmartFeesBRL)}</span>
-                          </div>
-                        )}
-                        {intlCoProducerFeesBRL > 0.01 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px]" style={{ color: '#fb923c' }}>🟠 Co-produtores</span>
-                            <span className="text-[11px] font-black" style={{ color: '#fb923c' }}>− {R(intlCoProducerFeesBRL)}</span>
-                          </div>
-                        )}
-                        <div className="border-t mt-1 pt-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>✓ Líquido</span>
-                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{R(intlNetBRL)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Info tooltip intl — portal */}
+                  <div className="mt-1">
+                    <InfoTooltip
+                      title="Detalhamento Internacional"
+                      triggerLabel="Ver breakdown"
+                      lines={[
+                        { emoji: '🟡', label: 'Bruto', value: R(intlGrossBRL) },
+                        ...(intlHotmartFeesBRL > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(intlHotmartFeesBRL)}`, color: '#f87171' }] : []),
+                        ...(intlCoProducerFeesBRL > 0.01 ? [{ emoji: '🟠', label: 'Co-produtores', value: `− ${R(intlCoProducerFeesBRL)}`, color: '#fb923c' }] : []),
+                      ]}
+                      total={{ label: 'Líquido', value: R(intlNetBRL) }}
+                    />
                   </div>
                 </div>
 
