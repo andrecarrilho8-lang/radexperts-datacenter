@@ -1,40 +1,58 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDashboard } from '@/app/lib/context';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
+const NAVY   = '#001a35';
 
-/* ─── helpers ──────────────────────────────────────────────────── */
 const R = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 const N = (v: number) => v.toLocaleString('pt-BR');
 
+type Campaign = {
+  id: string; name: string; spend: number; objective: string;
+  status?: string; createdTime?: string; leads?: number; purchases?: number;
+};
+type HotmartData = {
+  revenue: number; purchases: number; matchedProducts: string[];
+  currencyBreakdown: Record<string, { count: number; originalTotal: number; convertedTotal: number }>;
+};
+type AdItem = {
+  id: string; name: string; spend: number; purchases: number; leads: number;
+  ctr: number; objective: string; thumbnail?: string; impressions?: number;
+  costPerLead?: number; costPerPurchase?: number;
+};
+type SavedAnalysis = {
+  id: string; savedAt: string; product: string; dateFrom: string; dateTo: string;
+  campaigns: Campaign[]; revenue: number; purchases: number; totalSpend: number;
+  totalLeads: number; leadSpend: number;
+};
+
+function daysActive(createdTime?: string): number {
+  if (!createdTime) return 0;
+  const from = new Date(createdTime);
+  const now  = new Date();
+  return Math.max(0, Math.round((now.getTime() - from.getTime()) / 86400000));
+}
+
+/* ─── Step Indicator ──────────────────────────────────────────────── */
 function StepIndicator({ current }: { current: number }) {
   const steps = ['Produto', 'Campanhas', 'Relatório'];
   return (
-    <div className="flex items-center gap-0 mb-10">
+    <div className="flex items-center mb-10">
       {steps.map((label, i) => {
-        const num   = i + 1;
-        const done  = current > num;
-        const active= current === num;
+        const n = i + 1; const done = current > n; const active = current === n;
         return (
           <React.Fragment key={i}>
             <div className="flex flex-col items-center gap-1.5">
               <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm transition-all"
-                style={{
-                  background: done ? GOLD : active ? 'rgba(232,177,79,0.15)' : 'rgba(255,255,255,0.06)',
-                  border: `2px solid ${done || active ? GOLD : 'rgba(255,255,255,0.1)'}`,
-                  color: done ? '#001a35' : active ? GOLD : SILVER,
-                }}>
-                {done ? <span className="material-symbols-outlined text-[18px]">check</span> : num}
+                style={{ background: done ? GOLD : active ? 'rgba(232,177,79,0.15)' : 'rgba(255,255,255,0.06)', border: `2px solid ${done || active ? GOLD : 'rgba(255,255,255,0.1)'}`, color: done ? NAVY : active ? GOLD : SILVER }}>
+                {done ? <span className="material-symbols-outlined text-[18px]">check</span> : n}
               </div>
               <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: active ? GOLD : SILVER }}>{label}</span>
             </div>
-            {i < steps.length - 1 && (
-              <div className="flex-1 h-[2px] mx-3 rounded-full transition-all"
-                style={{ background: done ? GOLD : 'rgba(255,255,255,0.08)', maxWidth: 80 }} />
-            )}
+            {i < steps.length - 1 && <div className="flex-1 h-[2px] mx-3 rounded-full" style={{ background: done ? GOLD : 'rgba(255,255,255,0.08)', maxWidth: 80 }} />}
           </React.Fragment>
         );
       })}
@@ -42,17 +60,15 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-/* ─── STEP 1: Produto ───────────────────────────────────────────── */
-function Step1({ onSelect }: { onSelect: (product: string) => void }) {
+/* ─── STEP 1 ──────────────────────────────────────────────────────── */
+function Step1({ onSelect }: { onSelect: (p: string) => void }) {
   const [products, setProducts] = useState<string[]>([]);
-  const [search,   setSearch]   = useState('');
-  const [loading,  setLoading]  = useState(true);
+  const [search, setSearch]     = useState('');
+  const [loading, setLoading]   = useState(true);
 
   useEffect(() => {
-    fetch('/api/hotmart/products')
-      .then(r => r.json())
-      .then(d => { setProducts(d.products || []); setLoading(false); })
-      .catch(() => setLoading(false));
+    fetch('/api/hotmart/products').then(r => r.json())
+      .then(d => { setProducts(d.products || []); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   const filtered = products.filter(p => p.toLowerCase().includes(search.toLowerCase()));
@@ -60,24 +76,16 @@ function Step1({ onSelect }: { onSelect: (product: string) => void }) {
   return (
     <div className="max-w-xl mx-auto">
       <h2 className="text-2xl font-black text-white mb-1">Selecione um Produto</h2>
-      <p className="text-sm font-bold mb-6" style={{ color: SILVER }}>Os dados de vendas serão carregados para o produto selecionado.</p>
-
-      {/* Search */}
+      <p className="text-sm font-bold mb-6" style={{ color: SILVER }}>Os dados de vendas da Hotmart serão carregados para o produto selecionado.</p>
       <div className="relative mb-4">
         <span className="material-symbols-outlined text-[18px] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
-        <input
-          type="text"
-          placeholder="Buscar produto..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+        <input type="text" placeholder="Buscar produto..." value={search} onChange={e => setSearch(e.target.value)}
           className="w-full pl-11 pr-4 py-3.5 rounded-2xl text-sm font-bold outline-none"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
-        />
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
       </div>
-
       <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
-        {loading && <div className="text-center py-10 text-sm font-bold animate-pulse" style={{ color: SILVER }}>Carregando produtos...</div>}
-        {!loading && filtered.length === 0 && <div className="text-center py-10 text-sm font-bold" style={{ color: SILVER }}>Nenhum produto encontrado.</div>}
+        {loading && <div className="py-10 text-center text-sm font-bold animate-pulse" style={{ color: SILVER }}>Carregando produtos...</div>}
+        {!loading && filtered.length === 0 && <div className="py-10 text-center text-sm font-bold" style={{ color: SILVER }}>Nenhum produto encontrado.</div>}
         {filtered.map(p => (
           <button key={p} onClick={() => onSelect(p)}
             className="w-full text-left px-5 py-4 rounded-2xl font-bold text-sm flex items-center gap-3 transition-all group"
@@ -94,62 +102,30 @@ function Step1({ onSelect }: { onSelect: (product: string) => void }) {
   );
 }
 
-/* ─── STEP 2: Campanhas ─────────────────────────────────────────── */
-function Step2({
-  product,
-  onConfirm,
-  onBack,
-}: {
-  product: string;
-  onConfirm: (campaigns: { id: string; name: string; spend: number; objective: string }[]) => void;
-  onBack: () => void;
-}) {
+/* ─── STEP 2 ──────────────────────────────────────────────────────── */
+function Step2({ product, onConfirm, onBack }: { product: string; onConfirm: (c: Campaign[]) => void; onBack: () => void }) {
   const { dateFrom, dateTo } = useDashboard();
-  const [campaigns, setCampaigns] = useState<{ id: string; name: string; spend: number; objective: string }[]>([]);
-  const [selected,  setSelected]  = useState<Set<string>>(new Set());
-  const [search,    setSearch]    = useState('');
-  const [loading,   setLoading]   = useState(true);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selected, setSelected]   = useState<Set<string>>(new Set());
+  const [search, setSearch]       = useState('');
+  const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    fetch(`/api/meta?dateFrom=${dateFrom}&dateTo=${dateTo}`)
-      .then(r => r.json())
-      .then(d => { setCampaigns(d.tableData || []); setLoading(false); })
-      .catch(() => setLoading(false));
+    fetch(`/api/meta?dateFrom=${dateFrom}&dateTo=${dateTo}`).then(r => r.json())
+      .then(d => { setCampaigns(d.tableData || []); setLoading(false); }).catch(() => setLoading(false));
   }, [dateFrom, dateTo]);
 
-  const toggle = (id: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const selectAll = () => setSelected(new Set(filtered.map(c => c.id)));
-  const clearAll  = () => setSelected(new Set());
-
+  const toggle   = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const filtered = campaigns.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
-
-  const handleConfirm = () => {
-    const chosen = campaigns.filter(c => selected.has(c.id));
-    onConfirm(chosen);
-  };
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="flex items-center gap-3 mb-1">
-        <button onClick={onBack} className="flex items-center gap-1 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER }}>
-          <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-          Voltar
-        </button>
-      </div>
+      <button onClick={onBack} className="flex items-center gap-1 text-[11px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>
+        <span className="material-symbols-outlined text-[16px]">arrow_back</span>Voltar
+      </button>
       <h2 className="text-2xl font-black text-white mb-1">Selecione as Campanhas</h2>
-      <p className="text-sm font-bold mb-1" style={{ color: SILVER }}>
-        Produto: <span style={{ color: GOLD }}>{product}</span>
-      </p>
-      <p className="text-xs font-bold mb-5" style={{ color: SILVER }}>Selecione quantas campanhas quiser. O investimento total será somado.</p>
-
-      {/* Search + actions */}
+      <p className="text-sm font-bold mb-1" style={{ color: SILVER }}>Produto: <span style={{ color: GOLD }}>{product}</span></p>
+      <p className="text-xs font-bold mb-5" style={{ color: SILVER }}>Selecione quantas quiser — o investimento total será somado.</p>
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1">
           <span className="material-symbols-outlined text-[18px] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
@@ -157,340 +133,419 @@ function Step2({
             className="w-full pl-11 pr-4 py-3 rounded-2xl text-sm font-bold outline-none"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
         </div>
-        <button onClick={selectAll} className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Todas</button>
-        <button onClick={clearAll}  className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Limpar</button>
+        <button onClick={() => setSelected(new Set(filtered.map(c => c.id)))} className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Todas</button>
+        <button onClick={() => setSelected(new Set())} className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Limpar</button>
       </div>
-
       <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1 mb-5">
-        {loading && <div className="text-center py-10 text-sm font-bold animate-pulse" style={{ color: SILVER }}>Carregando campanhas...</div>}
-        {!loading && filtered.length === 0 && <div className="text-center py-10 text-sm font-bold" style={{ color: SILVER }}>Nenhuma campanha encontrada.</div>}
+        {loading && <div className="py-10 text-center text-sm font-bold animate-pulse" style={{ color: SILVER }}>Carregando campanhas...</div>}
+        {!loading && filtered.length === 0 && <div className="py-10 text-center text-sm font-bold" style={{ color: SILVER }}>Nenhuma campanha encontrada.</div>}
         {filtered.map(c => {
-          const isSelected = selected.has(c.id);
-          const isVendas   = c.objective === 'VENDAS' || c.objective === 'OUTCOME_SALES';
+          const isSel   = selected.has(c.id);
+          const isVenda = c.objective === 'VENDAS';
+          const active  = c.status === 'ACTIVE';
+          const days    = daysActive(c.createdTime);
           return (
             <button key={c.id} onClick={() => toggle(c.id)}
-              className="w-full text-left px-5 py-3.5 rounded-2xl font-bold text-sm flex items-center gap-3 transition-all"
-              style={{
-                background: isSelected ? 'rgba(232,177,79,0.08)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${isSelected ? 'rgba(232,177,79,0.3)' : 'rgba(255,255,255,0.07)'}`,
-                color: isSelected ? 'white' : SILVER,
-              }}>
-              <span className="material-symbols-outlined text-[20px]" style={{ color: isSelected ? GOLD : 'rgba(255,255,255,0.2)' }}>
-                {isSelected ? 'check_box' : 'check_box_outline_blank'}
+              className="w-full text-left px-4 py-3 rounded-2xl font-bold text-sm flex items-center gap-3 transition-all"
+              style={{ background: isSel ? 'rgba(232,177,79,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSel ? 'rgba(232,177,79,0.3)' : 'rgba(255,255,255,0.07)'}`, color: isSel ? 'white' : SILVER }}>
+              <span className="material-symbols-outlined text-[20px]" style={{ color: isSel ? GOLD : 'rgba(255,255,255,0.2)' }}>
+                {isSel ? 'check_box' : 'check_box_outline_blank'}
               </span>
-              <span className="flex-1 leading-snug text-sm">{c.name}</span>
+              <span className="flex-1 leading-snug text-[13px]">{c.name}</span>
               <div className="flex items-center gap-2 flex-shrink-0">
+                <span className={`w-1.5 h-1.5 rounded-full`} style={{ background: active ? '#22c55e' : '#ef4444' }} title={active ? 'Ativa' : 'Pausada'} />
                 <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
-                  style={{ background: isVendas ? 'rgba(34,197,94,0.15)' : 'rgba(251,191,36,0.12)', color: isVendas ? '#22c55e' : '#fbbf24' }}>
-                  {isVendas ? 'Vendas' : 'Leads'}
+                  style={{ background: isVenda ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.1)', color: isVenda ? '#22c55e' : '#fbbf24' }}>
+                  {isVenda ? 'Vendas' : 'Leads'}
                 </span>
+                {days > 0 && <span className="text-[10px] font-bold" style={{ color: SILVER }}>{days}d</span>}
                 {c.spend > 0 && <span className="text-[11px] font-black" style={{ color: SILVER }}>{R(c.spend)}</span>}
               </div>
             </button>
           );
         })}
       </div>
-
       <div className="flex items-center justify-between">
-        <span className="text-sm font-bold" style={{ color: SILVER }}>
-          {selected.size} campanha{selected.size !== 1 ? 's' : ''} selecionada{selected.size !== 1 ? 's' : ''}
-        </span>
-        <button onClick={handleConfirm}
-          disabled={selected.size === 0}
+        <span className="text-sm font-bold" style={{ color: SILVER }}>{selected.size} selecionada{selected.size !== 1 ? 's' : ''}</span>
+        <button onClick={() => onConfirm(campaigns.filter(c => selected.has(c.id)))} disabled={selected.size === 0}
           className="flex items-center gap-2 px-8 py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all"
-          style={{
-            background: selected.size > 0 ? GOLD : 'rgba(255,255,255,0.06)',
-            color: selected.size > 0 ? '#001a35' : SILVER,
-            cursor: selected.size > 0 ? 'pointer' : 'not-allowed',
-            opacity: selected.size > 0 ? 1 : 0.5,
-          }}>
-          <span className="material-symbols-outlined text-[18px]">check_circle</span>
-          Confirmar
+          style={{ background: selected.size > 0 ? GOLD : 'rgba(255,255,255,0.06)', color: selected.size > 0 ? NAVY : SILVER, opacity: selected.size > 0 ? 1 : 0.5, cursor: selected.size > 0 ? 'pointer' : 'not-allowed' }}>
+          <span className="material-symbols-outlined text-[18px]">check_circle</span>Confirmar
         </button>
       </div>
     </div>
   );
 }
 
-/* ─── STEP 3: Relatório ─────────────────────────────────────────── */
-function Step3({
-  product,
-  campaigns,
-  onBack,
-}: {
-  product: string;
-  campaigns: { id: string; name: string; spend: number; objective: string }[];
-  onBack: () => void;
+/* ─── Ad Row ──────────────────────────────────────────────────────── */
+function AdRow({ ad, idx, accent }: { ad: AdItem; idx: number; accent: string }) {
+  const isVenda = ad.objective === 'VENDAS' || ad.objective === 'OUTCOME_SALES';
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-xl transition-all"
+      style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <span className="text-[11px] font-black w-5 text-center flex-shrink-0" style={{ color: SILVER }}>{idx + 1}</span>
+      {ad.thumbnail && <img src={ad.thumbnail} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />}
+      <span className="flex-1 text-[13px] font-bold text-white leading-snug truncate">{ad.name}</span>
+      <div className="flex items-center gap-5 flex-shrink-0 text-right">
+        <div><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto</p><p className="text-[13px] font-black" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</p></div>
+        {isVenda && ad.purchases > 0 && <div><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Vendas</p><p className="text-[13px] font-black" style={{ color: accent }}>{N(ad.purchases)}</p></div>}
+        {!isVenda && ad.leads > 0 && <div><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Leads</p><p className="text-[13px] font-black" style={{ color: accent }}>{N(ad.leads)}</p></div>}
+        {ad.ctr > 0 && <div className="hidden sm:block"><p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>CTR</p><p className="text-[13px] font-black text-white">{ad.ctr.toFixed(2)}%</p></div>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── STEP 3 ──────────────────────────────────────────────────────── */
+function Step3({ product, campaigns, onBack, onSave }: {
+  product: string; campaigns: Campaign[]; onBack: () => void;
+  onSave: (a: SavedAnalysis) => void;
 }) {
   const { dateFrom, dateTo } = useDashboard();
-  const [hotmart,   setHotmart]   = useState<{ revenue: number; purchases: number; matchedProducts: string[]; currencyBreakdown: Record<string, { count: number; originalTotal: number; convertedTotal: number }> } | null>(null);
-  const [topAds,    setTopAds]    = useState<{ id: string; name: string; spend: number; purchases: number; leads: number; ctr: number; objective: string; thumbnail?: string }[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const reportRef = useRef<HTMLDivElement>(null);
+  const [hotmart,  setHotmart]  = useState<HotmartData | null>(null);
+  const [topAds,   setTopAds]   = useState<AdItem[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [saved,    setSaved]    = useState(false);
 
-  const totalSpend    = campaigns.reduce((s, c) => s + (c.spend || 0), 0);
-  const revenue       = hotmart?.revenue || 0;
-  const purchases     = hotmart?.purchases || 0;
-  const roi           = totalSpend > 0 ? (revenue / totalSpend) : 0;
-  const roas          = totalSpend > 0 ? (revenue / totalSpend) : 0;
-  const cac           = purchases > 0 ? (totalSpend / purchases) : 0;
-  const ticketMedio   = purchases > 0 ? (revenue / purchases) : 0;
+  const vendaCamps   = campaigns.filter(c => c.objective === 'VENDAS');
+  const leadCamps    = campaigns.filter(c => c.objective === 'LEADS');
+  const totalSpend   = campaigns.reduce((s, c) => s + (c.spend || 0), 0);
+  const leadSpend    = leadCamps.reduce((s, c) => s + (c.spend || 0), 0);
+  const revenue      = hotmart?.revenue || 0;
+  const purchases    = hotmart?.purchases || 0;
+  const totalLeads   = campaigns.reduce((s, c) => s + (c.leads || 0), 0);
+  const roas         = totalSpend > 0 ? revenue / totalSpend : 0;
+  const cac          = purchases > 0 ? totalSpend / purchases : 0;
+  const ticketMedio  = purchases > 0 ? revenue / purchases : 0;
+  const cpl          = totalLeads > 0 ? leadSpend / totalLeads : 0;
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        // Fetch Hotmart for the product
-        const campName = product;
-        const hRes = await fetch(`/api/meta/campaign/${campaigns[0]?.id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(campName)}&manualProducts=${encodeURIComponent(product)}`);
-        const hData = await hRes.json();
-        setHotmart(hData);
-
-        // Fetch top ads from all campaigns
-        const adsResults = await Promise.all(
-          campaigns.map(c =>
-            fetch(`/api/meta/campaign/${c.id}/topAds?dateFrom=${dateFrom}&dateTo=${dateTo}&objective=${c.objective}`)
-              .then(r => r.json())
-              .then(d => (d.topAds || []).map((a: Record<string, unknown>) => ({ ...a, objective: c.objective })))
-              .catch(() => [])
-          )
+        const hRes = await fetch(
+          `/api/meta/campaign/${campaigns[0]?.id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}` +
+          `&campaignName=${encodeURIComponent(product)}&manualProducts=${encodeURIComponent(product)}`
         );
-        const allAds = adsResults.flat();
-        // Sort by spend desc
-        allAds.sort((a, b) => (b.spend || 0) - (a.spend || 0));
-        setTopAds(allAds.slice(0, 12));
-      } finally {
-        setLoading(false);
-      }
+        setHotmart(await hRes.json());
+
+        const adsAll = (await Promise.all(campaigns.map(c =>
+          fetch(`/api/meta/campaign/${c.id}/topAds?dateFrom=${dateFrom}&dateTo=${dateTo}&objective=${c.objective}`)
+            .then(r => r.json()).then(d => (d.topAds || []).map((a: AdItem) => ({ ...a, objective: c.objective }))).catch(() => [])
+        ))).flat();
+        adsAll.sort((a, b) => (b.spend || 0) - (a.spend || 0));
+        setTopAds(adsAll.slice(0, 20));
+      } finally { setLoading(false); }
     }
     load();
   }, [product, campaigns, dateFrom, dateTo]);
 
-  const handlePDF = () => {
-    window.print();
+  const vendaAds    = topAds.filter(a => a.objective === 'VENDAS');
+  const captacaoAds = topAds.filter(a => a.objective === 'LEADS');
+  const outrosAds   = topAds.filter(a => a.objective !== 'VENDAS' && a.objective !== 'LEADS');
+
+  const handleSave = () => {
+    const entry: SavedAnalysis = {
+      id: Date.now().toString(), savedAt: new Date().toISOString(),
+      product, dateFrom, dateTo, campaigns, revenue, purchases, totalSpend, totalLeads, leadSpend,
+    };
+    onSave(entry);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
   };
 
-  const vendaAds    = topAds.filter(a => a.objective === 'VENDAS' || a.objective === 'OUTCOME_SALES');
-  const captacaoAds = topAds.filter(a => a.objective === 'LEADS'  || a.objective === 'OUTCOME_LEADS');
-  const outrosAds   = topAds.filter(a => !vendaAds.includes(a) && !captacaoAds.includes(a));
+  const glossy: React.CSSProperties = {
+    position: 'relative', overflow: 'hidden',
+    backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+  };
 
   return (
     <div>
+      <style>{`@media print { .no-print { display:none!important; } nav,footer{display:none!important;} }`}</style>
+
       {/* Actions */}
-      <div className="flex items-center justify-between mb-6 no-print">
+      <div className="flex items-center justify-between mb-6 no-print gap-3 flex-wrap">
         <button onClick={onBack} className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER }}>
-          <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-          Nova Análise
+          <span className="material-symbols-outlined text-[16px]">arrow_back</span>Nova Análise
         </button>
-        <button onClick={handlePDF}
-          className="flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-          style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
-          <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-          Salvar PDF
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={handleSave}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+            style={{ background: saved ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${saved ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.12)'}`, color: saved ? '#22c55e' : SILVER }}>
+            <span className="material-symbols-outlined text-[18px]">{saved ? 'check_circle' : 'bookmark_add'}</span>
+            {saved ? 'Salvo!' : 'Salvar Análise'}
+          </button>
+          <button onClick={() => window.print()}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+            style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
+            <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>Salvar PDF
+          </button>
+        </div>
       </div>
 
-      <div ref={reportRef}>
-        {/* Header do relatório */}
-        <div className="mb-8 pb-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: GOLD }}>Relatório de Análise de Tráfego</p>
-          <h1 className="text-3xl font-black text-white">{product}</h1>
-          <p className="text-sm font-bold mt-1" style={{ color: SILVER }}>
-            Período: {dateFrom} → {dateTo} · {campaigns.length} campanha{campaigns.length !== 1 ? 's' : ''} analisada{campaigns.length !== 1 ? 's' : ''}
-          </p>
+      {/* Report header */}
+      <div className="mb-6 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: GOLD }}>Relatório de Análise de Tráfego</p>
+        <h1 className="text-3xl font-black text-white">{product}</h1>
+        <p className="text-sm font-bold mt-1" style={{ color: SILVER }}>
+          {dateFrom} → {dateTo} · {campaigns.length} campanha{campaigns.length !== 1 ? 's' : ''} analisada{campaigns.length !== 1 ? 's' : ''}
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20 gap-3">
+          <span className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }} />
+          <span className="font-bold text-sm" style={{ color: SILVER }}>Carregando dados...</span>
         </div>
+      ) : (
+        <>
+          {/* ── Hotmart Revenue Box (mesmo estilo da página de campanhas) ── */}
+          <div className="rounded-[28px] mb-6 relative overflow-hidden"
+            style={{ ...glossy, padding: '28px', background: 'linear-gradient(160deg, rgba(232,120,13,0.12) 0%, rgba(0,10,30,0.6) 100%)', border: '1px solid rgba(232,120,13,0.28)' }}>
+            <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-5" style={{ background: '#E8380D', transform: 'translate(30%, -30%)' }} />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-5">
+                <svg width="32" height="38" viewBox="0 0 100 120" fill="none"><path d="M50 0C50 0 85 28 85 62C85 81.8 69.3 98 50 98C30.7 98 15 81.8 15 62C15 28 50 0 50 0Z" fill="#E8380D"/><circle cx="50" cy="72" r="18" fill="white"/></svg>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Hotmart — Faturamento do Produto</p>
+                  <p className="text-3xl font-black text-white">{R(revenue)}</p>
+                  {hotmart?.matchedProducts && hotmart.matchedProducts.length > 0 && (
+                    <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{hotmart.matchedProducts.join(', ')}</p>
+                  )}
+                </div>
+              </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-20 gap-3">
-            <span className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }} />
-            <span className="font-bold text-sm" style={{ color: SILVER }}>Carregando dados...</span>
+              {/* KPIs em linha */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>Vendas (Hotmart)</p>
+                  <p className="text-2xl font-black text-white">{N(purchases)}</p>
+                  <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>transações confirmadas</p>
+                </div>
+                <div className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>Investimento Total</p>
+                  <p className="text-2xl font-black" style={{ color: '#ef4444' }}>{R(totalSpend)}</p>
+                  <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>meta ads</p>
+                </div>
+                <div className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>ROAS</p>
+                  <p className="text-2xl font-black" style={{ color: roas >= 1 ? '#22c55e' : '#ef4444' }}>{roas.toFixed(2)}x</p>
+                  <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>retorno s/ investimento</p>
+                </div>
+                <div className="rounded-[16px] p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>ROAS Líq. Meta</p>
+                  <p className="text-2xl font-black" style={{ color: GOLD }}>{roas >= 1 ? '+' : ''}{((roas - 1) * 100).toFixed(1)}%</p>
+                  <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>acima do investimento</p>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <>
-            {/* KPIs principais */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {[
-                { label: 'Faturamento Total', value: R(revenue),         icon: 'payments',      accent: '#22c55e' },
-                { label: 'Investimento Total', value: R(totalSpend),     icon: 'trending_down',  accent: '#ef4444' },
-                { label: 'ROI',                value: `${(roi * 100).toFixed(1)}%`, icon: 'percent', accent: GOLD },
-                { label: 'ROAS',               value: `${roas.toFixed(2)}x`,        icon: 'show_chart', accent: '#38bdf8' },
-              ].map(kpi => (
-                <div key={kpi.label} className="rounded-[20px] p-5 relative overflow-hidden"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}>
-                  <div className="absolute top-0 right-0 w-20 h-20 rounded-full opacity-10" style={{ background: kpi.accent, transform: 'translate(30%, -30%)' }} />
-                  <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>{kpi.label}</p>
-                  <p className="font-black text-2xl text-white">{kpi.value}</p>
-                  <span className="material-symbols-outlined text-[28px] absolute bottom-4 right-4 opacity-20" style={{ color: kpi.accent }}>{kpi.icon}</span>
-                </div>
-              ))}
-            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-              {[
-                { label: 'Vendas',       value: N(purchases),  icon: 'shopping_cart', accent: '#22c55e' },
-                { label: 'CAC',          value: R(cac),        icon: 'person_add',    accent: '#f97316' },
-                { label: 'Ticket Médio', value: R(ticketMedio),icon: 'receipt',       accent: GOLD },
-              ].map(kpi => (
-                <div key={kpi.label} className="rounded-[20px] p-5 flex items-center gap-4"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: `rgba(${kpi.accent === GOLD ? '232,177,79' : kpi.accent === '#22c55e' ? '34,197,94' : kpi.accent === '#f97316' ? '249,115,22' : '56,189,248'},0.12)` }}>
-                    <span className="material-symbols-outlined text-[22px]" style={{ color: kpi.accent }}>{kpi.icon}</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: SILVER }}>{kpi.label}</p>
-                    <p className="font-black text-xl text-white">{kpi.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Campanhas selecionadas */}
-            <div className="rounded-[20px] p-5 mb-6" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
-                <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>campaign</span>
-                Campanhas Analisadas
-              </p>
-              <div className="flex flex-col gap-2">
-                {campaigns.map(c => {
-                  const isVendas = c.objective === 'VENDAS' || c.objective === 'OUTCOME_SALES';
-                  return (
-                    <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded flex-shrink-0"
-                        style={{ background: isVendas ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.1)', color: isVendas ? '#22c55e' : '#fbbf24' }}>
-                        {isVendas ? 'Vendas' : 'Leads'}
-                      </span>
-                      <span className="flex-1 text-sm font-bold text-white leading-snug">{c.name}</span>
-                      <span className="text-sm font-black flex-shrink-0" style={{ color: SILVER }}>{R(c.spend || 0)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Breakdown por moeda */}
-            {hotmart?.currencyBreakdown && Object.keys(hotmart.currencyBreakdown).length > 0 && (
-              <div className="rounded-[20px] p-5 mb-6" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
-                  <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>currency_exchange</span>
-                  Vendas por Moeda
-                </p>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                      {['Moeda', 'Vendas', 'Original', '≈ BRL'].map(h => (
-                        <th key={h} className={`pb-2 font-black text-[10px] uppercase tracking-wider ${h !== 'Moeda' ? 'text-right' : 'text-left'}`} style={{ color: SILVER }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(hotmart.currencyBreakdown).map(([cur, d]) => (
-                      <tr key={cur} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td className="py-2.5 font-black text-white">{cur}</td>
-                        <td className="py-2.5 text-right font-bold" style={{ color: SILVER }}>{d.count}</td>
-                        <td className="py-2.5 text-right font-bold" style={{ color: SILVER }}>
-                          {cur === 'BRL' ? R(d.originalTotal) : `${cur} ${d.originalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                        </td>
-                        <td className="py-2.5 text-right font-black" style={{ color: GOLD }}>{R(d.convertedTotal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Principais Anúncios */}
+          {/* ── Métricas: CAC, Ticket, Leads ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
-              { label: 'Anúncios de Vendas',    ads: vendaAds,    accent: '#22c55e', icon: 'shopping_cart' },
-              { label: 'Anúncios de Captação',  ads: captacaoAds, accent: GOLD,      icon: 'person_add' },
-              { label: 'Outros Anúncios',        ads: outrosAds,   accent: SILVER,    icon: 'ads_click' },
-            ].filter(g => g.ads.length > 0).map(group => (
-              <div key={group.label} className="rounded-[20px] p-5 mb-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: group.accent }}>
-                  <span className="material-symbols-outlined text-[14px]">{group.icon}</span>
-                  {group.label} ({group.ads.length})
-                </p>
-                <div className="flex flex-col gap-2">
-                  {group.ads.slice(0, 5).map((ad, idx) => (
-                    <div key={ad.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <span className="text-[11px] font-black w-6 text-center" style={{ color: SILVER }}>{idx + 1}</span>
-                      {ad.thumbnail && <img src={ad.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
-                      <span className="flex-1 text-sm font-bold text-white leading-snug truncate">{ad.name}</span>
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <div className="text-right">
-                          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto</p>
-                          <p className="text-sm font-black" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</p>
-                        </div>
-                        {(ad.purchases > 0 || ad.leads > 0) && (
-                          <div className="text-right">
-                            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{ad.purchases > 0 ? 'Vendas' : 'Leads'}</p>
-                            <p className="text-sm font-black" style={{ color: group.accent }}>{N(ad.purchases > 0 ? ad.purchases : ad.leads)}</p>
-                          </div>
-                        )}
-                        {ad.ctr > 0 && (
-                          <div className="text-right">
-                            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>CTR</p>
-                            <p className="text-sm font-black text-white">{ad.ctr.toFixed(2)}%</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              { label: 'CAC', value: R(cac), icon: 'person_add', accent: '#f97316', sub: 'custo por venda' },
+              { label: 'Ticket Médio', value: R(ticketMedio), icon: 'receipt', accent: GOLD, sub: 'valor médio por venda' },
+              ...(leadCamps.length > 0 ? [
+                { label: 'Leads Captados', value: N(totalLeads), icon: 'group_add', accent: '#38bdf8', sub: `${leadCamps.length} campanha${leadCamps.length !== 1 ? 's' : ''} de captação` },
+                { label: 'Custo por Lead', value: R(cpl), icon: 'paid', accent: '#a78bfa', sub: 'investimento em leads' },
+              ] : [
+                { label: 'Campanhas', value: N(campaigns.length), icon: 'campaign', accent: SILVER, sub: 'analisadas' },
+                { label: 'Período', value: `${Math.ceil((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000)}d`, icon: 'calendar_today', accent: SILVER, sub: 'dias analisados' },
+              ]),
+            ].map(k => (
+              <div key={k.label} className="rounded-[20px] p-4 flex items-center gap-3"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `rgba(${k.accent === GOLD ? '232,177,79' : k.accent === '#22c55e' ? '34,197,94' : k.accent === '#f97316' ? '249,115,22' : k.accent === '#38bdf8' ? '56,189,248' : k.accent === '#a78bfa' ? '167,139,250' : '168,178,192'},0.12)` }}>
+                  <span className="material-symbols-outlined text-[20px]" style={{ color: k.accent }}>{k.icon}</span>
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{k.label}</p>
+                  <p className="font-black text-xl text-white">{k.value}</p>
+                  <p className="text-[9px] font-bold" style={{ color: SILVER }}>{k.sub}</p>
                 </div>
               </div>
             ))}
+          </div>
 
-            {topAds.length === 0 && (
-              <div className="rounded-[20px] p-8 text-center mb-6" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: SILVER }}>ads_click</span>
-                <p className="text-sm font-bold" style={{ color: SILVER }}>Nenhum anúncio encontrado para o período selecionado.</p>
+          {/* ── Breakdown por moeda ── */}
+          {hotmart?.currencyBreakdown && Object.keys(hotmart.currencyBreakdown).length > 0 && (
+            <div className="rounded-[20px] p-5 mb-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
+                <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>currency_exchange</span>Vendas por Moeda
+              </p>
+              <table className="w-full text-sm">
+                <thead><tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  {['Moeda','Vendas','Valor Original','≈ BRL'].map(h => (
+                    <th key={h} className={`pb-2 font-black text-[10px] uppercase tracking-wider ${h !== 'Moeda' ? 'text-right' : 'text-left'}`} style={{ color: SILVER }}>{h}</th>
+                  ))}
+                </tr></thead>
+                <tbody>
+                  {Object.entries(hotmart.currencyBreakdown).map(([cur, d]) => (
+                    <tr key={cur} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td className="py-2.5 font-black text-white">{cur}</td>
+                      <td className="py-2.5 text-right font-bold" style={{ color: SILVER }}>{d.count}</td>
+                      <td className="py-2.5 text-right font-bold" style={{ color: SILVER }}>
+                        {cur === 'BRL' ? R(d.originalTotal) : `${cur} ${d.originalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                      </td>
+                      <td className="py-2.5 text-right font-black" style={{ color: GOLD }}>{R(d.convertedTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ── Campanhas ── */}
+          <div className="rounded-[20px] p-5 mb-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: SILVER }}>
+              <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>campaign</span>Campanhas Analisadas
+            </p>
+            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 text-[9px] font-black uppercase tracking-widest pb-2 mb-1" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <span>Nome</span><span className="text-center">Tipo</span><span className="text-center">Status</span><span className="text-right">Dias no ar</span><span className="text-right">Investimento</span>
+            </div>
+            {campaigns.map(c => {
+              const isVenda = c.objective === 'VENDAS';
+              const active  = c.status === 'ACTIVE';
+              const days    = daysActive(c.createdTime);
+              return (
+                <div key={c.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 items-center py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span className="text-[13px] font-bold text-white leading-snug pr-2 truncate">{c.name}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded whitespace-nowrap"
+                    style={{ background: isVenda ? 'rgba(34,197,94,0.12)' : 'rgba(251,191,36,0.1)', color: isVenda ? '#22c55e' : '#fbbf24' }}>
+                    {isVenda ? 'Vendas' : 'Leads'}
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] font-bold whitespace-nowrap" style={{ color: active ? '#22c55e' : '#ef4444' }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#22c55e' : '#ef4444' }} />
+                    {active ? 'Ativa' : 'Pausada'}
+                  </span>
+                  <span className="text-right text-[12px] font-bold whitespace-nowrap" style={{ color: SILVER }}>{days}d</span>
+                  <span className="text-right text-[13px] font-black whitespace-nowrap" style={{ color: SILVER }}>{R(c.spend || 0)}</span>
+                </div>
+              );
+            })}
+            <div className="flex justify-end pt-3">
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total investido</p>
+                <p className="text-lg font-black" style={{ color: '#ef4444' }}>{R(totalSpend)}</p>
               </div>
-            )}
-          </>
-        )}
+            </div>
+          </div>
+
+          {/* ── Anúncios ── */}
+          {[
+            { label: 'Anúncios de Vendas', ads: vendaAds, accent: '#22c55e', icon: 'shopping_cart', border: 'rgba(34,197,94,0.15)', bg: 'rgba(34,197,94,0.05)' },
+            { label: 'Anúncios de Captação', ads: captacaoAds, accent: GOLD, icon: 'person_add', border: 'rgba(232,177,79,0.15)', bg: 'rgba(232,177,79,0.04)' },
+            ...(outrosAds.length > 0 ? [{ label: 'Outros Anúncios', ads: outrosAds, accent: SILVER, icon: 'ads_click', border: 'rgba(255,255,255,0.07)', bg: 'rgba(255,255,255,0.03)' }] : []),
+          ].filter(g => g.ads.length > 0).map(group => (
+            <div key={group.label} className="rounded-[20px] p-5 mb-4" style={{ background: group.bg, border: `1px solid ${group.border}` }}>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: group.accent }}>
+                <span className="material-symbols-outlined text-[14px]">{group.icon}</span>
+                {group.label} ({group.ads.length})
+              </p>
+              <div className="flex flex-col gap-1">
+                {group.ads.slice(0, 8).map((ad, idx) => <AdRow key={ad.id} ad={ad} idx={idx} accent={group.accent} />)}
+              </div>
+            </div>
+          ))}
+
+          {topAds.length === 0 && (
+            <div className="rounded-[20px] p-8 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <span className="material-symbols-outlined text-3xl block mb-2" style={{ color: SILVER }}>ads_click</span>
+              <p className="text-sm font-bold" style={{ color: SILVER }}>Nenhum anúncio encontrado para o período.</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── Saved Analyses List ─────────────────────────────────────────── */
+function SavedAnalysesList({ analyses, onDelete }: { analyses: SavedAnalysis[]; onDelete: (id: string) => void }) {
+  if (analyses.length === 0) return null;
+  return (
+    <div className="mt-8">
+      <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-4 flex items-center gap-2" style={{ color: GOLD }}>
+        <span className="material-symbols-outlined text-[14px]">bookmarks</span>Análises Salvas ({analyses.length})
+      </p>
+      <div className="flex flex-col gap-3">
+        {analyses.map(a => (
+          <div key={a.id} className="rounded-[20px] px-5 py-4 flex items-center gap-4"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-white text-[14px] truncate">{a.product}</p>
+              <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>
+                {a.dateFrom} → {a.dateTo} · {a.campaigns.length} campanhas · {new Date(a.savedAt).toLocaleDateString('pt-BR')}
+              </p>
+            </div>
+            <div className="flex items-center gap-6 flex-shrink-0">
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Faturamento</p>
+                <p className="text-[14px] font-black" style={{ color: '#22c55e' }}>{R(a.revenue)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>ROAS</p>
+                <p className="text-[14px] font-black" style={{ color: a.totalSpend > 0 ? (a.revenue / a.totalSpend >= 1 ? '#22c55e' : '#ef4444') : SILVER }}>
+                  {a.totalSpend > 0 ? `${(a.revenue / a.totalSpend).toFixed(2)}x` : '—'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento</p>
+                <p className="text-[14px] font-black" style={{ color: '#ef4444' }}>{R(a.totalSpend)}</p>
+              </div>
+            </div>
+            <button onClick={() => onDelete(a.id)} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.08)' }}>
+              <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-/* ─── PAGE ──────────────────────────────────────────────────────── */
+/* ─── PAGE ────────────────────────────────────────────────────────── */
 export function AnalisePage() {
   const [step,      setStep]      = useState(1);
   const [product,   setProduct]   = useState('');
-  const [campaigns, setCampaigns] = useState<{ id: string; name: string; spend: number; objective: string }[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [saved,     setSaved]     = useState<SavedAnalysis[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try { return JSON.parse(localStorage.getItem('radexperts_analyses') || '[]'); } catch { return []; }
+  });
 
-  const handleSelectProduct = (p: string) => { setProduct(p); setStep(2); };
-  const handleConfirmCamps  = (c: typeof campaigns) => { setCampaigns(c); setStep(3); };
-  const handleReset         = () => { setStep(1); setProduct(''); setCampaigns([]); };
+  const handleSave = (a: SavedAnalysis) => {
+    const next = [a, ...saved];
+    setSaved(next);
+    localStorage.setItem('radexperts_analyses', JSON.stringify(next));
+  };
+  const handleDelete = (id: string) => {
+    const next = saved.filter(a => a.id !== id);
+    setSaved(next);
+    localStorage.setItem('radexperts_analyses', JSON.stringify(next));
+  };
+  const handleReset = () => { setStep(1); setProduct(''); setCampaigns([]); };
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-10">
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; color: black !important; }
-          * { color: black !important; border-color: #ccc !important; }
-          nav, footer { display: none !important; }
-        }
-      `}</style>
-
-      {/* Title */}
       <div className="mb-8 no-print">
         <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: GOLD }}>Tráfego · Análise</p>
         <h1 className="text-4xl font-black text-white">Análise de Performance</h1>
         <p className="text-sm font-bold mt-1" style={{ color: SILVER }}>Combine dados da Hotmart com investimentos Meta Ads em 3 passos.</p>
       </div>
 
-      {/* Step indicator */}
       <StepIndicator current={step} />
 
-      {/* Card container */}
       <div className="rounded-[28px] p-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)' }}>
-        {step === 1 && <Step1 onSelect={handleSelectProduct} />}
-        {step === 2 && <Step2 product={product} onConfirm={handleConfirmCamps} onBack={() => setStep(1)} />}
-        {step === 3 && <Step3 product={product} campaigns={campaigns} onBack={handleReset} />}
+        {step === 1 && <Step1 onSelect={p => { setProduct(p); setStep(2); }} />}
+        {step === 2 && <Step2 product={product} onConfirm={c => { setCampaigns(c); setStep(3); }} onBack={() => setStep(1)} />}
+        {step === 3 && <Step3 product={product} campaigns={campaigns} onBack={handleReset} onSave={handleSave} />}
       </div>
+
+      {/* Saved analyses — below the wizard */}
+      <SavedAnalysesList analyses={saved} onDelete={handleDelete} />
     </div>
   );
 }
