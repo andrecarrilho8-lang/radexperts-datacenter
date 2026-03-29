@@ -28,13 +28,11 @@ function getFlagImg(iso: string, size = 18) {
     />
   );
 }
-// Show flag only for non-BRL (LATAM / international) — same rule as Hotmart page:
-// when currency is unknown or BRL (default), simply don't show the flag.
-function getFlagByCurrency(currency: string, size = 18) {
-  if (!currency || currency.toUpperCase() === 'BRL') return null;
-  const iso = CURRENCY_TO_ISO[currency.toUpperCase()];
-  if (!iso) return null;
-  return getFlagImg(iso, size);
+// Direct flag from ISO code (stored in s.flag by backend)
+// s.flag is 'br','co','ar','' etc — empty string = unknown = no flag
+function getStudentFlag(flag: string, size = 18) {
+  if (!flag) return null;
+  return getFlagImg(flag, size);
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -179,7 +177,12 @@ function PaymentCell({ s }: { s: Student }) {
 }
 
 // ── Tooltip — simple, clean ───────────────────────────────────────────────────
-function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) {
+function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
+  s: Student;
+  pos: { x: number; y: number };
+  onHoverIn: () => void;
+  onHoverOut: () => void;
+}) {
   const paid       = s.paymentHistory || [];
   const isSub      = s.paymentIsSub;
   const inst       = s.paymentInstallments;
@@ -207,27 +210,26 @@ function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) 
   const statusLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'Quitado') : 'Adimplente';
 
   return (
-    <div style={{
+    <div
+      onMouseEnter={onHoverIn}
+      onMouseLeave={onHoverOut}
+      style={{
       position: 'fixed', left: pos.x + 16, top: pos.y - 10,
-      zIndex: 99999, width: 300, pointerEvents: 'none',
+      zIndex: 99999, width: 300,
       background: 'linear-gradient(160deg, rgba(0,22,55,0.99) 0%, rgba(0,15,40,0.97) 100%)',
       border: '1px solid rgba(232,177,79,0.22)',
       boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 32px 64px rgba(0,0,0,0.85)',
       borderRadius: 18, backdropFilter: 'blur(32px)',
     }}>
-      {/* Header */}
+      {/* Header: status badge + email, NO repeated name */}
       <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            {getFlagByCurrency(s.currency, 16)}
-            <p className="font-black text-white text-sm truncate max-w-[160px]">{s.name}</p>
-          </div>
+        <div className="flex items-center justify-between">
           <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md"
             style={{ background: `${statusColor}20`, color: statusColor, border: `1px solid ${statusColor}40` }}>
             {statusLabel}
           </span>
         </div>
-        <p className="text-[10px]" style={{ color: SILVER }}>{s.email}</p>
+        <p className="text-[10px] mt-1" style={{ color: SILVER }}>{s.email}</p>
       </div>
 
       {/* Paid */}
@@ -533,7 +535,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       onMouseMove={moveTip}
                       onMouseLeave={closeTip}>
                       <div className="flex items-center gap-2 leading-tight">
-                        {getFlagByCurrency(s.currency, 18)}
+                        {getStudentFlag(s.flag, 18)}
                         <p className="text-[12px] font-black text-white truncate" title={s.name}>{s.name}</p>
                       </div>
                       {status === 'INADIMPLENTE' && (
@@ -582,7 +584,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       </div>
 
       {tooltipSt && typeof window !== 'undefined' && createPortal(
-        <NameTooltip s={tooltipSt} pos={tooltipPos} />,
+        <NameTooltip
+          s={tooltipSt}
+          pos={tooltipPos}
+          onHoverIn={() => clearTimeout(tipTimer.current)}
+          onHoverOut={closeTip}
+        />,
         document.body
       )}
     </LoginWrapper>
