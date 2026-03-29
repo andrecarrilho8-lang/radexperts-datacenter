@@ -328,6 +328,21 @@ export default function CampanhasPage() {
                       <div className="text-right md:text-left">
                       <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Líq. (H)</p>
                       <p className="font-black text-lg leading-none" style={{ color: GOLD }}>{R(camp.hotmartRevenue || 0)}</p>
+                      {(camp.hotmartGrossBRL || 0) > 0 && (
+                        <div className="mt-1">
+                          <InfoTooltip
+                            triggerLabel="detalhes"
+                            lines={[
+                              { emoji: '🟡', label: 'Bruto', value: R(camp.hotmartGrossBRL || 0) },
+                              ...( Math.max(0, (camp.hotmartGrossBRL || 0) - (camp.hotmartRevenue || 0) - (camp.hotmartCoProducersBRL || 0)) > 0
+                                ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(Math.max(0, (camp.hotmartGrossBRL || 0) - (camp.hotmartRevenue || 0) - (camp.hotmartCoProducersBRL || 0)))}`, color: '#f87171' }] : []),
+                              ...((camp.hotmartCoProducersBRL || 0) > 0.01
+                                ? [{ emoji: '🟠', label: 'Co-produtores', value: `− ${R(camp.hotmartCoProducersBRL || 0)}`, color: '#fb923c' }] : []),
+                            ]}
+                            total={{ label: 'Líquido', value: R(camp.hotmartRevenue || 0) }}
+                          />
+                        </div>
+                      )}
                       </div>
                       <div>
                         <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Vendas Meta</p>

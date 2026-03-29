@@ -175,6 +175,8 @@ export async function GET(request: Request) {
           .filter(t => !['vendas', 'leads', 'hybrid', 'paginas', 'campanha', 'oficial', 'atual', 'anuncio', 'geral', '2025', '2026', 'hotmart', 'meta', 'ads'].includes(t));
 
        let rev = 0;
+       let gross = 0;
+       let coProducers = 0;
        let qty = 0;
        const matchedProducts: string[] = [];
        
@@ -187,20 +189,25 @@ export async function GET(request: Request) {
                          campTokens.some(token => cleanProduct.includes(cleanStr(token)));
 
           if (isMatch) {
-            const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
-            rev += net != null ? net : (s.purchase?.price?.converted_value || 0);
-            qty += 1;
+            const net         = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
+            const grossVal    = s.purchase?.price?.converted_value || 0;
+            rev   += net != null ? net : grossVal;
+            gross += grossVal;
+            qty   += 1;
+            // co-producers already enriched in BRL (BRL sales) or BRL equivalent (LATAM)
+            const coProds: { name: string; amount: number }[] = s.purchase?.co_producers || [];
+            coProds.forEach(cp => { coProducers += cp.amount; });
             if (!matchedProducts.includes(prodName)) matchedProducts.push(prodName);
           }
        });
 
-       return { hotmartRevenue: rev, hotmartPurchases: qty, matchedProducts };
+       return { hotmartRevenue: rev, hotmartGrossBRL: gross, hotmartCoProducersBRL: coProducers, hotmartPurchases: qty, matchedProducts };
     };
 
     // ── Build Final TableData by Joining All Campaigns with their Insights ──
     const tableData = allCampaigns.map((c: any) => {
       const metrics = insightsDict[c.id] || { spend: 0, revenue: 0, roas: 0, cpa: 0, purchases: 0, leads: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, outboundClicks: 0 };
-      const { hotmartRevenue, hotmartPurchases, matchedProducts } = matchCampaignToHotmart(c.name || '');
+      const { hotmartRevenue, hotmartGrossBRL, hotmartCoProducersBRL, hotmartPurchases, matchedProducts } = matchCampaignToHotmart(c.name || '');
       
       return {
         id:          c.id,
@@ -210,6 +217,8 @@ export async function GET(request: Request) {
         objective:   mapObjective(c.objective || ''),
         ...metrics,
         hotmartRevenue,
+        hotmartGrossBRL,
+        hotmartCoProducersBRL,
         hotmartPurchases,
         matchedProducts
       };
