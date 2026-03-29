@@ -535,7 +535,7 @@ Apenas a taxa Hotmart (%) é deduzida com precisão.</p>
                   <col style={{ width: '110px' }} />
                   <col style={{ width: '180px' }} />
                   <col style={{ width: '130px' }} />
-                  <col style={{ width: '300px' }} />
+                  <col style={{ width: '400px' }} />
                   <col />
                 </colgroup>
                 <thead>
@@ -543,7 +543,7 @@ Apenas a taxa Hotmart (%) é deduzida com precisão.</p>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Data / Hora</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Faturamento</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '120px' }}>Pagamento</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '240px' }}>Cliente</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '400px' }}>Cliente</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '180px' }}>Produto</th>
                   </tr>
                 </thead>
