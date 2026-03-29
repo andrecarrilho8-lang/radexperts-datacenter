@@ -22,6 +22,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const dateFrom = searchParams.get('dateFrom');
   const dateTo = searchParams.get('dateTo');
   const campaignName = searchParams.get('campaignName');
+  const manualProductsParam = searchParams.get('manualProducts'); // comma-separated override
 
   if (!dateFrom || !dateTo || !campaignName) {
     return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
@@ -43,8 +44,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Resolve explicit keyword overrides
     const campNameLower = campaignName.toLowerCase();
     const forcedProducts = new Set<string>();
+    // Se manualProducts foi passado, sobrescreve todo o matching automático
+    const manualProductSet: Set<string> | null = manualProductsParam
+      ? new Set(manualProductsParam.split('|').map(p => p.trim()).filter(Boolean))
+      : null;
+
     for (const map of CAMPAIGN_KEYWORD_MAP) {
-      if (campNameLower.includes(map.keyword.toLowerCase())) {
+      if (!manualProductSet && campNameLower.includes(map.keyword.toLowerCase())) {
         map.products.forEach(p => forcedProducts.add(p));
       }
     }
@@ -63,14 +69,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const isApproved = ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(purchase.status);
       if (!isApproved) return;
 
-      const isForced = forcedProducts.has(prodName);
-      const isGenericMatch = !isForced && (
+      // Manual override: só produtos selecionados
+      const isManualMatch = manualProductSet ? manualProductSet.has(prodName) : false;
+
+      const isForced = !manualProductSet && forcedProducts.has(prodName);
+      const isGenericMatch = !manualProductSet && !isForced && (
         cleanProduct.includes(normCampName) ||
         normCampName.includes(cleanProduct) ||
         campTokens.some((token: string) => cleanProduct.includes(cleanStr(token)))
       );
 
-      if ((isForced || isGenericMatch) && !uniqueTxIds.has(txId)) {
+      if ((isManualMatch || isForced || isGenericMatch) && !uniqueTxIds.has(txId)) {
         uniqueTxIds.add(txId);
         matchedProductsNames.add(prodName);
         const dateIso = purchase.order_date

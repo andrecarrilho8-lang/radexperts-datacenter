@@ -32,12 +32,37 @@ const shine: React.CSSProperties = {
   position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 28,
 };
 
+const CURRENCY_TO_COUNTRY: Record<string, string> = {
+  BRL: 'BR', MXN: 'MX', COP: 'CO', ARS: 'AR', CLP: 'CL', PEN: 'PE',
+  EUR: 'EU', USD: 'US', CRC: 'CR', BOB: 'BO', PYG: 'PY', UYU: 'UY',
+  GTQ: 'GT', HNL: 'HN', NIO: 'NI', DOP: 'DO', CUP: 'CU', VES: 'VE',
+};
+
+function getFlagImg(isoCode: string, size = 20) {
+  if (!isoCode) return null;
+  return (
+    <img
+      src={`https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/flags/4x3/${isoCode.toLowerCase()}.svg`}
+      width={size} height={Math.round(size * 0.75)} alt={isoCode}
+      style={{ borderRadius: 3, objectFit: 'cover', display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
+    />
+  );
+}
+
+function getCountryName(iso: string) {
+  try { return new Intl.DisplayNames(['pt-BR'], { type: 'region' }).of(iso) || iso; } catch { return iso; }
+}
+
 export function CampaignDetailView({ id }: { id: string }) {
   const { dateFrom, dateTo, userRole } = useDashboard();
   const [campDetail, setCampDetail]     = useState<any | null>(null);
   const [campDetailAds, setCampDetailAds] = useState<any[]>([]);
   const [campDetailAdSets, setCampDetailAdSets] = useState<any[]>([]);
   const [campHotmart, setCampHotmart]   = useState({ revenue: 0, purchases: 0, matchedProducts: [] as string[], currencyBreakdown: {} as Record<string, { count: number; originalTotal: number; convertedTotal: number }>, loading: false });
+  const [manualProducts, setManualProducts] = useState<string[]>([]); // produtos selecionados manualmente
+  const [availableProducts, setAvailableProducts] = useState<string[]>([]); // lista de todos produtos Hotmart
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading]           = useState(true);
   const [adSetsLoading, setAdSetsLoading] = useState(false);
   const [selectedAdSetId, setSelectedAdSetId] = useState<string | null>(null);
@@ -73,7 +98,8 @@ export function CampaignDetailView({ id }: { id: string }) {
 
       if (data.objective === 'VENDAS' && userRole === 'TOTAL') {
         setCampHotmart(p => ({ ...p, loading: true }));
-        const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}`);
+        const manualParam = manualProducts.length > 0 ? `&manualProducts=${encodeURIComponent(manualProducts.join('|'))}` : '';
+        const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}${manualParam}`);
         const hData = await hRes.json();
         setCampHotmart({ revenue: hData.revenue || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
       }
@@ -82,9 +108,28 @@ export function CampaignDetailView({ id }: { id: string }) {
     } finally {
       setLoading(false);
     }
-  }, [id, dateFrom, dateTo, selectedAdSetId]);
+  }, [id, dateFrom, dateTo, selectedAdSetId, manualProducts]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
+
+  // Busca lista de produtos disponíveis na Hotmart
+  useEffect(() => {
+    if (userRole !== 'TOTAL') return;
+    fetch('/api/hotmart/products')
+      .then(r => r.json())
+      .then(d => setAvailableProducts(d.products || []))
+      .catch(() => {});
+  }, [userRole]);
+
+  // Fecha o dropdown ao clicar fora
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node))
+        setProductDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Para campanhas pausadas: busca dados lifetime (createdTime → hoje)
   useEffect(() => {
@@ -392,22 +437,78 @@ export function CampaignDetailView({ id }: { id: string }) {
                   </div>
                 </div>
 
-                {/* Produtos matchados */}
-                {campHotmart.matchedProducts.length > 0 && (
-                  <div className="rounded-[16px] p-4" style={{ background: 'rgba(232,120,13,0.06)', border: '1px solid rgba(232,120,13,0.15)' }}>
-                    <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: '#E8380D' }}>
+                {/* Produtos matchados + seleção manual */}
+                <div className="rounded-[16px] p-4" style={{ background: 'rgba(232,120,13,0.06)', border: '1px solid rgba(232,120,13,0.15)' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: '#E8380D' }}>
                       <span className="material-symbols-outlined text-[14px]">inventory_2</span>
                       Produtos Correlacionados ({campHotmart.matchedProducts.length})
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {campHotmart.matchedProducts.map((p: string) => (
-                        <span key={p} className="px-3 py-1.5 rounded-lg text-[11px] font-black" style={{ background: 'rgba(232,120,13,0.12)', border: '1px solid rgba(232,120,13,0.2)', color: '#fb923c' }}>
-                          {p}
-                        </span>
-                      ))}
+                    {/* Dropdown associação manual */}
+                    <div className="relative" ref={productDropdownRef}>
+                      <button onClick={() => setProductDropdownOpen(o => !o)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+                        <span className="material-symbols-outlined text-[13px]" style={{ color: GOLD }}>add_circle</span>
+                        Associar produto
+                        <span className={`material-symbols-outlined text-[12px] transition-transform ${productDropdownOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                      </button>
+                      {productDropdownOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-[380px] rounded-2xl shadow-2xl z-[9999] overflow-hidden"
+                          style={{ background: 'linear-gradient(160deg, rgba(0,26,53,0.99) 0%, rgba(0,10,30,0.99) 100%)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(24px)' }}>
+                          <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Selecionar produto manualmente</p>
+                            <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>Sobrescreve o matching automático</p>
+                          </div>
+                          <div className="max-h-60 overflow-y-auto">
+                            {availableProducts.length === 0 ? (
+                              <div className="px-4 py-4 text-center text-sm font-bold" style={{ color: SILVER }}>Carregando produtos...</div>
+                            ) : availableProducts.map(p => {
+                              const isSelected = manualProducts.includes(p);
+                              return (
+                                <button key={p} onClick={() => {
+                                  setManualProducts(prev => isSelected ? prev.filter(x => x !== p) : [...prev, p]);
+                                }}
+                                  className="w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm font-bold transition-all"
+                                  style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isSelected ? 'rgba(232,177,79,0.08)' : 'transparent', color: isSelected ? GOLD : 'white' }}
+                                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(232,177,79,0.08)' : 'transparent'; }}>
+                                  <span className="material-symbols-outlined text-[16px]" style={{ color: isSelected ? GOLD : SILVER }}>
+                                    {isSelected ? 'check_box' : 'check_box_outline_blank'}
+                                  </span>
+                                  <span className="leading-snug">{p}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {manualProducts.length > 0 && (
+                            <div className="px-4 py-2" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                              <button onClick={() => setManualProducts([])}
+                                className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1"
+                                style={{ color: '#ef4444' }}>
+                                <span className="material-symbols-outlined text-[13px]">close</span>
+                                Remover seleção manual
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+                  <div className="flex flex-wrap gap-2">
+                    {campHotmart.matchedProducts.map((p: string) => (
+                      <span key={p} className="px-3 py-1.5 rounded-lg text-[11px] font-black" style={{ background: 'rgba(232,120,13,0.12)', border: '1px solid rgba(232,120,13,0.2)', color: '#fb923c' }}>
+                        {p}
+                      </span>
+                    ))}
+                    {manualProducts.length > 0 && (
+                      <span className="px-3 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1" style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.2)', color: GOLD }}>
+                        <span className="material-symbols-outlined text-[12px]">edit</span>
+                        seleção manual ativa
+                      </span>
+                    )}
+                  </div>
+                </div>
 
                 {/* Breakdown por moeda */}
                 {Object.keys(campHotmart.currencyBreakdown).length > 0 && (
@@ -419,26 +520,37 @@ export function CampaignDetailView({ id }: { id: string }) {
                     <table className="w-full text-[11px]">
                       <thead>
                         <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                          <th className="text-left pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>Moeda</th>
+                          <th className="text-left pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>País / Moeda</th>
                           <th className="text-right pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>Vendas</th>
                           <th className="text-right pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>Valor Original</th>
                           <th className="text-right pb-2 font-black uppercase tracking-widest" style={{ color: SILVER }}>≈ em BRL</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.entries(campHotmart.currencyBreakdown).map(([cur, d]) => (
-                          <tr key={cur} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                            <td className="py-2 font-black text-white">{cur}</td>
-                            <td className="py-2 text-right font-bold" style={{ color: SILVER }}>{d.count}</td>
-                            <td className="py-2 text-right font-bold" style={{ color: SILVER }}>
-                              {cur === 'BRL'
-                                ? R(d.originalTotal)
-                                : `${cur} ${d.originalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                              }
-                            </td>
-                            <td className="py-2 text-right font-black" style={{ color: GOLD }}>{R(d.convertedTotal)}</td>
-                          </tr>
-                        ))}
+                        {Object.entries(campHotmart.currencyBreakdown).map(([cur, d]) => {
+                          const iso = CURRENCY_TO_COUNTRY[cur.toUpperCase()] || '';
+                          return (
+                            <tr key={cur} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                              <td className="py-2.5">
+                                <div className="flex items-center gap-2">
+                                  {getFlagImg(iso, 18)}
+                                  <div>
+                                    <span className="font-black text-white">{cur}</span>
+                                    {iso && <span className="text-[10px] font-bold block" style={{ color: SILVER }}>{getCountryName(iso)}</span>}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-2.5 text-right font-bold" style={{ color: SILVER }}>{d.count}</td>
+                              <td className="py-2.5 text-right font-bold" style={{ color: SILVER }}>
+                                {cur === 'BRL'
+                                  ? R(d.originalTotal)
+                                  : `${cur} ${d.originalTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                }
+                              </td>
+                              <td className="py-2.5 text-right font-black" style={{ color: GOLD }}>{R(d.convertedTotal)}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
