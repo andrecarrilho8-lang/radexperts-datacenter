@@ -111,9 +111,9 @@ function Step2({
   const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
-    fetch(`/api/meta/campaigns?dateFrom=${dateFrom}&dateTo=${dateTo}`)
+    fetch(`/api/meta?dateFrom=${dateFrom}&dateTo=${dateTo}`)
       .then(r => r.json())
-      .then(d => { setCampaigns(d.campaigns || []); setLoading(false); })
+      .then(d => { setCampaigns(d.tableData || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [dateFrom, dateTo]);
 
