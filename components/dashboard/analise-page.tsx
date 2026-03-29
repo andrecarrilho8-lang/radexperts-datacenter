@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboard } from '@/app/lib/context';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
@@ -523,42 +524,16 @@ function Step3({ product, productId, campaigns, onBack, onSave, prefetchedData }
                   {hotmart?.matchedProducts && hotmart.matchedProducts.length > 0 && (
                     <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{hotmart.matchedProducts.join(', ')}</p>
                   )}
-                  {/* Tooltip breakdown — igual à página Hotmart */}
-                  <div className="relative inline-flex group mt-2">
-                    <span className="text-[10px] font-bold flex items-center gap-1 cursor-help" style={{ color: SILVER }}>
-                      <span className="material-symbols-outlined text-[13px]">info</span>
-                      Ver detalhamento
-                    </span>
-                    <div
-                      className="absolute bottom-full left-0 mb-2 z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-                      style={{ minWidth: 260, background: '#0d1f33', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}
-                    >
-                      <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: GOLD }}>Detalhamento</p>
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[11px]" style={{ color: SILVER }}>🟡 Bruto</span>
-                          <span className="text-[11px] font-black text-white">{R(hotmart?.grossBRL ?? 0)}</span>
-                        </div>
-                        {(hotmart?.hotmartFeesBRL ?? 0) > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px]" style={{ color: '#f87171' }}>🔴 Taxas Hotmart</span>
-                            <span className="text-[11px] font-black" style={{ color: '#f87171' }}>− {R(hotmart!.hotmartFeesBRL!)}</span>
-                          </div>
-                        )}
-                        {(hotmart?.coProducersBRL ?? 0) > 0.01 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px]" style={{ color: '#fb923c' }}>🟠 Co-produtores</span>
-                            <span className="text-[11px] font-black" style={{ color: '#fb923c' }}>− {R(hotmart!.coProducersBRL!)}</span>
-                          </div>
-                        )}
-                        <div className="border-t mt-1 pt-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>✓ Líquido</span>
-                            <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{R(revenue)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Tooltip breakdown — portal-based, never clipped */}
+                  <div className="mt-2">
+                    <InfoTooltip
+                      lines={[
+                        { emoji: '🟡', label: 'Bruto',          value: R(hotmart?.grossBRL ?? 0) },
+                        ...(( hotmart?.hotmartFeesBRL ?? 0) > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(hotmart!.hotmartFeesBRL!)}`, color: '#f87171' }] : []),
+                        ...(( hotmart?.coProducersBRL ?? 0) > 0.01 ? [{ emoji: '🟠', label: 'Co-produtores', value: `− ${R(hotmart!.coProducersBRL!)}`, color: '#fb923c' }] : []),
+                      ]}
+                      total={{ label: 'Líquido', value: R(revenue) }}
+                    />
                   </div>
                 </div>
               </div>

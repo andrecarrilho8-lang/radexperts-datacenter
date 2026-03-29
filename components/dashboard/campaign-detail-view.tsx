@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom';
 import { StatCard } from '@/components/ui/cards';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SkeletonAdCard } from '@/components/ui/skeletons';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { TopAdCard, AdsInsights, CampaignPagesSection, CampaignAdsTable } from '@/components/dashboard/campaign-details';
 import { LifetimeCampaignChart } from '@/components/dashboard/LifetimeCampaignChart';
 import Link from 'next/link';
@@ -482,23 +483,22 @@ export function CampaignDetailView({ id }: { id: string }) {
                     <p className="font-headline font-black text-3xl text-white">{campHotmart.purchases || 0}</p>
                     <p className="text-[10px] font-bold mt-1" style={{ color: SILVER }}>transações confirmadas</p>
                   </div>
-                  <div className="rounded-[16px] p-5 relative" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2 flex items-center gap-1.5" style={{ color: SILVER }}>
-                      Recebido Líquido (BRL)
-                      <span
-                        className="material-symbols-outlined text-[13px] cursor-help"
-                        style={{ color: GOLD }}
-                        title={[
-                          `🟡 Bruto: ${R(campHotmart.grossBRL)}`,
-                          `🔴 Taxa Hotmart: ${R(campHotmart.hotmartFeesBRL)}`,
-                        ].join('\n')}
-                      >info</span>
-                    </p>
+                  <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>Recebido Líquido (BRL)</p>
                     <p className="font-headline font-black text-3xl" style={{ color: GOLD }}>{R(campHotmart.revenue || 0)}</p>
                     <p className="text-[10px] font-bold mt-1 flex items-center gap-1" style={{ color: '#22c55e' }}>
                       <span className="material-symbols-outlined text-[11px]">currency_exchange</span>
                       valor líquido · cotação histórica
                     </p>
+                    <div className="mt-2">
+                      <InfoTooltip
+                        lines={[
+                          { emoji: '🟡', label: 'Bruto', value: R(campHotmart.grossBRL || 0) },
+                          ...((campHotmart.hotmartFeesBRL || 0) > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(campHotmart.hotmartFeesBRL)}`, color: '#f87171' }] : []),
+                        ]}
+                        total={{ label: 'Líquido', value: R(campHotmart.revenue || 0) }}
+                      />
+                    </div>
                   </div>
                   <div className="rounded-[16px] p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                     <p className="text-[10px] uppercase font-bold tracking-widest mb-2" style={{ color: SILVER }}>ROAS</p>

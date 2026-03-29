@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { FeedbackModal } from '@/components/dashboard/feedback-modal';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { useRouter } from 'next/navigation';
 
 const GOLD   = '#E8B14F';
@@ -120,16 +121,18 @@ export default function CampanhasPage() {
                         }
                       });
                       return (<>
-                        <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px', position: 'relative' }}>
-                          <p className="text-[10px] uppercase font-bold tracking-widest mb-1 flex items-center gap-1.5" style={{ color: GOLD + 'aa' }}>
-                            Recebido Líquido
-                            <span
-                              className="material-symbols-outlined text-[12px] cursor-help"
-                              style={{ color: GOLD }}
-                              title={`🟡 Bruto: ${(hmGross).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })}\n🔴 Taxa Hotmart: ${(hmGross - hmRevenue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })}`}
-                            >info</span>
-                          </p>
+                        <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px' }}>
+                          <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: GOLD + 'aa' }}>Recebido Líquido</p>
                           <p className="text-2xl font-black" style={{ color: GOLD }}>{R(hmRevenue)}</p>
+                          <div className="mt-2">
+                            <InfoTooltip
+                              lines={[
+                                { emoji: '🟡', label: 'Bruto', value: R(hmGross) },
+                                ...((hmGross - hmRevenue) > 0 ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(hmGross - hmRevenue)}`, color: '#f87171' }] : []),
+                              ]}
+                              total={{ label: 'Líquido', value: R(hmRevenue) }}
+                            />
+                          </div>
                         </div>
                         <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 20, padding: '20px 24px' }}>
                           <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: '#22c55eaa' }}>Vendas Meta</p>
