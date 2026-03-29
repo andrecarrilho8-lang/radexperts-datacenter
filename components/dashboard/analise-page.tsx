@@ -22,12 +22,14 @@ type AdItem = {
   id: string; name: string; spend: number; purchases: number; leads: number;
   ctr: number; objective: string; thumbnail?: string; impressions?: number;
   costPerLead?: number; costPerPurchase?: number;
+  connectRate?: number; checkoutRate?: number; purchaseRate?: number; conversionRate?: number;
+  clicks?: number; landingPageViews?: number; checkoutInitiated?: number;
 };
 type SavedAnalysis = {
   id: string; savedAt: string; product: string; productId?: string;
   dateFrom: string; dateTo: string;
   campaigns: Campaign[]; revenue: number; purchases: number; totalSpend: number;
-  totalLeads: number; leadSpend: number;
+  totalLeads: number; leadSpend: number; topAds?: AdItem[];
 };
 type ProductItem = { id: string | number; name: string };
 
@@ -230,21 +232,60 @@ function Step2({ product, onConfirm, onBack }: { product: string; onConfirm: (c:
 
 /* ─── Ad Row ──────────────────────────────────────────────────────── */
 function AdRow({ ad, idx, accent, showLeads }: { ad: AdItem; idx: number; accent: string; showLeads?: boolean }) {
+  const hasRates = !showLeads && (ad.connectRate || ad.checkoutRate || ad.purchaseRate);
+  const hasCaptRates = showLeads && (ad.connectRate || ad.conversionRate);
   return (
-    <div className="grid items-center px-5"
-      style={{ gridTemplateColumns: '32px 1fr 130px 100px 80px', padding: '11px 20px',
-        background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-        borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-      <span className="text-[11px] font-black" style={{ color: SILVER }}>{idx + 1}</span>
-      <div className="flex items-center gap-3 pr-4 min-w-0">
-        {ad.thumbnail && <img src={ad.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />}
-        <span className="text-[13px] font-bold text-white leading-snug truncate">{ad.name}</span>
+    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+      {/* Main row */}
+      <div className="grid items-center" style={{ gridTemplateColumns: '28px 44px 1fr 130px 100px 80px', padding: '10px 20px' }}>
+        <span className="text-[11px] font-black" style={{ color: SILVER }}>{idx + 1}</span>
+        {ad.thumbnail
+          ? <img src={ad.thumbnail} alt="" className="w-9 h-9 rounded-lg object-cover" />
+          : <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <span className="material-symbols-outlined text-[14px]" style={{ color: SILVER }}>image</span>
+            </div>}
+        <span className="text-[13px] font-bold text-white leading-snug truncate px-3">{ad.name}</span>
+        <span className="text-right text-[13px] font-black" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</span>
+        <span className="text-right text-[13px] font-black" style={{ color: accent }}>
+          {showLeads ? (ad.leads > 0 ? N(ad.leads) : '—') : (ad.purchases > 0 ? N(ad.purchases) : '—')}
+        </span>
+        <span className="text-right text-[13px] font-black" style={{ color: 'white' }}>{ad.ctr > 0 ? `${ad.ctr.toFixed(2)}%` : '—'}</span>
       </div>
-      <span className="text-right text-[13px] font-black" style={{ color: '#ef4444' }}>{R(ad.spend || 0)}</span>
-      <span className="text-right text-[13px] font-black" style={{ color: accent }}>
-        {showLeads ? (ad.leads > 0 ? N(ad.leads) : '—') : (ad.purchases > 0 ? N(ad.purchases) : '—')}
-      </span>
-      <span className="text-right text-[13px] font-black text-white">{ad.ctr > 0 ? `${ad.ctr.toFixed(2)}%` : '—'}</span>
+      {/* Rate metrics sub-row */}
+      {(hasRates || hasCaptRates) && (
+        <div className="flex items-center gap-6 px-5 pb-2.5" style={{ paddingLeft: 92 }}>
+          {!showLeads && ad.connectRate != null && ad.connectRate > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Connect Rate</span>
+              <span className="text-[11px] font-black" style={{ color: GOLD }}>{ad.connectRate.toFixed(1)}%</span>
+            </div>
+          )}
+          {!showLeads && ad.checkoutRate != null && ad.checkoutRate > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Checkout Rate</span>
+              <span className="text-[11px] font-black" style={{ color: '#38bdf8' }}>{ad.checkoutRate.toFixed(1)}%</span>
+            </div>
+          )}
+          {!showLeads && ad.purchaseRate != null && ad.purchaseRate > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Purchase Rate</span>
+              <span className="text-[11px] font-black" style={{ color: '#22c55e' }}>{ad.purchaseRate.toFixed(1)}%</span>
+            </div>
+          )}
+          {showLeads && ad.connectRate != null && ad.connectRate > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Connect Rate</span>
+              <span className="text-[11px] font-black" style={{ color: GOLD }}>{ad.connectRate.toFixed(1)}%</span>
+            </div>
+          )}
+          {showLeads && ad.conversionRate != null && ad.conversionRate > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: SILVER }}>Taxa de Conversão</span>
+              <span className="text-[11px] font-black" style={{ color: '#22c55e' }}>{ad.conversionRate.toFixed(1)}%</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -253,24 +294,22 @@ function AdTable({ group }: { group: { label: string; ads: AdItem[]; accent: str
   const showLeads = group.showLeads || false;
   return (
     <div className="rounded-[20px] overflow-hidden mb-4" style={{ border: `1px solid ${group.border}` }}>
-      {/* Header label */}
       <div className="flex items-center gap-2 px-5 py-3" style={{ background: group.bg, borderBottom: `1px solid ${group.border}` }}>
         <span className="material-symbols-outlined text-[14px]" style={{ color: group.accent }}>{group.icon}</span>
         <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: group.accent }}>{group.label} ({group.ads.length})</p>
       </div>
-      {/* Column headers */}
-      <div className="grid px-5 py-2.5" style={{ gridTemplateColumns: '32px 1fr 130px 100px 80px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="grid px-5 py-2.5" style={{ gridTemplateColumns: '28px 44px 1fr 130px 100px 80px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         {[
-          { label: 'Nº',             align: 'text-left'  },
-          { label: 'Nome do Anúncio', align: 'text-left'  },
+          { label: 'Nº',              align: 'text-left'  },
+          { label: '',                align: 'text-left'  },
+          { label: 'Nome do Anúncio', align: 'text-left pl-3' },
           { label: 'Investimento',    align: 'text-right' },
           { label: showLeads ? 'Leads' : 'Vendas', align: 'text-right' },
           { label: 'CTR',             align: 'text-right' },
-        ].map(h => (
-          <span key={h.label} className={`text-[10px] font-black uppercase tracking-widest ${h.align}`} style={{ color: SILVER }}>{h.label}</span>
+        ].map((h, i) => (
+          <span key={i} className={`text-[10px] font-black uppercase tracking-widest ${h.align}`} style={{ color: SILVER }}>{h.label}</span>
         ))}
       </div>
-      {/* Rows */}
       {group.ads.slice(0, 10).map((ad, idx) => <AdRow key={ad.id} ad={ad} idx={idx} accent={group.accent} showLeads={showLeads} />)}
     </div>
   );
@@ -281,7 +320,14 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
   product: string; productId?: string; campaigns: Campaign[];
   onBack: () => void; onSave: (a: SavedAnalysis) => void;
 }) {
-  const { dateFrom, dateTo } = useDashboard();
+  const { dateFrom: ctxFrom, dateTo: ctxTo } = useDashboard();
+  // Permite alterar o período localmente sem afetar o restante do dashboard
+  const [localFrom, setLocalFrom] = useState(ctxFrom);
+  const [localTo,   setLocalTo]   = useState(ctxTo);
+  const [showPeriod, setShowPeriod] = useState(false);
+  const dateFrom = localFrom;
+  const dateTo   = localTo;
+
   const [hotmart,  setHotmart]  = useState<HotmartData | null>(null);
   const [topAds,   setTopAds]   = useState<AdItem[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -299,16 +345,18 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
   const ticketMedio  = purchases > 0 ? revenue / purchases : 0;
   const cpl          = totalLeads > 0 ? leadSpend / totalLeads : 0;
 
+  const fmtDate = (d: string) => {
+    if (!d) return '';
+    const [y, m, day] = d.split('-');
+    const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return `${parseInt(day)} / ${months[parseInt(m)-1]} ${y}`;
+  };
+
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        // Usa product_id para filtrar diretamente na API Hotmart (100% match)
-        const params = new URLSearchParams({
-          dateFrom, dateTo,
-          product: product,
-          ...(productId ? { productId } : {}),
-        });
+        const params = new URLSearchParams({ dateFrom, dateTo, product, ...(productId ? { productId } : {}) });
         const hRes = await fetch(`/api/hotmart/sales-by-product?${params}`);
         setHotmart(await hRes.json());
 
@@ -330,7 +378,8 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
   const handleSave = () => {
     const entry: SavedAnalysis = {
       id: Date.now().toString(), savedAt: new Date().toISOString(),
-      product, dateFrom, dateTo, campaigns, revenue, purchases, totalSpend, totalLeads, leadSpend,
+      product, productId, dateFrom, dateTo, campaigns, revenue, purchases,
+      totalSpend, totalLeads, leadSpend, topAds,
     };
     onSave(entry);
     setSaved(true);
@@ -344,7 +393,15 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
 
   return (
     <div>
-      <style>{`@media print { .no-print { display:none!important; } nav,footer{display:none!important;} }`}</style>
+      <style>{`
+        @media print {
+          .no-print { display:none!important; }
+          nav, footer { display:none!important; }
+          body { background: white!important; color: black!important; }
+          * { -webkit-print-color-adjust: exact!important; print-color-adjust: exact!important; }
+          .print-page { page-break-inside: avoid; }
+        }
+      `}</style>
 
       {/* Actions */}
       <div className="flex items-center justify-between mb-6 no-print gap-3 flex-wrap">
@@ -353,6 +410,28 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
           style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }}>
           <span className="material-symbols-outlined text-[16px]">refresh</span>Nova Análise
         </button>
+
+        {/* Seletor de período */}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowPeriod(p => !p)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+            style={{ background: showPeriod ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showPeriod ? 'rgba(56,189,248,0.3)' : 'rgba(255,255,255,0.1)'}`, color: showPeriod ? '#38bdf8' : SILVER }}>
+            <span className="material-symbols-outlined text-[16px]">date_range</span>
+            {fmtDate(dateFrom)} → {fmtDate(dateTo)}
+          </button>
+          {showPeriod && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl" style={{ background: 'rgba(56,189,248,0.07)', border: '1px solid rgba(56,189,248,0.2)' }}>
+              <input type="date" value={localFrom} onChange={e => setLocalFrom(e.target.value)}
+                className="rounded-lg px-3 py-1.5 text-[11px] font-bold outline-none"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }} />
+              <span style={{ color: SILVER }} className="text-[11px]">até</span>
+              <input type="date" value={localTo} onChange={e => setLocalTo(e.target.value)}
+                className="rounded-lg px-3 py-1.5 text-[11px] font-bold outline-none"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: 'white' }} />
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center gap-3">
           <button onClick={handleSave}
             className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
@@ -494,11 +573,11 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
                 ? new Date(c.createdTime).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
                 : '—';
               return (
-                <div key={c.id} className="grid px-5 items-center"
+                <div key={c.id} className="grid px-5 items-center print-page"
                 style={{ gridTemplateColumns: '1fr 100px 80px 130px', padding: '12px 20px', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent', borderBottom: i < campaigns.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
                 <div className="pr-4">
                   <p className="text-[13px] font-bold text-white leading-snug">{c.name}</p>
-                  <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Início: {dateStr}</p>
+                  <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Início: {fmtDate(c.createdTime ? c.createdTime.split('T')[0] : '')}</p>
                 </div>
                 <span className="flex items-center justify-center gap-1.5 text-[11px] font-bold" style={{ color: active ? '#22c55e' : '#ef4444' }}>
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? '#22c55e' : '#ef4444' }} />
@@ -541,43 +620,93 @@ function Step3({ product, productId, campaigns, onBack, onSave }: {
 
 /* ─── Saved Analyses List ─────────────────────────────────────────── */
 function SavedAnalysesList({ analyses, onDelete }: { analyses: SavedAnalysis[]; onDelete: (id: string) => void }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   if (analyses.length === 0) return null;
+
+  const fmtDate = (d: string) => {
+    if (!d) return d;
+    const [y, m, day] = d.split('-');
+    const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return `${parseInt(day)} / ${months[parseInt(m)-1]} ${y}`;
+  };
+
   return (
     <div className="mt-8">
       <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-4 flex items-center gap-2" style={{ color: GOLD }}>
         <span className="material-symbols-outlined text-[14px]">bookmarks</span>Análises Salvas ({analyses.length})
       </p>
       <div className="flex flex-col gap-3">
-        {analyses.map(a => (
-          <div key={a.id} className="rounded-[20px] px-5 py-4 flex items-center gap-4"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <div className="flex-1 min-w-0">
-              <p className="font-black text-white text-[14px] truncate">{a.product}</p>
-              <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>
-                {a.dateFrom} → {a.dateTo} · {a.campaigns.length} campanhas · {new Date(a.savedAt).toLocaleDateString('pt-BR')}
-              </p>
+        {analyses.map(a => {
+          const isOpen = expanded === a.id;
+          return (
+            <div key={a.id} className="rounded-[20px] overflow-hidden transition-all"
+              style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isOpen ? 'rgba(232,177,79,0.25)' : 'rgba(255,255,255,0.07)'}` }}>
+              {/* Header */}
+              <div className="px-5 py-4 flex items-center gap-4 cursor-pointer select-none"
+                onClick={() => setExpanded(isOpen ? null : a.id)}>
+                <span className="material-symbols-outlined text-[20px] transition-transform flex-shrink-0"
+                  style={{ color: GOLD, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-white text-[14px] truncate">{a.product}</p>
+                  <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>
+                    {fmtDate(a.dateFrom)} → {fmtDate(a.dateTo)} · {a.campaigns.length} campanha{a.campaigns.length !== 1 ? 's' : ''} · salvo em {new Date(a.savedAt).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-6 flex-shrink-0">
+                  <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Faturamento</p>
+                    <p className="text-[14px] font-black" style={{ color: '#22c55e' }}>{R(a.revenue)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>ROAS</p>
+                    <p className="text-[14px] font-black" style={{ color: a.totalSpend > 0 ? (a.revenue / a.totalSpend >= 1 ? '#22c55e' : '#ef4444') : SILVER }}>
+                      {a.totalSpend > 0 ? `${(a.revenue / a.totalSpend).toFixed(2)}x` : '—'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento</p>
+                    <p className="text-[14px] font-black" style={{ color: '#ef4444' }}>{R(a.totalSpend)}</p>
+                  </div>
+                  <button onClick={e => { e.stopPropagation(); onDelete(a.id); }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ color: '#ef4444', background: 'rgba(239,68,68,0.08)' }}>
+                    <span className="material-symbols-outlined text-[16px]">close</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Expandável */}
+              {isOpen && (
+                <div className="border-t px-5 pb-5" style={{ borderColor: 'rgba(255,255,255,0.08)', paddingTop: 16 }}>
+                  {/* KPIs */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    {[
+                      { label: 'Vendas (Hotmart)', value: a.purchases > 0 ? N(a.purchases) : '—', color: '#22c55e' },
+                      { label: 'Total Leads', value: a.totalLeads > 0 ? N(a.totalLeads) : '—', color: GOLD },
+                      { label: 'CAC', value: a.purchases > 0 ? R(a.totalSpend / a.purchases) : '—', color: '#38bdf8' },
+                      { label: 'Ticket Médio', value: a.purchases > 0 ? R(a.revenue / a.purchases) : '—', color: 'white' },
+                    ].map(k => (
+                      <div key={k.label} className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>{k.label}</p>
+                        <p className="text-[15px] font-black" style={{ color: k.color }}>{k.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Campanhas */}
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>Campanhas</p>
+                  <div className="flex flex-col gap-1">
+                    {a.campaigns.map(c => (
+                      <div key={c.id} className="flex justify-between items-center px-3 py-2 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                        <span className="text-[12px] font-bold text-white truncate flex-1 pr-4">{c.name}</span>
+                        <span className="text-[11px] font-black flex-shrink-0" style={{ color: GOLD }}>{R(c.spend || 0)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-6 flex-shrink-0">
-              <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Faturamento</p>
-                <p className="text-[14px] font-black" style={{ color: '#22c55e' }}>{R(a.revenue)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>ROAS</p>
-                <p className="text-[14px] font-black" style={{ color: a.totalSpend > 0 ? (a.revenue / a.totalSpend >= 1 ? '#22c55e' : '#ef4444') : SILVER }}>
-                  {a.totalSpend > 0 ? `${(a.revenue / a.totalSpend).toFixed(2)}x` : '—'}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento</p>
-                <p className="text-[14px] font-black" style={{ color: '#ef4444' }}>{R(a.totalSpend)}</p>
-              </div>
-            </div>
-            <button onClick={() => onDelete(a.id)} className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.08)' }}>
-              <span className="material-symbols-outlined text-[16px]">close</span>
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
