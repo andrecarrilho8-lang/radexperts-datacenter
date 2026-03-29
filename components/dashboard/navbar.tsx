@@ -61,6 +61,8 @@ export function Navbar() {
 
   const navItems = topNavItems.filter(i => i.roles.includes(userRole));
 
+  const isCursosActive = pathname.startsWith('/cursos');
+
   const navStyle: React.CSSProperties = {
     background: 'linear-gradient(90deg, rgba(0,10,28,0.97) 0%, rgba(0,26,53,0.97) 100%)',
     borderBottom: '1px solid rgba(232,177,79,0.18)',
@@ -144,6 +146,20 @@ export function Navbar() {
                 </div>
               )}
             </div>
+
+            {/* CURSOS link */}
+            <Link href="/cursos"
+              className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-5"
+              style={{ color: isCursosActive ? GOLD : SILVER, background: isCursosActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
+              onMouseEnter={e => { if (!isCursosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
+              onMouseLeave={e => { if (!isCursosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
+            >
+              Cursos
+              {isCursosActive && (
+                <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
+                  style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+              )}
+            </Link>
           </div>
         </div>
 
