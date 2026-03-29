@@ -10,25 +10,28 @@ const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
 const NAVY   = '#001a35';
 
-// ── Flag image (same CDN as Hotmart page) ────────────────────────────────────
+// ── Flag image — exactly how Hotmart page does it ─────────────────────────────
 const CURRENCY_TO_ISO: Record<string, string> = {
   BRL: 'br', USD: 'us', EUR: 'eu', COP: 'co', MXN: 'mx',
   ARS: 'ar', PEN: 'pe', CLP: 'cl', PYG: 'py', BOB: 'bo',
   UYU: 'uy', VES: 've', CRC: 'cr', DOP: 'do', GTQ: 'gt',
   HNL: 'hn', NIO: 'ni', PAB: 'pa', GBP: 'gb', CAD: 'ca',
 };
-function FlagImg({ iso, size = 20 }: { iso: string; size?: number }) {
-  if (!iso || iso === 'br') return null; // hide BRL flag (Brazil is the default)
+function getFlagImg(iso: string, size = 18) {
+  if (!iso) return null;
   return (
     <img
-      src={`https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/flags/4x3/${iso}.svg`}
+      src={`https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/flags/4x3/${iso.toLowerCase()}.svg`}
       width={size} height={Math.round(size * 0.75)}
       alt={iso.toUpperCase()}
       style={{ borderRadius: 3, objectFit: 'cover', display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
     />
   );
 }
-
+function getFlagByCurrency(currency: string, size = 18) {
+  const iso = CURRENCY_TO_ISO[(currency || 'BRL').toUpperCase()];
+  return iso ? getFlagImg(iso, size) : null;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type SubStatus = 'ACTIVE' | 'OVERDUE' | 'CANCELLED';
@@ -43,7 +46,7 @@ type Student   = {
   paymentHistory: PayHist[];
 };
 
-// ── Card style (matches Resumo page) ─────────────────────────────────────────
+// ── Glossy table style ────────────────────────────────────────────────────────
 const TABLE_STYLE: React.CSSProperties = {
   background: 'linear-gradient(160deg, rgba(0,22,55,0.96) 0%, rgba(0,15,40,0.93) 100%)',
   border: '1px solid rgba(255,255,255,0.10)',
@@ -60,13 +63,9 @@ function fmtDate(ts: number | null): string {
   if (!ts) return '—';
   return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
-function fmtMoney(val: number, curr = 'BRL'): string {
+function fmtMoney(val: number): string {
   if (!val) return '—';
-  try {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: curr, minimumFractionDigits: 2 });
-  } catch {
-    return `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
+  return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 }
 function daysSince(ts: number | null): number {
   return ts ? Math.floor((Date.now() - ts) / 86_400_000) : 9999;
@@ -77,216 +76,228 @@ function addMonths(ts: number, n: number): number {
   return d.getTime();
 }
 
-// ── PaymentCell ───────────────────────────────────────────────────────────────
+// ── Payment Status ─────────────────────────────────────────────────────────────
+// Simple logic: ADIMPLENTE | INADIMPLENTE | QUITADO
+type PayStatus = 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO';
+
+function getPayStatus(s: Student): PayStatus {
+  const t = (s.paymentType || '').toUpperCase();
+  // Single-payment (PIX, Boleto, card à vista) → QUITADO
+  if (!s.paymentIsSub && s.paymentInstallments <= 1) return 'QUITADO';
+  // Card installments: all done → QUITADO, else ADIMPLENTE
+  if (!s.paymentIsSub && s.paymentInstallments > 1) {
+    const monthsSince = s.entryDate
+      ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000))
+      : 0;
+    const paidSoFar = Math.min(monthsSince + 1, s.paymentInstallments);
+    return paidSoFar >= s.paymentInstallments ? 'QUITADO' : 'ADIMPLENTE';
+  }
+  // Subscription
+  if (s.subStatus === 'ACTIVE')    return 'ADIMPLENTE';
+  if (s.subStatus === 'OVERDUE')   return 'INADIMPLENTE';
+  if (s.subStatus === 'CANCELLED') return 'QUITADO'; // treated as closed/done
+  return 'ADIMPLENTE';
+}
+
+// ── Payment Cell — ultra-clean ─────────────────────────────────────────────────
 function PaymentCell({ s }: { s: Student }) {
-  const { paymentType: t, paymentInstallments: inst, paymentIsSub: isSub,
-    paymentRecurrency: paid, subStatus, lastPayDate } = s;
+  const status = getPayStatus(s);
+  const t      = (s.paymentType || '').toUpperCase();
+  const inst   = s.paymentInstallments;
+  const paid   = s.paymentRecurrency;
+  const days   = daysSince(s.lastPayDate);
 
-  if (isSub) {
-    const days = daysSince(lastPayDate);
-    if (subStatus === 'ACTIVE') return (
-      <div className="flex flex-col gap-1">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider w-fit"
-          style={{ background: 'rgba(56,189,248,0.15)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)' }}>
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block" style={{ background: '#38bdf8' }} />
-          Assinatura Ativa
-        </span>
-        <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: '#4ade80' }}>
-          <span className="material-symbols-outlined text-[12px]">check_circle</span>
-          {paid} pagamento{paid !== 1 ? 's' : ''} realizados
-        </span>
-        <span className="text-[10px]" style={{ color: SILVER }}>Último: {fmtDate(lastPayDate)}</span>
-      </div>
-    );
-    if (subStatus === 'OVERDUE') return (
-      <div className="flex flex-col gap-1">
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider animate-pulse w-fit"
-          style={{ background: 'rgba(251,191,36,0.18)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.4)' }}>
-          <span className="material-symbols-outlined text-[12px]">warning</span>
-          Em Atraso
-        </span>
-        <span className="text-[10px] font-black" style={{ color: '#fbbf24' }}>{days} dias sem pagamento</span>
-        <span className="text-[10px]" style={{ color: SILVER }}>Último: {fmtDate(lastPayDate)}</span>
-      </div>
-    );
-    return (
-      <div className="flex flex-col gap-1">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider w-fit"
-          style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}>
-          <span className="material-symbols-outlined text-[12px]">cancel</span>Cancelada
-        </span>
-        <span className="text-[10px]" style={{ color: SILVER }}>{paid} pgtos · {fmtDate(lastPayDate)}</span>
-      </div>
-    );
-  }
+  // Method label
+  let method = '';
+  if (s.paymentIsSub)                                          method = 'Assinatura';
+  else if (t.includes('PIX'))                                  method = 'Pix';
+  else if (t.includes('BILLET') || t.includes('BOLETO'))       method = 'Boleto';
+  else if (t.includes('PAYPAL'))                               method = 'PayPal';
+  else if (inst > 1)                                           method = `Cartão ${inst}×`;
+  else if (t.includes('DEBIT'))                                method = 'Débito';
+  else                                                         method = 'Cartão';
 
-  if (t.includes('PIX')) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase w-fit"
-      style={{ background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}>
-      <span className="material-symbols-outlined text-[12px]">check_circle</span>Pix · Pago
-    </span>
-  );
-  if (t.includes('BILLET') || t.includes('BOLETO')) return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase w-fit"
-      style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>Boleto · Pago</span>
-  );
-  if (t.includes('PAYPAL')) return (
-    <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase inline-block"
-      style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8' }}>PayPal</span>
+  // Progress for installments
+  const showProgress = !s.paymentIsSub && inst > 1;
+  const monthsSince  = s.entryDate ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) : 0;
+  const paidSoFar    = showProgress ? Math.min(monthsSince + 1, inst) : 0;
+  const leftover     = inst - paidSoFar;
+
+  // INADIMPLENTE
+  if (status === 'INADIMPLENTE') return (
+    <div className="flex flex-col gap-1.5">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider w-fit animate-pulse"
+        style={{ background: 'rgba(239,68,68,0.18)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)' }}>
+        <span className="material-symbols-outlined text-[12px]">warning</span>
+        Inadimplente
+      </span>
+      <span className="text-[10px]" style={{ color: '#fbbf24' }}>{days} dias sem pagamento</span>
+      <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>{method} · {paid} pagamentos</span>
+    </div>
   );
 
-  if ((t.includes('CREDIT') || t.includes('CARD') || t.includes('DEBIT')) && inst > 1) {
-    const mo = s.entryDate ? Math.max(1, Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) + 1) : 1;
-    const cardPaid = Math.min(mo, inst);
-    const cardLeft = inst - cardPaid;
-    const isQuitado = cardLeft === 0;
-    return (
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase w-fit"
-            style={{ background: 'rgba(232,177,79,0.14)', color: GOLD, border: '1px solid rgba(232,177,79,0.25)' }}>
-            Cartão {inst}x
-          </span>
-          {isQuitado && (
-            <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase"
-              style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', boxShadow: '0 0 10px rgba(74,222,128,0.18)' }}>
-              <span className="material-symbols-outlined text-[12px]">verified</span>Quitado
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
-            <div className="h-full rounded-full" style={{ width: `${(cardPaid / inst) * 100}%`, background: isQuitado ? '#4ade80' : `linear-gradient(90deg, ${GOLD}, #f59e0b)` }} />
-          </div>
-          <span className="text-[10px] font-black" style={{ color: isQuitado ? '#4ade80' : GOLD }}>{cardPaid}/{inst}</span>
-        </div>
-        {!isQuitado && <span className="text-[10px]" style={{ color: SILVER }}>{cardLeft} parcela{cardLeft !== 1 ? 's' : ''} restante{cardLeft !== 1 ? 's' : ''}</span>}
-      </div>
-    );
-  }
+  // QUITADO
+  if (status === 'QUITADO') return (
+    <div className="flex flex-col gap-1.5">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider w-fit"
+        style={{ background: 'rgba(74,222,128,0.14)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)', boxShadow: '0 0 10px rgba(74,222,128,0.1)' }}>
+        <span className="material-symbols-outlined text-[12px]">verified</span>
+        {s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'Quitado'}
+      </span>
+      <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>
+        {method}{showProgress ? ` · ${inst}/${inst}` : s.paymentIsSub ? ` · ${paid} pgtos` : ''}
+      </span>
+    </div>
+  );
 
+  // ADIMPLENTE
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase w-fit"
-      style={{ background: 'rgba(232,177,79,0.14)', color: GOLD }}>
-      <span className="material-symbols-outlined text-[12px]">check_circle</span>
-      {t.includes('DEBIT') ? 'Débito' : 'Crédito à Vista'}
-    </span>
+    <div className="flex flex-col gap-1.5">
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider w-fit"
+        style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)' }}>
+        <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block" style={{ background: '#38bdf8' }} />
+        Adimplente
+      </span>
+      {showProgress ? (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+              <div className="h-full rounded-full" style={{ width: `${(paidSoFar / inst) * 100}%`, background: `linear-gradient(90deg, ${GOLD}, #f59e0b)` }} />
+            </div>
+            <span className="text-[10px] font-black" style={{ color: GOLD }}>{paidSoFar}/{inst}</span>
+          </div>
+          <span className="text-[9px]" style={{ color: SILVER }}>{leftover} parcela{leftover !== 1 ? 's' : ''} restante{leftover !== 1 ? 's' : ''}</span>
+        </div>
+      ) : (
+        <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>
+          {method}{s.paymentIsSub ? ` · ${paid} pgtos` : ''}
+        </span>
+      )}
+    </div>
   );
 }
 
-// ── Student Name Tooltip (portal) ─────────────────────────────────────────────
+// ── Tooltip — simple, clean ───────────────────────────────────────────────────
 function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) {
   const paid = s.paymentHistory || [];
   const isSub = s.paymentIsSub;
-  const inst  = s.paymentInstallments;
+  const inst   = s.paymentInstallments;
+  const status = getPayStatus(s);
 
-  // Upcoming: subscription → next 3 monthly; card → remaining installments
+  const monthsSince = s.entryDate ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) : 0;
+  const paidSoFar   = (!isSub && inst > 1) ? Math.min(monthsSince + 1, inst) : 0;
+
+  // Upcoming payments (estimated)
   const upcoming: { date: number; label: string }[] = [];
-  if (isSub && s.lastPayDate) {
+  if (isSub && s.lastPayDate && status !== 'QUITADO') {
     for (let i = 1; i <= 3; i++) {
-      upcoming.push({ date: addMonths(s.lastPayDate, i), label: `Parcela estimada` });
+      upcoming.push({ date: addMonths(s.lastPayDate, i), label: `Mês estimado` });
     }
-  } else if (!isSub && inst > 1 && s.entryDate) {
-    const mo = Math.max(1, Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) + 1);
-    const cardPaid = Math.min(mo, inst);
-    for (let i = cardPaid; i < inst; i++) {
-      upcoming.push({ date: addMonths(s.entryDate, i), label: `Parcela ${i + 1}/${inst}` });
+  } else if (!isSub && inst > 1) {
+    for (let i = paidSoFar; i < inst; i++) {
+      upcoming.push({ date: addMonths(s.entryDate!, i), label: `Parcela ${i + 1}/${inst}` });
     }
   }
+
+  const statusColor = status === 'INADIMPLENTE' ? '#f87171' : status === 'QUITADO' ? '#4ade80' : '#38bdf8';
+  const statusLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'Quitado') : 'Adimplente';
 
   return (
     <div style={{
       position: 'fixed', left: pos.x + 16, top: pos.y - 10,
-      zIndex: 99999, width: 320, pointerEvents: 'none',
-      background: 'linear-gradient(160deg, rgba(0,22,55,0.98) 0%, rgba(0,15,40,0.96) 100%)',
+      zIndex: 99999, width: 300, pointerEvents: 'none',
+      background: 'linear-gradient(160deg, rgba(0,22,55,0.99) 0%, rgba(0,15,40,0.97) 100%)',
       border: '1px solid rgba(232,177,79,0.22)',
-      boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 32px 64px rgba(0,0,0,0.8)',
-      borderRadius: 20, backdropFilter: 'blur(32px)',
+      boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 32px 64px rgba(0,0,0,0.85)',
+      borderRadius: 18, backdropFilter: 'blur(32px)',
     }}>
       {/* Header */}
       <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: GOLD }}>Histórico de Pagamentos</p>
-        <div className="flex items-center gap-2">
-          {s.flag && s.flag !== 'br' && <FlagImg iso={s.flag} size={22} />}
-          <p className="font-black text-white text-sm truncate">{s.name}</p>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            {getFlagByCurrency(s.currency, 16)}
+            <p className="font-black text-white text-sm truncate max-w-[160px]">{s.name}</p>
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md"
+            style={{ background: `${statusColor}20`, color: statusColor, border: `1px solid ${statusColor}40` }}>
+            {statusLabel}
+          </span>
         </div>
-        <p className="text-[10px] mt-0.5" style={{ color: SILVER }}>{s.email}</p>
+        <p className="text-[10px]" style={{ color: SILVER }}>{s.email}</p>
       </div>
 
-      {/* Paid installments */}
-      <div className="px-5 py-3" style={{ borderBottom: upcoming.length > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, maxHeight: 260, overflowY: 'auto' }}>
+      {/* Paid */}
+      <div className="px-5 py-3" style={{ borderBottom: upcoming.length > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, maxHeight: 240, overflowY: 'auto' }}>
         <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>
-          ✓ Realizados ({paid.length})
+          ✓ Já Pagou ({paid.length})
         </p>
-        {paid.length === 0 && (
-          <p className="text-[11px]" style={{ color: SILVER }}>Nenhum registro</p>
-        )}
-        {paid.map((p, i) => {
-          // Label: use recurrencyNumber if > 0, else use sequential index
-          const num = p.recurrencyNumber > 0 ? p.recurrencyNumber : p.index;
-          const label = isSub ? `Assinatura — Mês ${num}` : `Parcela ${num}`;
-          return (
-            <div key={i} className="flex items-center justify-between py-1.5"
-              style={{ borderBottom: i < paid.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#4ade80' }} />
-                <div>
-                  <p className="text-[10px] font-black text-white">{label}</p>
-                  <p className="text-[10px]" style={{ color: SILVER }}>{fmtDate(p.date)}</p>
+        {paid.length === 0
+          ? <p className="text-[10px]" style={{ color: SILVER }}>Sem registros</p>
+          : paid.map((p, i) => {
+              const num = p.recurrencyNumber > 0 ? p.recurrencyNumber : p.index;
+              const label = isSub ? `Mês ${num}` : inst > 1 ? `Parcela ${num}` : 'Pago';
+              return (
+                <div key={i} className="flex items-center justify-between py-1.5"
+                  style={{ borderBottom: i < paid.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#4ade80' }} />
+                    <div>
+                      <p className="text-[10px] font-black text-white">{label}</p>
+                      <p className="text-[9px]" style={{ color: SILVER }}>{fmtDate(p.date)}</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black" style={{ color: '#4ade80' }}>{fmtMoney(p.valor)}</span>
                 </div>
-              </div>
-              <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{fmtMoney(p.valor)}</span>
-            </div>
-          );
-        })}
+              );
+            })
+        }
       </div>
 
-      {/* Upcoming */}
+      {/* Remaining */}
       {upcoming.length > 0 && (
         <div className="px-5 py-3">
           <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>
-            ◷ Próximas (estimadas)
+            ◷ Falta Pagar ({upcoming.length})
           </p>
-          {upcoming.slice(0, 5).map((u, i) => (
+          {upcoming.slice(0, 6).map((u, i) => (
             <div key={i} className="flex items-center justify-between py-1.5"
-              style={{ borderBottom: i < Math.min(upcoming.length, 5) - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
+              style={{ borderBottom: i < Math.min(upcoming.length, 6) - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: GOLD }} />
-                <span className="text-[11px] font-bold text-white">{fmtDate(u.date)}</span>
+                <span className="text-[9px] font-bold text-white">{fmtDate(u.date)}</span>
               </div>
-              <span className="text-[11px] font-bold" style={{ color: GOLD }}>{u.label}</span>
+              <span className="text-[10px] font-bold" style={{ color: GOLD }}>{u.label}</span>
             </div>
           ))}
+          {upcoming.length > 6 && (
+            <p className="text-[9px] mt-2" style={{ color: SILVER }}>+ {upcoming.length - 6} mais...</p>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ── PDF ────────────────────────────────────────────────────────────────────────
+// ── PDF ───────────────────────────────────────────────────────────────────────
 function generatePDF(courseName: string, students: Student[]) {
   const rows = students.map((s, i) => {
+    const status = getPayStatus(s);
+    const stLabel = status === 'INADIMPLENTE' ? '⚠ INADIMPLENTE' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : '✓ QUITADO') : '● ADIMPLENTE';
+    const stColor = status === 'INADIMPLENTE' ? '#dc2626' : status === 'QUITADO' ? '#16a34a' : '#0ea5e9';
     const inst = s.paymentInstallments;
     const paid = s.paymentRecurrency;
+    const monthsSince = s.entryDate ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) : 0;
+    const paidCard = !s.paymentIsSub && inst > 1 ? Math.min(monthsSince + 1, inst) : 0;
     const vParcela = s.paymentIsSub ? s.valor : inst > 1 ? s.valor / inst : s.valor;
     const vTotal   = s.paymentIsSub ? s.valor * paid : s.valor;
-    let payStr = s.paymentType;
-    if (s.paymentIsSub) {
-      const st = s.subStatus === 'ACTIVE' ? '✓ Ativa' : s.subStatus === 'OVERDUE' ? '⚠ EM ATRASO' : '✗ Cancelada';
-      payStr = `Assinatura · ${paid} pgtos · ${st}`;
-    } else if (inst > 1) {
-      const mo = s.entryDate ? Math.max(1, Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) + 1) : 1;
-      const cp = Math.min(mo, inst); payStr = `Cartão ${inst}x · ${cp}/${inst}${cp === inst ? ' QUITADO ✓' : ''}`;
-    } else if (s.paymentType.includes('PIX'))    payStr = 'Pix ✓';
-    else if (s.paymentType.includes('BILLET') || s.paymentType.includes('BOLETO')) payStr = 'Boleto ✓';
-    else if (s.paymentType.includes('PAYPAL'))   payStr = 'PayPal';
-    else if (s.paymentType.includes('CREDIT') || s.paymentType.includes('CARD')) payStr = 'Cartão à Vista ✓';
-    const rowBg = s.subStatus === 'OVERDUE' ? '#fffbeb' : s.subStatus === 'CANCELLED' ? '#fff0f0' : i % 2 === 0 ? '#f8faff' : '#fff';
-    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i + 1}</td><td><strong>${s.name}</strong></td><td>${s.email}</td><td>${fmtDate(s.entryDate)}</td><td>${fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td>${payStr}</td></tr>`;
+    const method   = s.paymentIsSub ? `Assinatura · ${paid} pgtos` : inst > 1 ? `Cartão ${inst}× · ${paidCard}/${inst}` : 'Pago';
+    const rowBg = status === 'INADIMPLENTE' ? '#fff0f0' : i % 2 === 0 ? '#f8faff' : '#fff';
+    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name}</strong></td><td>${s.email}</td><td>${fmtDate(s.entryDate)}</td><td>${fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#555">${method}</td></tr>`;
   }).join('');
-  const active    = students.filter(s => !s.paymentIsSub || s.subStatus === 'ACTIVE').length;
-  const overdue   = students.filter(s => s.paymentIsSub && s.subStatus === 'OVERDUE').length;
-  const cancelled = students.filter(s => s.paymentIsSub && s.subStatus === 'CANCELLED').length;
+
+  const active    = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
+  const overdue   = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
+  const quitado   = students.filter(s => getPayStatus(s) === 'QUITADO').length;
   const win = window.open('', '_blank');
   if (!win) return;
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>${courseName} — Alunos</title>
@@ -295,36 +306,36 @@ function generatePDF(courseName: string, students: Student[]) {
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:16px;border-bottom:3px solid #E8B14F}
 .cn{font-size:20px;font-weight:900;color:#001a35}.meta{font-size:10px;color:#888;margin-top:4px}
 .logo{font-size:10px;font-weight:900;color:#E8B14F;letter-spacing:3px;text-transform:uppercase;text-align:right}
-.stats{display:flex;gap:12px;margin-bottom:20px}
-.stat{padding:10px 16px;border-radius:8px;flex:1}.num{font-size:22px;font-weight:900}.lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:2px}
+.stats{display:flex;gap:12px;margin-bottom:20px}.stat{padding:10px 16px;border-radius:8px;flex:1}
+.num{font-size:22px;font-weight:900}.lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:2px}
 table{width:100%;border-collapse:collapse}th{background:#001a35;color:#E8B14F;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:1px;padding:8px 6px;text-align:left}
 td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top}.ftr{margin-top:18px;font-size:9px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:8px}
 @media print{body{padding:16px}}</style></head><body>
-<div class="hdr"><div><div class="cn">${courseName}</div><div class="meta">${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div></div><div class="logo">RadExperts<br/>Data Center</div></div>
+<div class="hdr"><div><div class="cn">${courseName}</div><div class="meta">${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})}</div></div><div class="logo">RadExperts<br/>Data Center</div></div>
 <div class="stats">
 <div class="stat" style="background:#f0f4ff;border:1px solid #c7d2fe"><div class="num" style="color:#3b82f6">${students.length}</div><div class="lbl">Total</div></div>
-<div class="stat" style="background:#f0fff4;border:1px solid #86efac"><div class="num" style="color:#16a34a">${active}</div><div class="lbl">Ativos</div></div>
-<div class="stat" style="background:#fffbeb;border:1px solid #fde68a"><div class="num" style="color:#d97706">${overdue}</div><div class="lbl">Em Atraso</div></div>
-<div class="stat" style="background:#fff0f0;border:1px solid #fca5a5"><div class="num" style="color:#dc2626">${cancelled}</div><div class="lbl">Cancelados</div></div>
+<div class="stat" style="background:#f0f9ff;border:1px solid #7dd3fc"><div class="num" style="color:#0ea5e9">${active}</div><div class="lbl">Adimplentes</div></div>
+<div class="stat" style="background:#fff0f0;border:1px solid #fca5a5"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">Inadimplentes</div></div>
+<div class="stat" style="background:#f0fff4;border:1px solid #86efac"><div class="num" style="color:#16a34a">${quitado}</div><div class="lbl">Quitados</div></div>
 </div>
-<table><thead><tr><th>#</th><th>Nome</th><th>Email</th><th>Entrada</th><th>Valor Parcela</th><th>Total Pago</th><th>Pagamento</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th>#</th><th>Nome</th><th>Email</th><th>Entrada</th><th>Valor Parcela</th><th>Total Pago</th><th>Status</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="ftr">RadExperts Data Center · Dados vitalícios</div>
 <script>window.onload=()=>window.print()</script></body></html>`);
   win.document.close();
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-// Columns: wider Pagamento (+30%), Valor Parcela (+30%), Total Pago (+30%)
-const GRID = '130px 1fr 1fr 156px 169px 286px';
+// ── Grid ──────────────────────────────────────────────────────────────────────
+const GRID = '120px 1fr 1fr 140px 160px 260px';
 const COLS = [
-  { key: 'entryDate', label: 'Data Entrada',  sortable: true,  w: '130px' },
-  { key: 'name',      label: 'Nome',           sortable: false, w: '1fr'   },
-  { key: 'email',     label: 'Email',          sortable: false, w: '1fr'   },
-  { key: 'parcela',   label: 'Valor Parcela',  sortable: false, w: '156px' },
-  { key: 'total',     label: 'Total Pago',     sortable: false, w: '169px' },
-  { key: 'payment',   label: 'Pagamento',      sortable: false, w: '286px' },
+  { key: 'entryDate', label: 'Entrada',       sortable: true  },
+  { key: 'name',      label: 'Nome',           sortable: false },
+  { key: 'email',     label: 'Email',          sortable: false },
+  { key: 'parcela',   label: 'Valor Parcela',  sortable: false },
+  { key: 'total',     label: 'Total Pago',     sortable: false },
+  { key: 'payment',   label: 'Status',         sortable: false },
 ];
 
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function CursoDetailPage({ params }: { params: Promise<{ courseName: string }> }) {
   const { courseName } = use(params);
   const decoded = decodeURIComponent(courseName);
@@ -338,51 +349,48 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [page,         setPage]         = useState(0);
   const [pageSize,     setPageSize]     = useState(50);
   const [sortDir,      setSortDir]      = useState<'desc' | 'asc'>('desc');
-  const [statusFilter, setStatusFilter] = useState<'' | 'ACTIVE' | 'OVERDUE' | 'CANCELLED'>('');
+  const [statusFilter, setStatusFilter] = useState<'' | 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO'>('');
 
   // Tooltip
   const [tooltipSt,  setTooltipSt]  = useState<Student | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const tooltipTimer = React.useRef<any>(null);
-
-  const openTip  = (e: React.MouseEvent, s: Student) => { clearTimeout(tooltipTimer.current); setTooltipPos({ x: e.clientX, y: e.clientY }); setTooltipSt(s); };
+  const tipTimer = React.useRef<any>(null);
+  const openTip  = (e: React.MouseEvent, s: Student) => { clearTimeout(tipTimer.current); setTooltipPos({ x: e.clientX, y: e.clientY }); setTooltipSt(s); };
   const moveTip  = (e: React.MouseEvent) => setTooltipPos({ x: e.clientX, y: e.clientY });
-  const closeTip = () => { tooltipTimer.current = setTimeout(() => setTooltipSt(null), 150); };
+  const closeTip = () => { tipTimer.current = setTimeout(() => setTooltipSt(null), 150); };
 
   useEffect(() => {
     setLoading(true);
-    const p = new URLSearchParams({ ...(turmaFilter ? { turma: turmaFilter } : {}) });
-    fetch(`/api/cursos/${encodeURIComponent(decoded)}?${p}`)
+    const p = turmaFilter ? `?turma=${encodeURIComponent(turmaFilter)}` : '';
+    fetch(`/api/cursos/${encodeURIComponent(decoded)}${p}`)
       .then(r => r.json())
       .then(d => { setStudents(d.students || []); setTurmas(d.turmas || []); setLoading(false); setPage(0); })
       .catch(() => setLoading(false));
   }, [decoded, turmaFilter]);
 
   const filtered = students.filter(s => {
-    if (statusFilter === 'ACTIVE'    && (s.paymentIsSub && s.subStatus !== 'ACTIVE'))    return false;
-    if (statusFilter === 'OVERDUE'   && s.subStatus !== 'OVERDUE')                       return false;
-    if (statusFilter === 'CANCELLED' && s.subStatus !== 'CANCELLED')                     return false;
+    if (statusFilter && getPayStatus(s) !== statusFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return s.name.toLowerCase().includes(q) || s.email.includes(q);
   });
-
-  const sorted = [...filtered].sort((a, b) =>
-    sortDir === 'desc' ? (b.entryDate || 0) - (a.entryDate || 0) : (a.entryDate || 0) - (b.entryDate || 0)
-  );
+  const sorted     = [...filtered].sort((a, b) => sortDir === 'desc' ? (b.entryDate||0)-(a.entryDate||0) : (a.entryDate||0)-(b.entryDate||0));
   const paginated  = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(sorted.length / pageSize);
-  const hasSubs    = students.some(s => s.paymentIsSub);
-  const activeN    = students.filter(s => !s.paymentIsSub || s.subStatus === 'ACTIVE').length;
-  const overdueN   = students.filter(s => s.paymentIsSub && s.subStatus === 'OVERDUE').length;
-  const cancelledN = students.filter(s => s.paymentIsSub && s.subStatus === 'CANCELLED').length;
 
-  function vParcela(s: Student): number {
-    return s.paymentIsSub ? s.valor : s.paymentInstallments > 1 ? s.valor / s.paymentInstallments : s.valor;
-  }
-  function vTotal(s: Student): number {
-    return s.paymentIsSub ? s.valor * s.paymentRecurrency : s.valor;
-  }
+  const adimN  = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
+  const inadimN = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
+  const quitN  = students.filter(s => getPayStatus(s) === 'QUITADO').length;
+
+  function vParcela(s: Student) { return s.paymentIsSub ? s.valor : s.paymentInstallments > 1 ? s.valor / s.paymentInstallments : s.valor; }
+  function vTotal(s: Student)   { return s.paymentIsSub ? s.valor * s.paymentRecurrency : s.valor; }
+
+  const SUMMARY_CARDS = [
+    { label: 'Total',        val: students.length, color: '#60a5fa', icon: 'group',        f: '' as const },
+    { label: 'Adimplentes',  val: adimN,           color: '#38bdf8', icon: 'check_circle', f: 'ADIMPLENTE' as const },
+    { label: 'Inadimplentes',val: inadimN,         color: '#f87171', icon: 'warning',      f: 'INADIMPLENTE' as const },
+    { label: 'Quitados',     val: quitN,           color: '#4ade80', icon: 'verified',     f: 'QUITADO' as const },
+  ];
 
   return (
     <LoginWrapper>
@@ -391,8 +399,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         <div className="h-[80px]" />
         <main className="px-4 md:px-6 max-w-[1700px] mx-auto pt-10 pb-24">
 
-          {/* Header */}
-          <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
+          {/* Page header */}
+          <div className="flex items-start justify-between mb-7 flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <button onClick={() => router.push('/cursos')}
                 className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
@@ -401,12 +409,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
                 <span className="material-symbols-outlined text-[20px]" style={{ color: SILVER }}>arrow_back</span>
               </button>
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
                 style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)' }}>
                 <span className="material-symbols-outlined text-2xl" style={{ color: GOLD }}>menu_book</span>
               </div>
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-white leading-tight">{decoded}</h1>
+                <h1 className="text-2xl font-black tracking-tight text-white">{decoded}</h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: SILVER }}>
                     {loading ? 'Carregando...' : `${sorted.length.toLocaleString('pt-BR')} aluno${sorted.length !== 1 ? 's' : ''}`}
@@ -428,49 +436,23 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             </button>
           </div>
 
-          {/* Summary cards (subscriptions) */}
-          {!loading && hasSubs && (
+          {/* Summary cards */}
+          {!loading && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {([
-                { label: 'Total',       val: students.length, color: '#60a5fa', icon: 'group',        filter: '' as const },
-                { label: 'Ativos',      val: activeN,         color: '#4ade80', icon: 'check_circle', filter: 'ACTIVE' as const },
-                { label: 'Em Atraso',   val: overdueN,        color: '#fbbf24', icon: 'warning',      filter: 'OVERDUE' as const },
-                { label: 'Cancelados',  val: cancelledN,      color: '#f87171', icon: 'cancel',       filter: 'CANCELLED' as const },
-              ]).map(card => (
+              {SUMMARY_CARDS.map(card => (
                 <button key={card.label}
-                  onClick={() => { setStatusFilter(statusFilter === card.filter ? '' : card.filter); setPage(0); }}
+                  onClick={() => { setStatusFilter(statusFilter === card.f ? '' : card.f); setPage(0); }}
                   className="rounded-2xl p-4 text-left transition-all"
                   style={{
                     ...TABLE_STYLE, borderRadius: 18,
-                    border: `1px solid ${statusFilter === card.filter ? card.color + '55' : 'rgba(255,255,255,0.1)'}`,
-                    boxShadow: statusFilter === card.filter
-                      ? `0 0 0 1px ${card.color}33, 0 1px 0 rgba(255,255,255,0.08) inset`
-                      : '0 1px 0 rgba(255,255,255,0.08) inset',
+                    border: `1px solid ${statusFilter === card.f ? card.color + '55' : 'rgba(255,255,255,0.1)'}`,
+                    boxShadow: statusFilter === card.f ? `0 0 0 1px ${card.color}33, 0 1px 0 rgba(255,255,255,0.08) inset` : '0 1px 0 rgba(255,255,255,0.08) inset',
                   }}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="material-symbols-outlined text-[16px]" style={{ color: card.color }}>{card.icon}</span>
                     <p className="text-[10px] font-black uppercase tracking-[0.15em]" style={{ color: SILVER }}>{card.label}</p>
                   </div>
                   <p className="text-3xl font-black" style={{ color: card.color }}>{card.val.toLocaleString('pt-BR')}</p>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Status filter (non-subscription products) */}
-          {!loading && !hasSubs && (
-            <div className="flex items-center gap-3 mb-6 flex-wrap">
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Status:</span>
-              {([
-                { label: 'Todos', filter: '' as const },
-                { label: 'Ativos', filter: 'ACTIVE' as const },
-                { label: 'Em Atraso', filter: 'OVERDUE' as const },
-                { label: 'Cancelados', filter: 'CANCELLED' as const },
-              ]).map(btn => (
-                <button key={btn.label} onClick={() => { setStatusFilter(statusFilter === btn.filter ? '' : btn.filter); setPage(0); }}
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
-                  style={{ background: statusFilter === btn.filter ? GOLD : 'rgba(255,255,255,0.07)', color: statusFilter === btn.filter ? NAVY : SILVER, border: `1px solid ${statusFilter === btn.filter ? GOLD : 'rgba(255,255,255,0.1)'}` }}>
-                  {btn.label}
                 </button>
               ))}
             </div>
@@ -501,7 +483,6 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
 
           {/* Table */}
           <div style={{ ...TABLE_STYLE, overflow: 'hidden' }}>
-            {/* Glossy top sheen */}
             <div className="pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', borderRadius: '24px 24px 0 0', height: 4, marginBottom: -4 }} />
 
             {/* Header */}
@@ -510,22 +491,15 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                 <div key={col.key}
                   className={`flex items-center gap-1 ${col.sortable ? 'cursor-pointer select-none' : ''}`}
                   onClick={col.sortable ? () => { setSortDir(d => d === 'desc' ? 'asc' : 'desc'); setPage(0); } : undefined}>
-                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: col.sortable ? GOLD : SILVER }}>
-                    {col.label}
-                  </span>
-                  {col.sortable && (
-                    <span className="material-symbols-outlined text-[13px]" style={{ color: GOLD }}>
-                      {sortDir === 'desc' ? 'arrow_downward' : 'arrow_upward'}
-                    </span>
-                  )}
+                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: col.sortable ? GOLD : SILVER }}>{col.label}</span>
+                  {col.sortable && <span className="material-symbols-outlined text-[13px]" style={{ color: GOLD }}>{sortDir === 'desc' ? 'arrow_downward' : 'arrow_upward'}</span>}
                 </div>
               ))}
             </div>
 
             {loading ? (
               [...Array(10)].map((_, i) => (
-                <div key={i} className="grid px-5 py-4 animate-pulse"
-                  style={{ gridTemplateColumns: GRID, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div key={i} className="grid px-5 py-4 animate-pulse" style={{ gridTemplateColumns: GRID, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   {[...Array(6)].map((_, j) => <div key={j} className="h-4 rounded-lg mr-3" style={{ background: 'rgba(255,255,255,0.06)' }} />)}
                 </div>
               ))
@@ -536,8 +510,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               </div>
             ) : (
               paginated.map((s, idx) => {
-                const rowBase = s.paymentIsSub && s.subStatus === 'OVERDUE'   ? 'rgba(251,191,36,0.05)'
-                  : s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'rgba(248,113,113,0.04)'
+                const status  = getPayStatus(s);
+                const rowBase = status === 'INADIMPLENTE' ? 'rgba(239,68,68,0.04)'
                   : idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent';
                 return (
                   <div key={s.transaction || s.email + idx}
@@ -545,22 +519,22 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     style={{ gridTemplateColumns: GRID, background: rowBase, borderBottom: '1px solid rgba(255,255,255,0.05)' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.05)')}
                     onMouseLeave={e => (e.currentTarget.style.background = rowBase)}>
+
+                    {/* Date */}
                     <span className="text-[11px] font-bold pt-1" style={{ color: SILVER }}>{fmtDate(s.entryDate)}</span>
 
-                    {/* Name — hover = tooltip */}
-                    <div className="pr-3 pt-0.5 group cursor-default"
+                    {/* Name + flag — exactly like Hotmart page */}
+                    <div className="pr-3 pt-0.5 cursor-default"
                       onMouseEnter={e => openTip(e, s)}
                       onMouseMove={moveTip}
                       onMouseLeave={closeTip}>
-                      <div className="flex items-center gap-1.5">
-                        <FlagImg iso={s.flag} size={18} />
-                        <p className="text-[12px] font-black text-white truncate group-hover:opacity-80 transition-opacity"
-                          title={s.name}>{s.name}</p>
+                      <div className="flex items-center gap-2 leading-tight">
+                        {getFlagByCurrency(s.currency, 18)}
+                        <p className="text-[12px] font-black text-white truncate" title={s.name}>{s.name}</p>
                       </div>
-                      {s.paymentIsSub && s.subStatus === 'OVERDUE' && (
-                        <span className="flex items-center gap-1 mt-0.5 pointer-events-none">
-                          <span className="material-symbols-outlined text-[11px] animate-pulse" style={{ color: '#fbbf24' }}>warning</span>
-                          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#fbbf24' }}>Pagamento em atraso</span>
+                      {status === 'INADIMPLENTE' && (
+                        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#f87171' }}>
+                          ⚠ Pagamento em atraso
                         </span>
                       )}
                     </div>
@@ -575,7 +549,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             )}
           </div>
 
-          {/* Bottom bar */}
+          {/* Footer */}
           <div className="flex items-center justify-between mt-5 flex-wrap gap-3">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Por página:</span>
@@ -603,7 +577,6 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         </main>
       </div>
 
-      {/* Tooltip portal */}
       {tooltipSt && typeof window !== 'undefined' && createPortal(
         <NameTooltip s={tooltipSt} pos={tooltipPos} />,
         document.body
