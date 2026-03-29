@@ -5,29 +5,22 @@ import { getCache, setCache } from '@/app/lib/metaApi';
 const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
-// Currency → country flag emoji
-const CURRENCY_TO_COUNTRY: Record<string, string> = {
-  BRL: 'BR', USD: 'US', EUR: 'EU', COP: 'CO', MXN: 'MX',
-  ARS: 'AR', PEN: 'PE', CLP: 'CL', PYG: 'PY', BOB: 'BO',
-  UYU: 'UY', VES: 'VE', CRC: 'CR', DOP: 'DO', GTQ: 'GT',
-  HNL: 'HN', NIO: 'NI', PAB: 'PA', GBP: 'GB', CAD: 'CA',
+// Currency → country ISO2 code (lowercase for flag-icons CDN)
+const CURRENCY_TO_ISO: Record<string, string> = {
+  BRL: 'br', USD: 'us', EUR: 'eu', COP: 'co', MXN: 'mx',
+  ARS: 'ar', PEN: 'pe', CLP: 'cl', PYG: 'py', BOB: 'bo',
+  UYU: 'uy', VES: 've', CRC: 'cr', DOP: 'do', GTQ: 'gt',
+  HNL: 'hn', NIO: 'ni', PAB: 'pa', GBP: 'gb', CAD: 'ca',
 };
-function countryFlag(currencyCode: string): string {
-  const cc = CURRENCY_TO_COUNTRY[currencyCode.toUpperCase()] || '';
-  if (!cc || cc === 'EU') return cc === 'EU' ? '🇪🇺' : '';
-  return cc.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt(0)));
-}
 
-/** Returns BRL value from Hotmart purchase.
- * Hotmart stores `actual_value` = value already converted to BRL (producer's currency).
- * Falls back to `value` if not present (BRL-only sales usually only have `value`).
- */
 function getBRLValue(purchase: any): number {
+  // actual_value = Hotmart's pre-converted BRL value (covers LATAM)
   return purchase?.price?.actual_value ?? purchase?.price?.value ?? 0;
 }
+
 function getFlag(purchase: any): string {
   const currency = (purchase?.price?.currency_code || 'BRL').toUpperCase();
-  return countryFlag(currency);
+  return CURRENCY_TO_ISO[currency] || 'br';
 }
 
 

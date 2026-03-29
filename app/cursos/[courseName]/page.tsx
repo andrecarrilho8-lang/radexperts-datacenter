@@ -10,6 +10,26 @@ const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
 const NAVY   = '#001a35';
 
+// ── Flag image (same CDN as Hotmart page) ────────────────────────────────────
+const CURRENCY_TO_ISO: Record<string, string> = {
+  BRL: 'br', USD: 'us', EUR: 'eu', COP: 'co', MXN: 'mx',
+  ARS: 'ar', PEN: 'pe', CLP: 'cl', PYG: 'py', BOB: 'bo',
+  UYU: 'uy', VES: 've', CRC: 'cr', DOP: 'do', GTQ: 'gt',
+  HNL: 'hn', NIO: 'ni', PAB: 'pa', GBP: 'gb', CAD: 'ca',
+};
+function FlagImg({ iso, size = 20 }: { iso: string; size?: number }) {
+  if (!iso || iso === 'br') return null; // hide BRL flag (Brazil is the default)
+  return (
+    <img
+      src={`https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/flags/4x3/${iso}.svg`}
+      width={size} height={Math.round(size * 0.75)}
+      alt={iso.toUpperCase()}
+      style={{ borderRadius: 3, objectFit: 'cover', display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
+    />
+  );
+}
+
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 type SubStatus = 'ACTIVE' | 'OVERDUE' | 'CANCELLED';
 type PayHist   = { date: number; valor: number; recurrencyNumber: number; index: number };
@@ -187,16 +207,10 @@ function NameTooltip({ s, pos }: { s: Student; pos: { x: number; y: number } }) 
       <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-0.5" style={{ color: GOLD }}>Histórico de Pagamentos</p>
         <div className="flex items-center gap-2">
-          {s.flag && <span className="text-lg leading-none">{s.flag}</span>}
+          {s.flag && s.flag !== 'br' && <FlagImg iso={s.flag} size={22} />}
           <p className="font-black text-white text-sm truncate">{s.name}</p>
         </div>
-        <p className="text-[10px] mt-0.5" style={{ color: SILVER }}>  {s.email}</p>
-        {s.currency !== 'BRL' && (
-          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full mt-1 inline-block"
-            style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>
-            Pagamento em {s.currency}
-          </span>
-        )}
+        <p className="text-[10px] mt-0.5" style={{ color: SILVER }}>{s.email}</p>
       </div>
 
       {/* Paid installments */}
@@ -539,9 +553,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       onMouseMove={moveTip}
                       onMouseLeave={closeTip}>
                       <div className="flex items-center gap-1.5">
-                        {s.flag && (
-                          <span className="text-[14px] flex-shrink-0 leading-none" title={s.currency}>{s.flag}</span>
-                        )}
+                        <FlagImg iso={s.flag} size={18} />
                         <p className="text-[12px] font-black text-white truncate group-hover:opacity-80 transition-opacity"
                           title={s.name}>{s.name}</p>
                       </div>
