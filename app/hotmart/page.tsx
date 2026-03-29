@@ -360,7 +360,7 @@ export default function HotmartPage() {
           {/* Tabela */}
           <div className="rounded-[28px] overflow-hidden mb-12" style={{ ...glossy, padding: 0 }}>
 
-            {/* Toolbar */}
+            {/* Toolbar: Título | Busca + Paginação + PDF */}
             <div className="p-5 flex flex-wrap items-center justify-between gap-4" style={{ borderBottom: `1px solid ${cardBorder}` }}>
               <div>
                 <p className="font-black text-white text-base">Vendas Recentes</p>
@@ -369,28 +369,29 @@ export default function HotmartPage() {
                 </p>
               </div>
 
-              {/* Busca por cliente */}
-              <div className="relative flex-1 max-w-xs">
-                <span className="material-symbols-outlined text-[16px] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>person_search</span>
-                <input
-                  type="text"
-                  placeholder="Buscar por cliente..."
-                  value={clientSearch}
-                  onChange={e => { setClientSearch(e.target.value); resetPage(); }}
-                  className="w-full pl-9 pr-9 py-2.5 rounded-xl text-[12px] font-bold outline-none"
-                  style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${clientSearch ? 'rgba(232,177,79,0.4)' : cardBorder}`, color: 'white' }}
-                />
-                {clientSearch && (
-                  <button onClick={() => { setClientSearch(''); resetPage(); }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                    style={{ color: SILVER }}>
-                    <span className="material-symbols-outlined text-[16px]">close</span>
-                  </button>
-                )}
-              </div>
+              {/* Busca + Paginação + PDF — todos na direita */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Busca por cliente */}
+                <div className="relative">
+                  <span className="material-symbols-outlined text-[16px] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>person_search</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={clientSearch}
+                    onChange={e => { setClientSearch(e.target.value); resetPage(); }}
+                    className="pl-9 pr-8 py-2.5 rounded-xl text-[12px] font-bold outline-none"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${clientSearch ? 'rgba(232,177,79,0.4)' : cardBorder}`, color: 'white', width: 200 }}
+                  />
+                  {clientSearch && (
+                    <button onClick={() => { setClientSearch(''); resetPage(); }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                      style={{ color: SILVER }}>
+                      <span className="material-symbols-outlined text-[15px]">close</span>
+                    </button>
+                  )}
+                </div>
 
-              {/* Itens por página + PDF */}
-              <div className="flex items-center gap-3">
+                {/* Itens por página */}
                 <div className="flex items-center gap-1.5 rounded-xl overflow-hidden" style={{ border: `1px solid ${cardBorder}` }}>
                   {PAGE_SIZE_OPTIONS.map(opt => (
                     <button key={opt}
@@ -403,6 +404,8 @@ export default function HotmartPage() {
                     </button>
                   ))}
                 </div>
+
+                {/* PDF */}
                 <button onClick={() => window.print()}
                   className="px-5 py-2.5 font-black text-[10px] uppercase tracking-widest rounded-xl flex items-center gap-2 transition-all"
                   style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
@@ -413,11 +416,18 @@ export default function HotmartPage() {
 
             {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full text-left" style={{ tableLayout: 'fixed', borderCollapse: 'collapse' }}>
+                <colgroup>
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '130px' }} />
+                  <col style={{ width: '240px' }} />
+                  <col />
+                </colgroup>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '110px' }}>Data / Hora</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, minWidth: '200px' }}>Faturamento</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Data / Hora</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color: SILVER }}>Faturamento</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '120px' }}>Pagamento</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '240px' }}>Cliente</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER, minWidth: '180px' }}>Produto</th>

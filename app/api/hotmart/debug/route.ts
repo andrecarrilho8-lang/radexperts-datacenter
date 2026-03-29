@@ -54,7 +54,6 @@ export async function GET(request: Request) {
     const now  = Date.now();
     const past = now - (days * 24 * 60 * 60 * 1000);
 
-    // Pega até 500 vendas para análise de status e campos
     const salesPath = `/payments/api/v1/sales/history?start_date=${past}&end_date=${now}&max_results=500`;
     const salesResult = await httpsGet(HOTMART_API_HOST, salesPath, { 'Authorization': `Bearer ${token}` });
 
@@ -63,38 +62,25 @@ export async function GET(request: Request) {
 
     const items: any[] = salesData?.items || [];
 
-    // Conta por status
     const statusCount: Record<string, number> = {};
     items.forEach((s: any) => {
       const st = s.purchase?.status || 'UNKNOWN';
       statusCount[st] = (statusCount[st] || 0) + 1;
     });
 
-    // Amostra de campos de preço do primeiro item aprovado
+    // Find first approved sale AND one with installments (to inspect both structures)
     const approvedSample = items.find((s: any) =>
       ['APPROVED','COMPLETE'].includes(s.purchase?.status || '')
     );
-    const priceFields = approvedSample ? {
-      status:        approvedSample.purchase?.status,
-      product:       approvedSample.product?.name,
-      price_value:   approvedSample.purchase?.price?.value,
-      price_base:    approvedSample.purchase?.price?.base,
-      price_actual:  approvedSample.purchase?.price?.actual_value,
-      currency:      approvedSample.purchase?.price?.currency_code,
-      order_date:    approvedSample.purchase?.order_date,
-      approved_date: approvedSample.purchase?.approved_date,
-      // campos de comissão
-      commission:    approvedSample.purchase?.commission,
-      producer:      approvedSample.purchase?.producer,
-      full_price:    approvedSample.purchase?.price,
-    } : null;
+    const installmentSample = items.find((s: any) =>
+      ['APPROVED','COMPLETE'].includes(s.purchase?.status || '') &&
+      (s.purchase?.payment?.installments_number || 1) > 1
+    );
 
-    // Contagem por status APPROVED + COMPLETE (o que Hotmart mostra como "Aprovada + Completa")
     const approvedCount  = (statusCount['APPROVED']  || 0) + (statusCount['COMPLETE'] || 0);
     const confirmedCount = (statusCount['PRODUCER_CONFIRMED'] || 0) + (statusCount['CONFIRMED'] || 0);
     const activeCount    = statusCount['ACTIVE'] || 0;
 
-    // Soma de receita apenas com APPROVED + COMPLETE (como Hotmart dashboard mostra)
     let revenueValue = 0, revenueBase = 0, revenueActual = 0;
     const seenTx = new Set();
     items.forEach((s: any) => {
@@ -121,7 +107,9 @@ export async function GET(request: Request) {
         base:         revenueBase,
         actual_value: revenueActual,
       },
-      sample_price_fields: priceFields,
+      // Full raw items to identify all available fields
+      raw_approved_sample:    approvedSample    || null,
+      raw_installment_sample: installmentSample || null,
     });
 
   } catch (e: any) {
