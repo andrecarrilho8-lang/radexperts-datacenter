@@ -10,28 +10,41 @@ const SILVER = '#A8B2C0';
 const NAVY   = '#001a35';
 
 type Student = {
-  email: string; name: string; phone: string;
-  entryDate: number | null; lastAccess: string | null;
-  payment: string; turma: string; transaction: string;
+  name: string; email: string;
+  entryDate: number | null;
+  payment: string; turma: string;
+  valor: number; currency: string;
+  source: string; transaction: string;
 };
 
-function fmtDate(ts: number | null | string): string {
+function fmtDate(ts: number | null): string {
   if (!ts) return '—';
-  const d = typeof ts === 'number' ? new Date(ts) : new Date(ts);
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function fmtCurrency(val: number, curr: string): string {
+  if (!val) return '—';
+  try {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: curr, minimumFractionDigits: 2 });
+  } catch {
+    return `${curr} ${val.toFixed(2)}`;
+  }
 }
 
 function PayBadge({ label }: { label: string }) {
   const l = label.toLowerCase();
   let bg = 'rgba(255,255,255,0.08)'; let color = SILVER;
-  if (l.includes('pix'))        { bg = 'rgba(52,211,153,0.12)'; color = '#34d399'; }
-  else if (l.includes('assina')) { bg = 'rgba(56,189,248,0.12)'; color = '#38bdf8'; }
-  else if (l.includes('boleto')){ bg = 'rgba(251,191,36,0.12)'; color = '#fbbf24'; }
-  else if (l.includes('paypal')){ bg = 'rgba(99,102,241,0.12)'; color = '#818cf8'; }
-  else if (l.includes('cartão') || l.includes('credito') || l.includes('crédito')){ bg = 'rgba(232,177,79,0.12)'; color = GOLD; }
+  if (l === 'pix')                        { bg = 'rgba(52,211,153,0.14)';  color = '#34d399'; }
+  else if (l === 'assinatura')            { bg = 'rgba(56,189,248,0.14)';  color = '#38bdf8'; }
+  else if (l === 'boleto')                { bg = 'rgba(251,191,36,0.14)';  color = '#fbbf24'; }
+  else if (l === 'paypal')                { bg = 'rgba(99,102,241,0.14)';  color = '#818cf8'; }
+  else if (l === 'google pay')            { bg = 'rgba(234,67,53,0.12)';   color = '#f87171'; }
+  else if (l.startsWith('cartão'))        { bg = 'rgba(232,177,79,0.14)';  color = GOLD; }
   return (
-    <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider inline-block"
-      style={{ background: bg, color }}>{label}</span>
+    <span className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider whitespace-nowrap"
+      style={{ background: bg, color, display: 'inline-block' }}>
+      {label}
+    </span>
   );
 }
 
@@ -50,27 +63,24 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
 
   useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams({ courseName: decoded, ...(turma ? { turma } : {}) });
-    fetch(`/api/cursos/${encodeURIComponent(decoded)}?${params}`)
+    const p = new URLSearchParams({ ...(turma ? { turma } : {}) });
+    fetch(`/api/cursos/${encodeURIComponent(decoded)}?${p}`)
       .then(r => r.json())
-      .then(d => {
-        setStudents(d.students || []);
-        setTurmas(d.turmas || []);
-        setLoading(false);
-        setPage(0);
-      })
+      .then(d => { setStudents(d.students || []); setTurmas(d.turmas || []); setLoading(false); setPage(0); })
       .catch(() => setLoading(false));
   }, [decoded, turma]);
 
   const filtered = students.filter(s =>
     !search ||
     s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.email.toLowerCase().includes(search.toLowerCase()) ||
-    s.phone.includes(search)
+    s.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const paginated  = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+
+  const COLS = ['Data de Entrada', 'Nome', 'Email', 'Valor Pago', 'Forma de Pgto', 'Origem'];
+  const GRID  = '140px 1fr 1fr 130px 140px 120px';
 
   return (
     <LoginWrapper>
@@ -85,8 +95,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               <button onClick={() => router.push('/cursos')}
                 className="w-10 h-10 rounded-xl flex items-center justify-center transition-all"
                 style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(232,177,79,0.4)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}>
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(232,177,79,0.4)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
                 <span className="material-symbols-outlined text-[20px]" style={{ color: SILVER }}>arrow_back</span>
               </button>
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
@@ -96,46 +106,32 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               <div>
                 <h1 className="text-2xl font-black tracking-tight text-white leading-tight">{decoded}</h1>
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] mt-0.5" style={{ color: SILVER }}>
-                  {loading ? 'Carregando alunos...' : `${filtered.length.toLocaleString('pt-BR')} aluno${filtered.length !== 1 ? 's' : ''}`}
+                  {loading ? 'Carregando...' : `${filtered.length.toLocaleString('pt-BR')} aluno${filtered.length !== 1 ? 's' : ''}`}
                 </p>
               </div>
             </div>
-
-            {/* Export hint */}
-            <div className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: SILVER }}>
-              URL compartilhável ✓
-            </div>
           </div>
 
-          {/* Filters bar */}
+          {/* Filters */}
           <div className="flex flex-wrap items-center gap-3 mb-6">
-            {/* Search */}
             <div className="relative flex-1 min-w-[240px] max-w-[400px]">
               <span className="material-symbols-outlined text-[16px] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
-              <input
-                type="text"
-                placeholder="Buscar por nome, email ou fone..."
-                value={search}
-                onChange={e => { setSearch(e.target.value); setPage(0); }}
+              <input type="text" placeholder="Buscar por nome ou email..."
+                value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm font-bold outline-none"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
-              />
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }} />
             </div>
 
-            {/* Turmas filter */}
             {turmas.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Turma:</span>
-                <button
-                  onClick={() => setTurma('')}
+                <button onClick={() => setTurma('')}
                   className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
                   style={{ background: !turma ? GOLD : 'rgba(255,255,255,0.07)', color: !turma ? NAVY : SILVER, border: `1px solid ${!turma ? GOLD : 'rgba(255,255,255,0.1)'}` }}>
                   Todas
                 </button>
                 {turmas.map(t => (
-                  <button key={t}
-                    onClick={() => setTurma(t === turma ? '' : t)}
+                  <button key={t} onClick={() => setTurma(t === turma ? '' : t)}
                     className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
                     style={{ background: turma === t ? GOLD : 'rgba(255,255,255,0.07)', color: turma === t ? NAVY : SILVER, border: `1px solid ${turma === t ? GOLD : 'rgba(255,255,255,0.1)'}` }}>
                     {t}
@@ -148,23 +144,18 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           {/* Table */}
           <div className="rounded-3xl overflow-hidden"
             style={{ background: 'linear-gradient(160deg, rgba(255,255,255,0.05) 0%, rgba(0,10,30,0.5) 100%)', border: '1px solid rgba(255,255,255,0.09)' }}>
-
-            {/* Header row */}
+            {/* Header */}
             <div className="grid px-5 py-3.5"
-              style={{
-                gridTemplateColumns: '160px 1fr 1fr 160px 140px 130px',
-                background: 'rgba(255,255,255,0.04)',
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
-              }}>
-              {['Data de Entrada', 'Nome', 'Email', 'Telefone', 'Forma de Pgto', 'Último Acesso'].map(h => (
+              style={{ gridTemplateColumns: GRID, background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              {COLS.map(h => (
                 <span key={h} className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{h}</span>
               ))}
             </div>
 
             {loading ? (
-              [...Array(8)].map((_, i) => (
+              [...Array(10)].map((_, i) => (
                 <div key={i} className="grid px-5 py-4 animate-pulse"
-                  style={{ gridTemplateColumns: '160px 1fr 1fr 160px 140px 130px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  style={{ gridTemplateColumns: GRID, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   {[...Array(6)].map((_, j) => (
                     <div key={j} className="h-4 rounded-lg mr-4" style={{ background: 'rgba(255,255,255,0.07)' }} />
                   ))}
@@ -179,28 +170,15 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               paginated.map((s, idx) => (
                 <div key={s.transaction || s.email + idx}
                   className="grid px-5 py-3.5 items-center transition-colors"
-                  style={{
-                    gridTemplateColumns: '160px 1fr 1fr 160px 140px 130px',
-                    background: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(232,177,79,0.04)'}
-                  onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent'}
-                >
-                  {/* Data Entrada */}
+                  style={{ gridTemplateColumns: GRID, background: idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.04)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent')}>
                   <span className="text-[12px] font-bold" style={{ color: SILVER }}>{fmtDate(s.entryDate)}</span>
-                  {/* Nome */}
-                  <span className="text-[13px] font-black text-white truncate pr-3">{s.name}</span>
-                  {/* Email */}
+                  <span className="text-[12px] font-black text-white truncate pr-3">{s.name}</span>
                   <span className="text-[12px] font-bold truncate pr-3" style={{ color: SILVER }}>{s.email}</span>
-                  {/* Telefone */}
-                  <span className="text-[12px] font-bold" style={{ color: SILVER }}>{s.phone}</span>
-                  {/* Pagamento */}
+                  <span className="text-[12px] font-bold" style={{ color: GOLD }}>{fmtCurrency(s.valor, s.currency)}</span>
                   <div><PayBadge label={s.payment} /></div>
-                  {/* Último Acesso */}
-                  <span className="text-[12px] font-bold" style={{ color: s.lastAccess ? '#4ade80' : SILVER }}>
-                    {s.lastAccess ? fmtDate(s.lastAccess) : '—'}
-                  </span>
+                  <span className="text-[11px] font-bold truncate" style={{ color: s.source !== '—' ? '#38bdf8' : SILVER }}>{s.source}</span>
                 </div>
               ))
             )}

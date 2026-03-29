@@ -1,40 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchHotmartSales, getHotmartToken } from '@/app/lib/hotmartApi';
-import https from 'https';
+import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { getCache, setCache } from '@/app/lib/metaApi';
 
 const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-function httpsGet(token: string, path: string): Promise<{ status: number; body: string }> {
-  return new Promise((resolve, reject) => {
-    const req = https.request(
-      { hostname: 'developers.hotmart.com', path, method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } },
-      (res) => { let d = ''; res.on('data', c => { d += c; }); res.on('end', () => resolve({ status: res.statusCode || 0, body: d })); }
-    );
-    req.on('error', reject);
-    req.end();
-  });
+function paymentLabel(s: any): string {
+  const purchase = s.purchase || {};
+  const type     = (purchase.payment?.type || '').toUpperCase();
+  const install  = purchase.payment?.installments_number || 1;
+  const mode     = (purchase.offer?.payment_mode || '').toUpperCase();
+  const isSub    = purchase.is_subscription === true || mode === 'SUBSCRIPTION';
+
+  if (isSub) return 'Assinatura';
+  if (type.includes('PIX'))                              return 'Pix';
+  if (type.includes('BILLET') || type.includes('BOLETO')) return 'Boleto';
+  if (type.includes('PAYPAL'))                           return 'PayPal';
+  if (type.includes('GOOGLE'))                           return 'Google Pay';
+  if ((type.includes('CREDIT') || type.includes('CARD')) && install > 1)
+    return `Cartão ${install}x`;
+  if (type.includes('CREDIT') || type.includes('CARD'))  return 'Cartão à Vista';
+  if (type.includes('DEBIT'))                            return 'Cartão Débito';
+  return type || '—';
 }
 
-function paymentLabel(method: string): string {
-  const m = (method || '').toUpperCase();
-  if (m.includes('PIX'))                         return 'Pix';
-  if (m.includes('CREDIT') || m.includes('CARD')) return 'Cartão Crédito';
-  if (m.includes('DEBIT'))                       return 'Cartão Débito';
-  if (m.includes('BOLETO') || m.includes('BILLET')) return 'Boleto';
-  if (m.includes('PAYPAL'))                      return 'PayPal';
-  if (m.includes('SUBSCRIPTION'))               return 'Assinatura';
-  return method || '—';
+function sourceLabel(s: any): string {
+  const sck = s.purchase?.tracking?.source_sck || '';
+  const src = s.purchase?.tracking?.source || '';
+  const ref = sck || src;
+  if (!ref) return '—';
+  return ref;
 }
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const courseId   = searchParams.get('courseId');   // product id (number)
-  const courseName = searchParams.get('courseName'); // product name
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ courseName: string }> }
+) {
+  const { courseName: rawParam } = await params;
+  const { searchParams }        = new URL(req.url);
+  const courseName = decodeURIComponent(rawParam);
   const turma      = searchParams.get('turma') || '';
 
-  if (!courseName && !courseId) {
-    return NextResponse.json({ error: 'courseId or courseName required' }, { status: 400 });
+  const CACHE_KEY = `curso_students_v3_${courseName}`;
+  const cached    = getCache(CACHE_KEY);
+  if (cached && cached.expires_at > Date.now() && !turma) {
+    const result = cached.data;
+    const students = turma
+      ? result.students.filter((st: any) => st.turma === turma)
+      : result.students;
+    return NextResponse.json({ ...result, students });
   }
 
   try {
@@ -42,96 +56,52 @@ export async function GET(req: NextRequest) {
     const now   = new Date().toISOString();
     const sales = await fetchHotmartSales(since, now, 60 * 24 * 60 * 60 * 1000, 8);
 
-    // Attempt to get last access from Club API if subdomain configured
-    const subdomain = process.env.HOTMART_CLUB_SUBDOMAIN || '';
-    const lastAccessMap = new Map<string, string>(); // email → last access ISO
-
-    if (subdomain) {
-      try {
-        const token = await getHotmartToken();
-        let pageToken = '';
-        do {
-          const path = `/club/api/v1/users?subdomain=${subdomain}${pageToken ? `&page_token=${pageToken}` : ''}`;
-          const resp = await httpsGet(token, path);
-          if (resp.status !== 200) break;
-          const data = JSON.parse(resp.body);
-          (data.items || []).forEach((u: any) => {
-            if (u.user_login && u.last_access) {
-              lastAccessMap.set(u.user_login.toLowerCase(), u.last_access);
-            }
-          });
-          pageToken = data.page_info?.next_page_token || '';
-        } while (pageToken);
-      } catch { /* Club API optional */ }
-    }
-
-    // Filter by product
+    // Filter by product name
     const filtered = sales.filter((s: any) => {
       if (!APPROVED.has(s.purchase?.status)) return false;
-      const prod = s.product || {};
-      if (courseId && String(prod.id) !== String(courseId)) return false;
-      if (courseName && !courseId && prod.name !== courseName) return false;
-      return true;
+      return (s.product?.name || '') === courseName;
     });
 
-    // Deduplicate by email (keep most recent purchase)
+    // Collect turmas
+    const turmasSet = new Set<string>();
+    filtered.forEach((s: any) => {
+      const t = s.purchase?.offer?.code || '';
+      if (t) turmasSet.add(t);
+    });
+
+    // Deduplicate by email — keep most recent purchase
     const studentMap = new Map<string, any>();
     filtered.forEach((s: any) => {
       const email = (s.buyer?.email || '').toLowerCase();
       if (!email) return;
-      const existing = studentMap.get(email);
-      const ts = s.purchase?.approved_date || s.purchase?.order_date || 0;
-      if (!existing || ts > (existing._ts || 0)) {
-        studentMap.set(email, { ...s, _ts: ts });
-      }
+      const ts = s.purchase?.approved_date || 0;
+      const cur = studentMap.get(email);
+      if (!cur || ts > (cur._ts || 0)) studentMap.set(email, { ...s, _ts: ts });
     });
 
-    // Collect unique turmas  
-    const turmasSet = new Set<string>();
-    filtered.forEach((s: any) => {
-      const t = s.purchase?.offer?.code || s.purchase?.offer?.name || '';
-      if (t) turmasSet.add(t);
-    });
-
-    // Build student list
-    let students = Array.from(studentMap.values()).map((s: any) => {
+    const students = Array.from(studentMap.values()).map((s: any) => {
       const purchase = s.purchase || {};
       const buyer    = s.buyer    || {};
-      const email    = (buyer.email || '').toLowerCase();
-      const turmaVal = purchase?.offer?.code || purchase?.offer?.name || '—';
-      const payType  = purchase?.payment?.type || '';
-      const payInstall = purchase?.payment?.installments_number || 1;
-      const offerMode  = purchase?.offer?.payment_mode || '';
-
-      let payLabel = paymentLabel(payType);
-      if (offerMode === 'SUBSCRIPTION') payLabel = 'Assinatura';
-      else if (payInstall > 1) payLabel = `Cartão ${payInstall}x`;
-
       return {
-        email,
-        name:        buyer.name || '—',
-        phone:       buyer.phone || '—',
+        name:        (buyer.name || '—').toUpperCase(),
+        email:       (buyer.email || '').toLowerCase(),
         entryDate:   purchase.approved_date || purchase.order_date || null,
-        lastAccess:  lastAccessMap.get(email) || null,
-        payment:     payLabel,
-        turma:       turmaVal,
+        payment:     paymentLabel(s),
+        turma:       purchase.offer?.code || '—',
+        valor:       purchase.price?.value ?? 0,
+        currency:    purchase.price?.currency_code || 'BRL',
+        source:      sourceLabel(s),
         transaction: purchase.transaction || '',
       };
-    });
+    }).sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
 
-    // Filter by turma if provided
-    if (turma) {
-      students = students.filter(st => st.turma === turma);
-    }
+    const result = { students, turmas: Array.from(turmasSet).sort(), total: students.length };
 
-    // Sort by entry date desc
-    students.sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
+    // Cache the full unfiltered result
+    setCache(CACHE_KEY, { data: result, expires_at: Date.now() + CACHE_TTL });
 
-    return NextResponse.json({
-      students,
-      turmas: Array.from(turmasSet).sort(),
-      total: students.length,
-    });
+    const out = turma ? { ...result, students: students.filter(st => st.turma === turma) } : result;
+    return NextResponse.json(out);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
