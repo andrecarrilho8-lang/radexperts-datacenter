@@ -1,25 +1,21 @@
 import { NextResponse } from 'next/server';
-import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { getCachedAllSales } from '@/app/lib/salesCache';
 import { getCache, setCache } from '@/app/lib/metaApi';
 
-const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_KEY = 'cursos_list_v2';
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const APPROVED  = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
+const CACHE_KEY = 'cursos_list_v3';
+const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 export async function GET() {
   try {
-    const cached = getCache(CACHE_KEY);
-    if (cached && cached.expires_at > Date.now()) {
-      return NextResponse.json(cached.data);
-    }
+    // Fast cache hit
+    const hit = getCache(CACHE_KEY);
+    if (hit?.expires_at > Date.now()) return NextResponse.json(hit.data);
 
-    const since = new Date('2023-01-01').toISOString();
-    const now   = new Date().toISOString();
-    const sales = await fetchHotmartSales(since, now, 60 * 24 * 60 * 60 * 1000, 8);
+    const sales = await getCachedAllSales();
 
     // Group by product — deduplicate students by email per course
     const courseMap = new Map<string, { id: number; name: string; emails: Set<string> }>();
-
     sales.forEach((s: any) => {
       if (!APPROVED.has(s.purchase?.status)) return;
       const prod = s.product;
