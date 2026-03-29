@@ -98,18 +98,30 @@ export function CampaignDetailView({ id }: { id: string }) {
       setCampDetailAds(adsData.topAds || []);
 
       if (data.objective === 'VENDAS' && userRole === 'TOTAL') {
-        setCampHotmart(p => ({ ...p, loading: true }));
-        const manualParam = manualProducts.length > 0 ? `&manualProducts=${encodeURIComponent(manualProducts.join('|'))}` : '';
-        const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(data.name)}${manualParam}`);
-        const hData = await hRes.json();
-        setCampHotmart({ revenue: hData.revenue || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
+        fetchHotmart(data.name);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [id, dateFrom, dateTo, selectedAdSetId, manualProducts]);
+  }, [id, dateFrom, dateTo, selectedAdSetId]);
+
+  // Fetch dedicado para Hotmart — re-dispara quando manualProducts muda
+  const fetchHotmart = useCallback(async (campName: string) => {
+    if (!campName || userRole !== 'TOTAL') return;
+    setCampHotmart(p => ({ ...p, loading: true }));
+    const manualParam = manualProducts.length > 0
+      ? `&manualProducts=${encodeURIComponent(manualProducts.join('|'))}`
+      : '';
+    try {
+      const hRes  = await fetch(`/api/meta/campaign/${id}/hotmart?dateFrom=${dateFrom}&dateTo=${dateTo}&campaignName=${encodeURIComponent(campName)}${manualParam}`);
+      const hData = await hRes.json();
+      setCampHotmart({ revenue: hData.revenue || 0, purchases: hData.purchases || 0, matchedProducts: hData.matchedProducts || [], currencyBreakdown: hData.currencyBreakdown || {}, loading: false });
+    } catch {
+      setCampHotmart(p => ({ ...p, loading: false }));
+    }
+  }, [id, dateFrom, dateTo, manualProducts, userRole]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
@@ -121,6 +133,12 @@ export function CampaignDetailView({ id }: { id: string }) {
       .then(d => setAvailableProducts(d.products || []))
       .catch(() => {});
   }, [userRole]);
+
+  // Re-busca Hotmart quando manualProducts muda (sem recarregar a campanha inteira)
+  useEffect(() => {
+    if (!campDetail?.name || campDetail?.objective !== 'VENDAS' || userRole !== 'TOTAL') return;
+    fetchHotmart(campDetail.name);
+  }, [manualProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fecha o dropdown ao clicar fora
   useEffect(() => {
