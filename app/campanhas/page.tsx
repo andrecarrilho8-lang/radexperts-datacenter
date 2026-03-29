@@ -106,7 +106,7 @@ export default function CampanhasPage() {
                     {obj === 'VENDAS' ? (() => {
                       const allMatchedProducts = new Set<string>();
                       selected.forEach(c => (c.matchedProducts || []).forEach((p: string) => allMatchedProducts.add(p)));
-                      const seenTxns = new Set<string>(); let hmRevenue = 0; let hmGross = 0; let hmCoProducers = 0; let hmQty = 0;
+                      const seenTxns = new Set<string>(); let hmRevenue = 0; let hmGross = 0; let hmHotmartFees = 0; let hmQty = 0;
                       (data.hotmartSales || []).forEach((s: any) => {
                         const pName = s.product?.name || ''; const txn = s.purchase?.transaction || '';
                         const isOk = ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes(s.purchase?.status || '');
@@ -118,13 +118,14 @@ export default function CampanhasPage() {
                           hmRevenue += net != null ? net : convertedGross;
                           hmGross   += convertedGross;
                           hmQty += 1;
-                          // co-producers: sum from enriched field (already in BRL for BRL sales)
-                          const coProds: { name: string; amount: number }[] = s.purchase?.co_producers || [];
-                          coProds.forEach(cp => { hmCoProducers += cp.amount; });
+                          // Use hotmart_fee_total (already in BRL) for exact fee extraction
+                          const feePct = s.purchase?.hotmart_fee?.percentage ?? 0;
+                          hmHotmartFees += convertedGross * (feePct / 100);
                         }
                       });
-                      // Hotmart fee = gross - producerNet - coProducers
-                      const hmFees = Math.max(0, hmGross - hmRevenue - hmCoProducers);
+                      // co-producers = gross - hotmartFees - producerNet (any remainder)
+                      const hmCoProducers = Math.max(0, hmGross - hmHotmartFees - hmRevenue);
+                      const hmFees = Math.max(0, hmHotmartFees);
                       return (<>
                         <div style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', borderRadius: 20, padding: '20px 24px' }}>
                           <p className="text-[10px] uppercase font-bold tracking-widest mb-1" style={{ color: GOLD + 'aa' }}>Recebido Líquido</p>
@@ -328,21 +329,6 @@ export default function CampanhasPage() {
                       <div className="text-right md:text-left">
                       <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Líq. (H)</p>
                       <p className="font-black text-lg leading-none" style={{ color: GOLD }}>{R(camp.hotmartRevenue || 0)}</p>
-                      {(camp.hotmartGrossBRL || 0) > 0 && (
-                        <div className="mt-1">
-                          <InfoTooltip
-                            triggerLabel="detalhes"
-                            lines={[
-                              { emoji: '🟡', label: 'Bruto', value: R(camp.hotmartGrossBRL || 0) },
-                              ...( Math.max(0, (camp.hotmartGrossBRL || 0) - (camp.hotmartRevenue || 0) - (camp.hotmartCoProducersBRL || 0)) > 0
-                                ? [{ emoji: '🔴', label: 'Taxas Hotmart', value: `− ${R(Math.max(0, (camp.hotmartGrossBRL || 0) - (camp.hotmartRevenue || 0) - (camp.hotmartCoProducersBRL || 0)))}`, color: '#f87171' }] : []),
-                              ...((camp.hotmartCoProducersBRL || 0) > 0.01
-                                ? [{ emoji: '🟠', label: 'Co-produtores', value: `− ${R(camp.hotmartCoProducersBRL || 0)}`, color: '#fb923c' }] : []),
-                            ]}
-                            total={{ label: 'Líquido', value: R(camp.hotmartRevenue || 0) }}
-                          />
-                        </div>
-                      )}
                       </div>
                       <div>
                         <p className="text-[10px] uppercase font-black tracking-widest mb-1" style={{ color: SILVER }}>Vendas Meta</p>
