@@ -1,29 +1,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useDashboard }    from '@/app/lib/context';
-import { Navbar }          from '@/components/dashboard/navbar';
-import { LoginWrapper }    from '@/components/dashboard/login-wrapper';
+import { useRouter } from 'next/navigation';
+import { Navbar }     from '@/components/dashboard/navbar';
+import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
 const GOLD   = '#E8B14F';
-const SILVER = '#A8B2C0';
 const NAVY   = '#001a35';
+const SILVER = '#A8B2C0';
 
-/* ── Style helpers identical to HOTMART page  ──────────────────────────── */
-const TABLE_STYLE: React.CSSProperties = {
-  background: 'linear-gradient(160deg, rgba(0,22,55,0.96) 0%, rgba(0,15,40,0.93) 100%)',
-  border: '1px solid rgba(255,255,255,0.10)',
-  boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 20px 40px -8px rgba(0,0,0,0.55)',
-  borderRadius: 24,
-};
-const HEADER_STYLE: React.CSSProperties = {
-  background: 'linear-gradient(90deg, rgba(255,255,255,0.07) 0%, rgba(180,195,220,0.05) 100%)',
-  borderBottom: '1px solid rgba(255,255,255,0.09)',
-};
-const ROW_BASE: React.CSSProperties = {
-  borderBottom: '1px solid rgba(255,255,255,0.04)',
-};
-
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+function emailToId(email: string): string {
+  return btoa((email || '').toLowerCase().trim())
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
 function fmtBRL(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 }
@@ -40,20 +30,26 @@ function fmtDateTime(ts: number | string | null): { date: string; time: string }
     time: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
   };
 }
-function daysUntil(ts: number): number {
-  return Math.ceil((ts - Date.now()) / 86_400_000);
-}
-function daysSince(ts: number | null): number {
-  if (!ts) return 0;
-  return Math.floor((Date.now() - ts) / 86_400_000);
-}
+function daysUntil(ts: number): number { return Math.ceil((ts - Date.now()) / 86_400_000); }
+function daysSince(ts: number | null): number { return ts ? Math.floor((Date.now() - ts) / 86_400_000) : 0; }
+
+/* ── Shared HOTMART-style components ─────────────────────────────────────── */
+const glossy: React.CSSProperties = {
+  background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.03) 50%, rgba(0,10,30,0.55) 100%)',
+  border: '1px solid rgba(255,255,255,0.10)',
+  backdropFilter: 'blur(24px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.12) inset, 0 24px 48px -12px rgba(0,0,0,0.5)',
+  borderRadius: 24,
+  position: 'relative',
+  overflow: 'hidden',
+};
+const cardBorder = 'rgba(255,255,255,0.08)';
 
 function PaymentBadge({ method }: { method: string }) {
   const m = (method || '').toUpperCase();
-  let label = method || '—';
-  let bg    = 'rgba(255,255,255,0.08)';
-  let color = SILVER;
-  if (m.includes('CREDIT') || m.includes('CARD')) { label = 'Cartão Crédito'; bg = 'rgba(56,189,248,0.12)'; color = '#38bdf8'; }
+  let label = method || '—', bg = 'rgba(255,255,255,0.08)', color = SILVER;
+  if (m.includes('CREDIT') || m.includes('CARD'))  { label = 'Cartão Crédito'; bg = 'rgba(56,189,248,0.12)';  color = '#38bdf8'; }
   else if (m.includes('PIX'))    { label = 'Pix';    bg = 'rgba(34,197,94,0.12)';  color = '#22c55e'; }
   else if (m.includes('BOLETO')) { label = 'Boleto'; bg = 'rgba(232,177,79,0.12)'; color = GOLD; }
   else if (m.includes('PAYPAL')) { label = 'PayPal'; bg = 'rgba(99,102,241,0.14)'; color = '#818cf8'; }
@@ -65,18 +61,18 @@ function PaymentBadge({ method }: { method: string }) {
   );
 }
 
-function SectionHeader({ icon, title, subtitle, accent = GOLD }: { icon: string; title: string; subtitle?: string; accent?: string }) {
+const CURRENCY_TO_COUNTRY: Record<string, string> = {
+  BRL: 'br', COP: 'co', BOB: 'bo', MXN: 'mx', ARS: 'ar',
+  CLP: 'cl', PEN: 'pe', UYU: 'uy', CRC: 'cr', HNL: 'hn',
+  PYG: 'py', GTQ: 'gt', DOP: 'do', CUP: 'cu', VES: 've', USD: 'us',
+};
+function FlagByCurrency({ currency, size = 20 }: { currency: string; size?: number }) {
+  const iso = CURRENCY_TO_COUNTRY[(currency || 'BRL').toUpperCase()];
+  if (!iso) return null;
   return (
-    <div className="flex items-center gap-3 px-7 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-        style={{ background: `${accent}15`, border: `1px solid ${accent}30` }}>
-        <span className="material-symbols-outlined text-[20px]" style={{ color: accent }}>{icon}</span>
-      </div>
-      <div>
-        <p className="text-sm font-black text-white">{title}</p>
-        {subtitle && <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{subtitle}</p>}
-      </div>
-    </div>
+    <img src={`https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.0.0/flags/4x3/${iso}.svg`}
+      width={size} height={Math.round(size * 0.75)} alt={currency}
+      style={{ borderRadius: 3, objectFit: 'cover', display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }} />
   );
 }
 
@@ -87,6 +83,7 @@ type Transaction = {
   product: { name: string; id: number };
   amount: number; currency: string; amountBRL: number | null;
   paymentType: string; status: string;
+  isSubscription: boolean; installments: number; recurrencyNumber: number | null;
 };
 type Upcoming = {
   subscriberCode: string;
@@ -103,38 +100,65 @@ type Overdue = {
   accessionDate: number; requestDate: number; lastTransaction: string;
 };
 type OverviewData = {
-  period: { from: string; to: string };
-  totalInPeriod: number;
+  totalTransactions: number;
   recentTransactions: Transaction[];
   upcoming: Upcoming[];
   overdue: Overdue[];
+  statusCounts: Record<string, number>;
+  totalSubs: number;
 };
 
-/* ── Main Component ─────────────────────────────────────────────────────── */
+/* ── Section wrapper identical to HOTMART table wrapper ─────────────────── */
+function SectionWrap({ children, id }: { children: React.ReactNode; id?: string }) {
+  return (
+    <div id={id} className="rounded-[28px] overflow-hidden mb-10" style={{ ...glossy, padding: 0 }}>
+      {children}
+    </div>
+  );
+}
+
+function NameBtn({ name, email, router }: { name: string; email: string; router: ReturnType<typeof useRouter> }) {
+  return (
+    <button
+      onClick={() => router.push(`/alunos/${emailToId(email)}`)}
+      className="text-sm font-black text-white uppercase hover:underline text-left transition-colors"
+      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+      onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+      onMouseLeave={e => (e.currentTarget.style.color = '#fff')}
+    >
+      {name}
+    </button>
+  );
+}
+
+/* ── Page ────────────────────────────────────────────────────────────────── */
 export default function FinanceiroOverviewPage() {
-  const { dateFrom, dateTo } = useDashboard();
-  const [data, setData]     = useState<OverviewData | null>(null);
+  const router = useRouter();
+  const [data,    setData]    = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/financeiro/overview?dateFrom=${dateFrom}&dateTo=${dateTo}`)
+    fetch('/api/financeiro/overview')
       .then(r => r.json())
-      .then(d => { if (d.error) setError(d.error); else setData(d); setLoading(false); })
+      .then(d => { if (d.error) { setError(d.error); } else { setData(d); } setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
-  }, [dateFrom, dateTo]);
+  }, []); // ← no dependencies: atemporal, load once
 
-  const skeletonRow = (cols: number, key: number) => (
-    <tr key={key}>
-      {[...Array(cols)].map((_, i) => (
-        <td key={i} className="px-5 py-4">
-          <div className="h-3 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.06)', width: i === 0 ? '60%' : '80%' }} />
-        </td>
-      ))}
-    </tr>
-  );
+  /* ── Skeleton helper ─────────────────────────────────────────────────── */
+  function SkeletonRows({ cols, n = 5 }: { cols: number; n?: number }) {
+    return <>{[...Array(n)].map((_, i) => (
+      <tr key={i} style={{ borderBottom: `1px solid ${cardBorder}` }}>
+        {[...Array(cols)].map((__, j) => (
+          <td key={j} className="py-4 px-4">
+            <div className="h-3 rounded animate-pulse" style={{ background: 'rgba(255,255,255,0.06)', width: j === 0 ? '55%' : '80%' }} />
+          </td>
+        ))}
+      </tr>
+    ))}</>;
+  }
 
   return (
     <LoginWrapper>
@@ -143,7 +167,7 @@ export default function FinanceiroOverviewPage() {
         <div className="h-[80px]" />
         <main className="px-6 max-w-[1600px] mx-auto pt-10">
 
-          {/* ── Page Header ─────────────────────────────────────── */}
+          {/* ── Page Header ─────────────────────────────────────────────── */}
           <div className="flex items-center gap-5 mb-8">
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
               style={{ background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.25)' }}>
@@ -153,72 +177,104 @@ export default function FinanceiroOverviewPage() {
             <div>
               <h1 className="font-black text-3xl text-white leading-none">Financeiro</h1>
               <p className="text-[11px] font-black uppercase tracking-widest mt-1" style={{ color: SILVER }}>
-                Overview · {loading ? 'Carregando...' : `${data?.totalInPeriod ?? 0} transações no período`}
+                {loading ? 'Carregando...' : `${data?.totalTransactions ?? 0} transações · ${data?.totalSubs ?? 0} assinaturas · ${data?.overdue?.length ?? 0} inadimplentes`}
               </p>
             </div>
           </div>
 
           {error && (
-            <div className="mb-6 px-5 py-4 rounded-2xl text-sm font-bold" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
-              Erro ao carregar dados: {error}
+            <div className="mb-6 px-5 py-4 rounded-2xl text-sm font-bold"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+              Erro: {error}
             </div>
           )}
 
-          {/* ════════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════════════════════════
               SECTION 1 — ÚLTIMAS ENTRADAS
-          ════════════════════════════════════════════════════════ */}
-          <section className="mb-8" style={TABLE_STYLE}>
-            <SectionHeader icon="payments" title="Últimas Entradas" subtitle={`10 mais recentes · ${dateFrom} → ${dateTo}`} accent={GOLD} />
+          ══════════════════════════════════════════════════════════════ */}
+          <SectionWrap id="ultimas-entradas">
+            {/* Toolbar */}
+            <div className="p-5 flex items-center justify-between gap-4" style={{ borderBottom: `1px solid ${cardBorder}` }}>
+              <div>
+                <p className="font-black text-white text-base">Últimas Entradas</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
+                  10 transações aprovadas mais recentes
+                </p>
+              </div>
+            </div>
+            {/* Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={HEADER_STYLE}>
-                    {['Data / Hora', 'Comprador', 'Produto', 'Valor', 'Pagamento', 'Status'].map(h => (
-                      <th key={h} className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{h}</th>
+                  <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
+                    {['Data / Hora', 'Faturamento', 'Pagamento', 'Cliente', 'Produto'].map(h => (
+                      <th key={h} className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? [...Array(5)].map((_, i) => skeletonRow(6, i)) :
+                  {loading ? <SkeletonRows cols={5} /> :
                     (data?.recentTransactions || []).length === 0 ? (
-                      <tr><td colSpan={6} className="px-5 py-12 text-center text-sm font-bold" style={{ color: SILVER }}>
-                        Nenhuma transação no período selecionado.
+                      <tr><td colSpan={5} className="py-16 text-center font-bold uppercase text-[11px] tracking-widest" style={{ color: SILVER }}>
+                        Nenhuma transação encontrada.
                       </td></tr>
-                    ) : data!.recentTransactions.map((t, i) => {
+                    ) : data!.recentTransactions.map((t, idx) => {
                       const dt = fmtDateTime(t.date);
+                      let installLabel = '', installStyle: React.CSSProperties = {};
+                      if (t.isSubscription) {
+                        installLabel = t.recurrencyNumber ? `Assinatura · Ciclo ${t.recurrencyNumber}` : 'Assinatura';
+                        installStyle = { background: 'rgba(56,189,248,0.12)', color: '#38bdf8' };
+                      } else if (t.installments > 1) {
+                        installLabel = `${t.installments}× parcelado`;
+                        installStyle = { background: 'rgba(99,102,241,0.15)', color: '#818cf8' };
+                      } else {
+                        installLabel = 'À vista';
+                        installStyle = { background: 'rgba(34,197,94,0.08)', color: '#86efac' };
+                      }
                       return (
-                        <tr key={t.transaction || i}
-                          className="transition-colors"
-                          style={{ ...ROW_BASE, background: 'transparent' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.025)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <p className="text-white font-bold text-xs">{dt.date}</p>
-                            <p className="text-[10px] font-semibold mt-0.5" style={{ color: SILVER }}>{dt.time}</p>
+                        <tr key={t.transaction || idx}
+                          style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${cardBorder}` }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.04)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}>
+                          {/* Data */}
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-black text-white">{dt.date}</span>
+                              <span className="text-[10px] font-bold mt-0.5 flex items-center gap-1" style={{ color: SILVER }}>
+                                <span className="material-symbols-outlined text-[11px]">schedule</span>{dt.time}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-5 py-4">
-                            <p className="text-white font-bold text-xs truncate max-w-[180px]">{t.buyer.name}</p>
-                            <p className="text-[10px] font-semibold mt-0.5 truncate max-w-[180px]" style={{ color: SILVER }}>{t.buyer.email}</p>
+                          {/* Faturamento */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="font-headline font-black text-xl" style={{ color: '#4ade80' }}>
+                                {fmtBRL(t.currency === 'BRL' ? t.amount : (t.amountBRL ?? t.amount))}
+                              </span>
+                              {t.currency !== 'BRL' && (
+                                <span className="text-[10px] font-bold" style={{ color: SILVER }}>
+                                  {t.currency} {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </span>
+                              )}
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>{installLabel}</span>
+                            </div>
                           </td>
-                          <td className="px-5 py-4">
-                            <p className="text-white font-bold text-xs line-clamp-2 max-w-[220px]">{t.product.name}</p>
+                          {/* Pagamento */}
+                          <td className="py-3 px-4"><PaymentBadge method={t.paymentType} /></td>
+                          {/* Cliente */}
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2 leading-tight">
+                                <FlagByCurrency currency={t.currency} size={18} />
+                                <NameBtn name={t.buyer.name} email={t.buyer.email} router={router} />
+                              </div>
+                              <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{t.buyer.email}</span>
+                            </div>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <p className="font-black text-sm" style={{ color: GOLD }}>
-                              {fmtBRL(t.currency === 'BRL' ? t.amount : (t.amountBRL ?? t.amount))}
-                            </p>
-                            {t.currency !== 'BRL' && (
-                              <p className="text-[10px] font-semibold mt-0.5" style={{ color: SILVER }}>
-                                {t.currency} {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                              </p>
-                            )}
-                          </td>
-                          <td className="px-5 py-4"><PaymentBadge method={t.paymentType} /></td>
-                          <td className="px-5 py-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider"
-                              style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
-                              {t.status}
+                          {/* Produto */}
+                          <td className="py-3 px-4">
+                            <span className="text-[11px] font-black uppercase tracking-tight whitespace-normal leading-4 block" style={{ color: SILVER }}>
+                              {t.product.name}
                             </span>
                           </td>
                         </tr>
@@ -228,61 +284,69 @@ export default function FinanceiroOverviewPage() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </SectionWrap>
 
-          {/* ════════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════════════════════════
               SECTION 2 — PRÓXIMOS PAGAMENTOS
-          ════════════════════════════════════════════════════════ */}
-          <section className="mb-8" style={TABLE_STYLE}>
-            <SectionHeader icon="event_upcoming" title="Próximos Pagamentos" subtitle="10 cobranças de assinatura mais próximas" accent="#38bdf8" />
+          ══════════════════════════════════════════════════════════════ */}
+          <SectionWrap id="proximos-pagamentos">
+            <div className="p-5 flex items-center justify-between gap-4" style={{ borderBottom: `1px solid ${cardBorder}` }}>
+              <div>
+                <p className="font-black text-white text-base">Próximos Pagamentos</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
+                  10 cobranças de assinatura mais próximas de vencer
+                </p>
+              </div>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={HEADER_STYLE}>
+                  <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
                     {['Assinante', 'Produto', 'Plano', 'Próxima Cobrança', 'Dias', 'Valor'].map(h => (
-                      <th key={h} className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{h}</th>
+                      <th key={h} className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? [...Array(5)].map((_, i) => skeletonRow(6, i)) :
+                  {loading ? <SkeletonRows cols={6} /> :
                     (data?.upcoming || []).length === 0 ? (
-                      <tr><td colSpan={6} className="px-5 py-12 text-center text-sm font-bold" style={{ color: SILVER }}>
-                        Nenhuma cobrança próxima encontrada.
+                      <tr><td colSpan={6} className="py-16 text-center font-bold uppercase text-[11px] tracking-widest" style={{ color: SILVER }}>
+                        Nenhuma cobrança próxima.
                       </td></tr>
-                    ) : data!.upcoming.map((u, i) => {
+                    ) : data!.upcoming.map((u, idx) => {
                       const dias = daysUntil(u.dateNextCharge);
                       const urgentColor = dias <= 3 ? '#f87171' : dias <= 7 ? GOLD : '#22c55e';
                       return (
-                        <tr key={u.subscriberCode || i}
-                          className="transition-colors"
-                          style={{ ...ROW_BASE, background: 'transparent' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.025)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <td className="px-5 py-4">
-                            <p className="text-white font-bold text-xs truncate max-w-[180px]">{u.subscriber.name}</p>
-                            <p className="text-[10px] font-semibold mt-0.5 truncate max-w-[180px]" style={{ color: SILVER }}>{u.subscriber.email}</p>
+                        <tr key={u.subscriberCode || idx}
+                          style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)', borderBottom: `1px solid ${cardBorder}` }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.04)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)')}>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <FlagByCurrency currency={u.currency} size={18} />
+                                <NameBtn name={u.subscriber.name} email={u.subscriber.email} router={router} />
+                              </div>
+                              <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{u.subscriber.email}</span>
+                            </div>
                           </td>
-                          <td className="px-5 py-4">
-                            <p className="text-white font-bold text-xs line-clamp-2 max-w-[200px]">{u.product.name}</p>
+                          <td className="py-3 px-4">
+                            <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{u.product.name}</span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="py-3 px-4">
                             <span className="text-[11px] font-bold" style={{ color: SILVER }}>{u.plan}</span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <p className="text-white font-bold text-xs">{fmtDate(u.dateNextCharge)}</p>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="text-sm font-bold text-white">{fmtDate(u.dateNextCharge)}</span>
                           </td>
-                          <td className="px-5 py-4">
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black"
-                              style={{ background: `${urgentColor}15`, border: `1px solid ${urgentColor}40`, color: urgentColor }}>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black"
+                              style={{ background: `${urgentColor}18`, border: `1px solid ${urgentColor}40`, color: urgentColor }}>
                               {dias}d
                             </span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <p className="font-black text-sm" style={{ color: '#38bdf8' }}>
-                              {fmtBRL(u.amount)}
-                            </p>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-black text-base" style={{ color: '#38bdf8' }}>{fmtBRL(u.amount)}</span>
                           </td>
                         </tr>
                       );
@@ -291,66 +355,84 @@ export default function FinanceiroOverviewPage() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </SectionWrap>
 
-          {/* ════════════════════════════════════════════════════════
+          {/* ══════════════════════════════════════════════════════════════
               SECTION 3 — INADIMPLENTES
-          ════════════════════════════════════════════════════════ */}
-          <section style={TABLE_STYLE}>
-            <SectionHeader
-              icon="warning"
-              title={`Inadimplentes${!loading && data ? ` — ${data.overdue.length}` : ''}`}
-              subtitle="Assinaturas com status DELAYED (cobrança atrasada)"
-              accent="#f87171"
-            />
+          ══════════════════════════════════════════════════════════════ */}
+          <SectionWrap id="inadimplentes">
+            <div className="p-5 flex items-center justify-between gap-4" style={{ borderBottom: `1px solid ${cardBorder}` }}>
+              <div>
+                <p className="font-black text-white text-base flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px]" style={{ color: '#f87171' }}>warning</span>
+                  Inadimplentes{!loading && data ? ` — ${data.overdue.length}` : ''}
+                </p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
+                  Assinaturas com pagamento em atraso (DELAYED)
+                  {!loading && data?.statusCounts && (
+                    <span className="ml-2 opacity-60">
+                      [{Object.entries(data.statusCounts).map(([k, v]) => `${k}:${v}`).join(' · ')}]
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={HEADER_STYLE}>
-                    {['Assinante', 'Produto', 'Plano', 'Início', 'Dias inadimplente', 'Valor', 'Última Transação'].map(h => (
-                      <th key={h} className="px-5 py-3.5 text-left text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{h}</th>
+                  <tr style={{ borderBottom: `1px solid ${cardBorder}` }}>
+                    {['Assinante', 'Produto', 'Plano', 'Início', 'Dias em atraso', 'Valor', 'Última Transação'].map(h => (
+                      <th key={h} className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? [...Array(6)].map((_, i) => skeletonRow(7, i)) :
+                  {loading ? <SkeletonRows cols={7} n={6} /> :
                     (data?.overdue || []).length === 0 ? (
-                      <tr><td colSpan={7} className="px-5 py-12 text-center text-sm font-bold" style={{ color: SILVER }}>
-                        Nenhum inadimplente encontrado. 🎉
+                      <tr><td colSpan={7} className="py-16 text-center font-bold uppercase text-[11px] tracking-widest" style={{ color: SILVER }}>
+                        🎉 Nenhum inadimplente encontrado.
+                        {data?.statusCounts && (
+                          <span className="block text-[10px] mt-2 font-normal normal-case tracking-normal opacity-60">
+                            Statuses encontrados: {JSON.stringify(data.statusCounts)}
+                          </span>
+                        )}
                       </td></tr>
-                    ) : data!.overdue.map((o, i) => {
-                      const dias = daysSince(o.requestDate || o.accessionDate);
+                    ) : data!.overdue.map((o, idx) => {
+                      const dias     = daysSince(o.requestDate || o.accessionDate);
                       const severity = dias > 30 ? '#f87171' : dias > 14 ? GOLD : SILVER;
                       return (
-                        <tr key={o.subscriberCode || i}
-                          className="transition-colors"
-                          style={{ ...ROW_BASE, background: 'transparent' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.03)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <td className="px-5 py-4">
-                            <p className="text-white font-bold text-xs truncate max-w-[180px]">{o.subscriber.name}</p>
-                            <p className="text-[10px] font-semibold mt-0.5 truncate max-w-[180px]" style={{ color: SILVER }}>{o.subscriber.email}</p>
+                        <tr key={o.subscriberCode || idx}
+                          style={{ background: idx % 2 === 0 ? 'rgba(248,113,113,0.02)' : 'rgba(248,113,113,0.04)', borderBottom: `1px solid rgba(248,113,113,0.08)` }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(248,113,113,0.08)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? 'rgba(248,113,113,0.02)' : 'rgba(248,113,113,0.04)')}>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2">
+                                <FlagByCurrency currency={o.currency} size={18} />
+                                <NameBtn name={o.subscriber.name} email={o.subscriber.email} router={router} />
+                              </div>
+                              <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
+                            </div>
                           </td>
-                          <td className="px-5 py-4">
-                            <p className="text-white font-bold text-xs line-clamp-2 max-w-[200px]">{o.product.name}</p>
+                          <td className="py-3 px-4">
+                            <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product.name}</span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="py-3 px-4">
                             <span className="text-[11px] font-bold" style={{ color: SILVER }}>{o.plan}</span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <p className="text-white font-bold text-xs">{fmtDate(o.accessionDate)}</p>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="text-sm font-bold text-white">{fmtDate(o.accessionDate)}</span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="py-3 px-4">
                             <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black"
-                              style={{ background: `${severity}15`, border: `1px solid ${severity}40`, color: severity }}>
+                              style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
                               {dias}d
                             </span>
                           </td>
-                          <td className="px-5 py-4 whitespace-nowrap">
-                            <p className="font-black text-sm" style={{ color: '#f87171' }}>{fmtBRL(o.amount)}</p>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="font-black text-base" style={{ color: '#f87171' }}>{fmtBRL(o.amount)}</span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="py-3 px-4">
                             <span className="text-[10px] font-mono" style={{ color: SILVER }}>{o.lastTransaction || '—'}</span>
                           </td>
                         </tr>
@@ -360,7 +442,7 @@ export default function FinanceiroOverviewPage() {
                 </tbody>
               </table>
             </div>
-          </section>
+          </SectionWrap>
 
         </main>
       </div>

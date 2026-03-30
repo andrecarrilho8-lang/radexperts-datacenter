@@ -28,12 +28,12 @@ function httpsGet(token: string, path: string): Promise<{ status: number; body: 
   });
 }
 
-/** Paginate through all subscription items for a given status */
-async function fetchAllSubsByStatus(token: string, status: string, limit = 500): Promise<any[]> {
+/** Paginate ALL subs (no status filter — then slice client-side) */
+async function fetchAllSubs(token: string, limit = 1000): Promise<any[]> {
   const items: any[] = [];
   let pageToken = '';
   do {
-    const qs = `/payments/api/v1/subscriptions?status=${status}&max_results=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
+    const qs = `/payments/api/v1/subscriptions?max_results=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
     const r = await httpsGet(token, qs);
     if (r.status !== 200) break;
     const batch: any[] = r.body?.items || [];
@@ -44,85 +44,81 @@ async function fetchAllSubsByStatus(token: string, status: string, limit = 500):
   return items;
 }
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const dateFrom = searchParams.get('dateFrom') || '';
-    const dateTo   = searchParams.get('dateTo')   || '';
-
-    const fromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
-    const toMs   = dateTo   ? new Date(dateTo   + 'T23:59:59').getTime() : Date.now();
-
-    // ── 1. Recent transactions (from sales cache, filtered by period) ───────
+    // ── 1. Recent transactions — ALL time, last 10 approved ───────────────
     const allSales = await getCachedAllSales();
-    const periodSales = allSales.filter((s: any) => {
-      if (!APPROVED_STATUS.has(s.purchase?.status)) return false;
-      const ts = new Date(s.purchase?.approved_date || s.purchase?.order_date || 0).getTime();
-      return ts >= fromMs && ts <= toMs;
-    });
-    const sortedSales  = periodSales.sort((a: any, b: any) => {
+    const approved = allSales.filter((s: any) => APPROVED_STATUS.has(s.purchase?.status));
+    const sorted   = approved.sort((a: any, b: any) => {
       const ta = new Date(b.purchase?.approved_date || b.purchase?.order_date || 0).getTime();
       const tb = new Date(a.purchase?.approved_date || a.purchase?.order_date || 0).getTime();
       return ta - tb;
     });
-    const recentTransactions = sortedSales.slice(0, 10).map((s: any) => ({
+    const recentTransactions = sorted.slice(0, 10).map((s: any) => ({
       transaction: s.purchase?.transaction,
       date:        s.purchase?.approved_date || s.purchase?.order_date,
       buyer:       { name: s.buyer?.name || '—', email: s.buyer?.email || '—' },
       product:     { name: s.product?.name || '—', id: s.product?.id },
       amount:      s.purchase?.price?.value ?? 0,
       currency:    s.purchase?.price?.currency_code || 'BRL',
-      amountBRL:   s.purchase?.price?.converted_value || (s.purchase?.price?.currency_code === 'BRL' ? s.purchase?.price?.value : null),
+      amountBRL:   s.purchase?.price?.converted_value || null,
       paymentType: s.purchase?.payment?.type || '—',
       status:      s.purchase?.status,
+      isSubscription: s.purchase?.is_subscription === true,
+      installments:   s.purchase?.payment?.installments_number || 1,
+      recurrencyNumber: s.purchase?.recurrency_number || null,
     }));
 
     // ── 2 & 3. Subscriptions: upcoming payments + overdue ──────────────────
-    const token = await getHotmartToken();
-    const [activeSubs, delayedSubs] = await Promise.all([
-      fetchAllSubsByStatus(token, 'ACTIVE', 200),
-      fetchAllSubsByStatus(token, 'DELAYED', 500),
-    ]);
+    const token  = await getHotmartToken();
+    const allSubs = await fetchAllSubs(token, 500);
 
-    // Upcoming payments: active subs sorted by date_next_charge asc, future only
     const now = Date.now();
-    const upcoming = activeSubs
-      .filter(s => s.date_next_charge && s.date_next_charge > now)
+
+    // Upcoming: ACTIVE with future date_next_charge
+    const upcoming = allSubs
+      .filter(s => s.status === 'ACTIVE' && s.date_next_charge && s.date_next_charge > now)
       .sort((a, b) => a.date_next_charge - b.date_next_charge)
       .slice(0, 10)
       .map(s => ({
-        subscriberCode: s.subscriber_code,
-        subscriber:     { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
-        product:        { name: s.product?.name || '—', id: s.product?.id },
-        plan:           s.plan?.name || '—',
-        dateNextCharge: s.date_next_charge,
-        amount:         s.price?.value ?? 0,
-        currency:       s.price?.currency_code || 'BRL',
-        recurrencyPeriod: s.plan?.recurrency_period || 30,
-        accessionDate:  s.accession_date,
+        subscriberCode:   s.subscriber_code,
+        subscriber:       { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
+        product:          { name: s.product?.name || '—', id: s.product?.id },
+        plan:             s.plan?.name || '—',
+        dateNextCharge:   s.date_next_charge,
+        amount:           s.price?.value ?? 0,
+        currency:         s.price?.currency_code || 'BRL',
+        accessionDate:    s.accession_date,
       }));
 
-    // Overdue (DELAYED): all, sorted by accession date desc
-    const overdue = delayedSubs
-      .sort((a, b) => (b.accession_date || 0) - (a.accession_date || 0))
+    // Overdue: any status that is DELAYED
+    const overdue = allSubs
+      .filter(s => s.status === 'DELAYED')
+      .sort((a, b) => (b.request_date || b.accession_date || 0) - (a.request_date || a.accession_date || 0))
       .map(s => ({
-        subscriberCode: s.subscriber_code,
-        subscriber:     { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
-        product:        { name: s.product?.name || '—', id: s.product?.id },
-        plan:           s.plan?.name || '—',
-        amount:         s.price?.value ?? 0,
-        currency:       s.price?.currency_code || 'BRL',
-        accessionDate:  s.accession_date,
-        requestDate:    s.request_date,
+        subscriberCode:  s.subscriber_code,
+        subscriber:      { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
+        product:         { name: s.product?.name || '—', id: s.product?.id },
+        plan:            s.plan?.name || '—',
+        amount:          s.price?.value ?? 0,
+        currency:        s.price?.currency_code || 'BRL',
+        accessionDate:   s.accession_date,
+        requestDate:     s.request_date,
         lastTransaction: s.transaction,
+        status:          s.status,
       }));
+
+    // Status summary (so page can show debugging info)
+    const statusCounts: Record<string, number> = {};
+    allSubs.forEach(s => { statusCounts[s.status] = (statusCounts[s.status] || 0) + 1; });
 
     return NextResponse.json({
-      period: { from: dateFrom, to: dateTo },
-      totalInPeriod: sortedSales.length,
+      totalTransactions: approved.length,
       recentTransactions,
       upcoming,
       overdue,
+      statusCounts,      // for debugging
+      totalSubs: allSubs.length,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
