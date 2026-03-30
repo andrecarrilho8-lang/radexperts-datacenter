@@ -115,22 +115,18 @@ function Step1({ onSelect }: { onSelect: (p: ProductItem) => void }) {
 
 /* ─── STEP 2 ──────────────────────────────────────────────────────── */
 function Step2({ product, onConfirm, onBack }: { product: string; onConfirm: (c: Campaign[]) => void; onBack: () => void }) {
+  const { dateFrom, dateTo } = useDashboard();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selected, setSelected]   = useState<Set<string>>(new Set());
   const [search, setSearch]       = useState('');
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    // Use the full current-year range so paused campaigns that spent
-    // earlier in the year still show their accumulated investment.
-    // (Using the dashboard's 30-day default would blank out paused campaigns.)
-    const yearStart = `${new Date().getFullYear()}-01-01`;
-    const today     = new Date().toISOString().split('T')[0];
-    fetch(`/api/meta/analise-campaigns?dateFrom=${yearStart}&dateTo=${today}`)
+    fetch(`/api/meta/analise-campaigns?dateFrom=${dateFrom}&dateTo=${dateTo}`)
       .then(r => r.json())
       .then(d => { setCampaigns(d.campaigns || []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []); // runs once on mount — independent of global date filter
+  }, [dateFrom, dateTo]);
 
   const toggle   = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const filtered = campaigns.filter(c => (c.name || '').toLowerCase().includes(search.toLowerCase()));
