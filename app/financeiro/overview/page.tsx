@@ -151,6 +151,8 @@ type Overdue = {
   amount: number; currency: string; amountBRL: number | null;
   accessionDate: number; lastPayDate: number; daysSinceLast: number;
   lastTransaction: string;
+  isSub: boolean; isSmartInstall: boolean;
+  paidCount: number; paidTotal: number; installments: number;
 };
 type Data = {
   totalTransactions: number; totalSubs: number;
@@ -531,9 +533,10 @@ export default function FinanceiroOverviewPage() {
                                 <span className="text-[9px] font-bold" style={{ color: SILVER }}>{o.lastTransaction.slice(0, 14)}…</span>
                               </div>
                             </td>
-                            {/* Valor */}
+                            {/* Valor + breakdown (o que pagou / o que deve) */}
                             <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <div className="flex flex-col items-end gap-0.5">
+                              <div className="flex flex-col items-end gap-1">
+                                {/* Main amount */}
                                 <span className="font-black text-lg" style={{ color: tab.accent }}>
                                   {fmtLocalCurrency(o.amount, o.currency)}
                                 </span>
@@ -542,6 +545,33 @@ export default function FinanceiroOverviewPage() {
                                     ≈ {fmtBRL(o.amountBRL)}
                                   </span>
                                 )}
+                                {/* Payment breakdown */}
+                                <div className="mt-1 flex flex-col items-end gap-0.5 border-t pt-1" style={{ borderColor: `${tab.accent}22`, width: '100%' }}>
+                                  {/* Paid */}
+                                  <span className="text-[9px] font-black" style={{ color: '#4ade80' }}>
+                                    ✓ {o.isSub
+                                      ? `${o.paidCount}× pago${o.paidCount !== 1 ? 's' : ''}`
+                                      : o.isSmartInstall
+                                        ? `${o.paidCount}/${o.installments} parcelas`
+                                        : `${o.paidCount}× pago`
+                                    }
+                                  </span>
+                                  {/* Total paid value */}
+                                  <span className="text-[9px]" style={{ color: '#4ade8090' }}>
+                                    {fmtLocalCurrency(o.paidTotal, o.currency)}
+                                  </span>
+                                  {/* Owes */}
+                                  {o.isSmartInstall && o.installments > o.paidCount && (
+                                    <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>
+                                      ◷ {o.installments - o.paidCount} restante{o.installments - o.paidCount !== 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {o.isSub && (
+                                    <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>
+                                      ◷ {o.daysSinceLast}d sem pagar
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </td>
                             {/* Nome */}

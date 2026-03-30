@@ -94,6 +94,7 @@ export async function GET() {
       lastTransaction: string;
       isSub: boolean; isSmartInstall: boolean;
       maxRecurrency: number; installments: number;
+      paymentCount: number; paymentSum: number;
     }>();
 
     for (const s of approved) {
@@ -129,6 +130,8 @@ export async function GET() {
           lastTransaction: s.purchase?.transaction || '—',
           isSub, isSmartInstall,
           maxRecurrency: recur, installments: inst,
+          paymentCount: 1,
+          paymentSum: s.purchase?.price?.value ?? 0,
         });
       } else {
         if (ts > cur.lastPayTs) {
@@ -139,6 +142,8 @@ export async function GET() {
           cur.amount          = s.purchase?.price?.value ?? cur.amount;
           cur.currency        = (s.purchase?.price?.currency_code || 'BRL').toUpperCase();
         }
+        cur.paymentCount++;
+        cur.paymentSum += s.purchase?.price?.value ?? 0;
         if (ts > 0 && ts < cur.firstPayTs) cur.firstPayTs = ts;
         if (recur > cur.maxRecurrency)     cur.maxRecurrency = recur;
         if (inst  > cur.installments)      cur.installments  = inst;
@@ -179,9 +184,15 @@ export async function GET() {
         currency:       entry.currency,
         amountBRL,
         accessionDate:  entry.firstPayTs,
-        lastPayDate:    entry.lastPayTs,   // actual date of last payment
+        lastPayDate:    entry.lastPayTs,
         daysSinceLast,
         lastTransaction: entry.lastTransaction,
+        // Payment breakdown
+        isSub:          entry.isSub,
+        isSmartInstall: entry.isSmartInstall,
+        paidCount:      entry.paymentCount,
+        paidTotal:      entry.paymentSum,
+        installments:   entry.installments,
       });
     }
     overdue.sort((a, b) => b.daysSinceLast - a.daysSinceLast);
