@@ -110,7 +110,7 @@ export async function GET() {
       const mode       = (s.purchase?.offer?.payment_mode || 'UNIQUE_PAYMENT').toUpperCase();
       const recur      = s.purchase?.recurrency_number || 1;
       const inst       = s.purchase?.payment?.installments_number || 1;
-      const isSub      = mode === 'SUBSCRIPTION' || s.purchase?.is_subscription === true;
+      const isSub      = mode === 'SUBSCRIPTION'; // ← same as /api/cursos/[courseName]
       const isSmartInstall = !isSub && recur > 1;
 
       // Skip one-time & standard card splits — they're always QUITADO
