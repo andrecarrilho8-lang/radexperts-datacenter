@@ -95,30 +95,38 @@ const COLS: Record<string, ColDef> = {
     label: 'Campanha', 
     fmt: (c, ctx) => {
       // eslint-disable-next-line react-hooks/rules-of-hooks
-      const [nameHover, setNameHover] = useState(false);
+      const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
       return (
         <div
           className="relative min-w-[300px] max-w-[450px] py-1"
-          onMouseEnter={() => setNameHover(true)}
-          onMouseLeave={() => setNameHover(false)}
+          onMouseEnter={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+          onMouseMove={(e)  => setMousePos({ x: e.clientX, y: e.clientY })}
+          onMouseLeave={()  => setMousePos(null)}
         >
-          {/* Feedback button floats above the text — only when hovering the name */}
-          <button
-            onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }}
-            className="absolute flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all cursor-pointer z-10"
-            style={{
-              bottom: '100%', left: 0, marginBottom: 4,
-              background: 'rgba(232,177,79,0.15)', border: '1px solid rgba(232,177,79,0.35)',
-              color: GOLD, pointerEvents: nameHover ? 'auto' : 'none',
-              opacity: nameHover ? 1 : 0,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-              transition: 'opacity 0.15s ease',
-            }}
-            title="Gerar Feedback da Campanha"
-          >
-            <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
-            <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
-          </button>
+          {/* Feedback button — follows mouse cursor, only visible on name hover */}
+          {mousePos && typeof window !== 'undefined' && createPortal(
+            <button
+              onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer"
+              style={{
+                position: 'fixed',
+                left: mousePos.x + 12,
+                top: mousePos.y - 36,
+                zIndex: 2147483647,
+                background: 'rgba(0,12,32,0.95)',
+                border: '1px solid rgba(232,177,79,0.5)',
+                color: GOLD,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+                backdropFilter: 'blur(12px)',
+                pointerEvents: 'auto',
+              }}
+              title="Gerar Feedback da Campanha"
+            >
+              <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
+              <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
+            </button>,
+            document.body
+          )}
           <span className="font-headline font-black text-white leading-tight uppercase tracking-tight block" title={c.name}>
             {c.name}
           </span>
