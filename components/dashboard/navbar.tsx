@@ -16,27 +16,34 @@ const TRAFEGO_ITEMS = [
   { label: 'Histórico', href: '/historico',         icon: 'history' },
 ];
 
+const FINANCEIRO_ITEMS = [
+  { label: 'Overview', href: '/financeiro/overview', icon: 'account_balance_wallet' },
+];
+
 export function Navbar() {
   const { dateFrom, dateTo, setDateRange, activePreset, setActivePreset, presets, userRole, userName, logout } = useDashboard();
-  const [showCustom,   setShowCustom]   = useState(false);
-  const [mobileOpen,   setMobileOpen]   = useState(false);
-  const [trafegoOpen,  setTrafegoOpen]  = useState(false);
+  const [showCustom,      setShowCustom]      = useState(false);
+  const [mobileOpen,      setMobileOpen]      = useState(false);
+  const [trafegoOpen,     setTrafegoOpen]     = useState(false);
+  const [financeiroOpen,  setFinanceiroOpen]  = useState(false);
   const [tmpFrom, setTmpFrom] = useState(dateFrom);
   const [tmpTo,   setTmpTo]   = useState(dateTo);
-  const pathname  = usePathname();
-  const customRef = useRef<HTMLDivElement>(null);
-  const trafegoRef= useRef<HTMLDivElement>(null);
+  const pathname       = usePathname();
+  const customRef      = useRef<HTMLDivElement>(null);
+  const trafegoRef     = useRef<HTMLDivElement>(null);
+  const financeiroRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function clickOutside(e: MouseEvent) {
-      if (customRef.current && !customRef.current.contains(e.target as Node)) setShowCustom(false);
-      if (trafegoRef.current && !trafegoRef.current.contains(e.target as Node)) setTrafegoOpen(false);
+      if (customRef.current     && !customRef.current.contains(e.target as Node))     setShowCustom(false);
+      if (trafegoRef.current    && !trafegoRef.current.contains(e.target as Node))    setTrafegoOpen(false);
+      if (financeiroRef.current && !financeiroRef.current.contains(e.target as Node)) setFinanceiroOpen(false);
     }
     document.addEventListener('mousedown', clickOutside);
     return () => document.removeEventListener('mousedown', clickOutside);
   }, []);
 
-  useEffect(() => { setMobileOpen(false); setTrafegoOpen(false); }, [pathname]);
+  useEffect(() => { setMobileOpen(false); setTrafegoOpen(false); setFinanceiroOpen(false); }, [pathname]);
 
   const applyPreset = (p: Preset) => {
     setDateRange(p.from, p.to);
@@ -52,7 +59,8 @@ export function Navbar() {
     setShowCustom(false);
   };
 
-  const isTrafegoActive = TRAFEGO_ITEMS.some(i => pathname.startsWith(i.href));
+  const isTrafegoActive    = TRAFEGO_ITEMS.some(i => pathname.startsWith(i.href));
+  const isFinanceiroActive = FINANCEIRO_ITEMS.some(i => pathname.startsWith(i.href));
 
   const topNavItems = [
     { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL'] },
@@ -160,6 +168,46 @@ export function Navbar() {
                   style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
               )}
             </Link>
+
+            {/* FINANCEIRO dropdown (TOTAL only) */}
+            {userRole === 'TOTAL' && (
+              <div className="relative h-full flex items-center" ref={financeiroRef}>
+                <button
+                  onMouseEnter={() => setFinanceiroOpen(true)}
+                  onClick={() => setFinanceiroOpen(o => !o)}
+                  className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center gap-1.5 px-5"
+                  style={{ color: isFinanceiroActive ? GOLD : financeiroOpen ? GOLD : SILVER, background: isFinanceiroActive || financeiroOpen ? 'rgba(232,177,79,0.07)' : 'transparent' }}>
+                  Financeiro
+                  <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${financeiroOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                  {isFinanceiroActive && (
+                    <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
+                      style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                  )}
+                </button>
+
+                {financeiroOpen && (
+                  <div
+                    onMouseLeave={() => setFinanceiroOpen(false)}
+                    className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl"
+                    style={{ background: 'linear-gradient(160deg, rgba(0,16,40,0.99) 0%, rgba(0,10,28,0.99) 100%)', border: '1px solid rgba(232,177,79,0.15)', backdropFilter: 'blur(24px)', marginTop: 0 }}>
+                    {FINANCEIRO_ITEMS.map(item => {
+                      const isActive = pathname.startsWith(item.href);
+                      return (
+                        <Link key={item.href} href={item.href}
+                          className="flex items-center gap-3 px-5 py-3.5 text-[11px] font-black uppercase tracking-[0.15em] transition-all"
+                          style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.08)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                          onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.06)'; } }}
+                          onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}>
+                          <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                          {item.label}
+                          {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: GOLD }} />}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -276,6 +324,22 @@ export function Navbar() {
                 );
               })}
             </div>
+            {userRole === 'TOTAL' && (
+              <div style={{ background: 'rgba(0,0,0,0.15)' }}>
+                <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Financeiro</p>
+                {FINANCEIRO_ITEMS.map(item => {
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link key={item.href} href={item.href}
+                      className="px-8 py-3 text-sm font-black uppercase tracking-widest flex items-center gap-3"
+                      style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
+                      <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
             <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: SILVER }}>Período</p>
