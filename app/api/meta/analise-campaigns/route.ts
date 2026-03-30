@@ -44,11 +44,11 @@ export async function GET(request: Request) {
     // We do NOT add effective_status here — it's not a valid top-level param for
     // the insights endpoint (adding it previously caused the dashboard to go blank).
     const insightFields = [
-      'spend','impressions','clicks','actions','action_values',
-      'ctr','cpc','outbound_clicks',
-      'campaign_id','campaign_name',
-      'cost_per_action_type',
-      'landing_page_view_rate','unique_outbound_clicks',
+      'spend', 'impressions', 'clicks',
+      'actions', 'action_values',
+      'ctr', 'cpc',
+      'outbound_clicks',
+      'campaign_id', 'campaign_name',
     ].join(',');
 
     const insightParams = new URLSearchParams({
