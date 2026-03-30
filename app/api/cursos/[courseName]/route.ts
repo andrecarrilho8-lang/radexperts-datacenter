@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCachedAllSales } from '@/app/lib/salesCache';
 import { getCache, setCache } from '@/app/lib/metaApi';
+import { convertToBRLOnDate } from '@/app/lib/currency';
 
 /**
  * ═══════════════════════════════════════════════════════════════════
@@ -69,7 +70,7 @@ export async function GET(
   const turma      = searchParams.get('turma') || '';
 
   // v10: offer-aware payment mode detection
-  const CACHE_KEY = `curso_v11_${courseName}`;
+  const CACHE_KEY = `curso_v12_${courseName}`;
   const hit = getCache(CACHE_KEY);
   if (hit?.expires_at > Date.now()) {
     const result = hit.data;
@@ -178,7 +179,7 @@ export async function GET(
 
     const nowMs = Date.now();
 
-    const students = Array.from(emailMap.entries()).map(([buyerEmail, agg]) => {
+    const students = (await Promise.all(Array.from(emailMap.entries()).map(async ([buyerEmail, agg]) => {
       const s        = agg.latestSale;
       const purchase = s.purchase || {};
       const buyerObj = typeof s.buyer === 'object' ? s.buyer : {};
@@ -245,6 +246,13 @@ export async function GET(
       else if (pm.includes('PAYPAL')) paymentLabel = 'PayPal';
       else if (pm.includes('WALLET')) paymentLabel = 'Carteira Digital';
 
+      // Convert to BRL for LATAM display (async, uses AwesomeAPI with cache)
+      const dateIso = firstPayTs
+        ? new Date(firstPayTs).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+      const valorBRL = currency === 'BRL' ? null
+        : await convertToBRLOnDate(valor, currency, dateIso).catch(() => null);
+
       return {
         name:               buyerName.toUpperCase(),
         email:              buyerEmail,
@@ -252,15 +260,15 @@ export async function GET(
         lastPayDate:        lastPayTs || null,
         turma:              primaryOffer.offerCode,
         valor,
+        valorBRL,          // null for BRL students; BRL equiv for LATAM
         currency,
         flag,
         transaction:        agg.firstSale?.purchase?.transaction || purchase.transaction || '',
-        // Payment mode fields
         paymentType:        primaryOffer.paymentType,
         paymentMethod:      primaryOffer.paymentMethod,
-        paymentLabel,                         // human-readable method
+        paymentLabel,
         offerCode:          primaryOffer.offerCode,
-        paymentMode:        primaryOffer.paymentMode, // SUBSCRIPTION | UNIQUE_PAYMENT
+        paymentMode:        primaryOffer.paymentMode,
         paymentInstallments: inst,
         paymentIsSub:       isSub,
         paymentIsSmartInstall: isSmartInstall,
@@ -270,7 +278,7 @@ export async function GET(
         paymentHistory:     sortedPayments,
       };
 
-    }).sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
+    }))).sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
 
     const result = {
       students,

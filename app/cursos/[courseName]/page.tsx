@@ -41,18 +41,18 @@ type PayHist   = { date: number; valor: number; recurrencyNumber: number; index:
 type Student   = {
   name: string; email: string;
   entryDate: number | null; lastPayDate: number | null;
-  turma: string; valor: number; currency: string; flag: string; transaction: string;
+  turma: string; valor: number; valorBRL: number | null; currency: string; flag: string; transaction: string;
   // Payment fields
-  paymentType: string;           // CREDIT_CARD, PIX, BILLET, PAYPAL, WALLET
-  paymentMethod: string;         // CREDIT_CARD_VISA, CREDIT_CARD_ELO, etc.
-  paymentLabel: string;          // Human-readable: "Cartão Visa", "Pix", etc.
-  offerCode: string;             // Offer code for this student
-  paymentMode: string;           // SUBSCRIPTION | UNIQUE_PAYMENT
-  paymentInstallments: number;   // # installments (1 for PIX, 12 for 12x, etc.)
-  paymentIsSub: boolean;         // true if subscription
-  paymentIsSmartInstall: boolean; // true if smart installments (multiple Hotmart charges)
-  paymentIsCardInstall: boolean;  // true if standard bank card installments
-  paymentRecurrency: number;     // max recurrency_number seen (= actual paid count for smart/sub)
+  paymentType: string;
+  paymentMethod: string;
+  paymentLabel: string;
+  offerCode: string;
+  paymentMode: string;
+  paymentInstallments: number;
+  paymentIsSub: boolean;
+  paymentIsSmartInstall: boolean;
+  paymentIsCardInstall: boolean;
+  paymentRecurrency: number;
   subStatus: SubStatus;
   paymentHistory: PayHist[];
 };
@@ -573,8 +573,23 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     </div>
 
                     <span className="text-[11px] font-bold truncate pr-3 pt-1" style={{ color: SILVER }}>{s.email}</span>
-                    <span className="text-[12px] font-bold pt-1" style={{ color: GOLD }}>{fmtMoneyByCurrency(vParcela(s), s.currency)}</span>
-                    <span className="text-[12px] font-bold pt-1 text-white">{fmtMoneyByCurrency(vTotal(s), s.currency)}</span>
+                    {/* Valor Parcela */}
+                    <div className="flex flex-col gap-0.5 pt-1">
+                      <span className="text-[12px] font-bold" style={{ color: GOLD }}>{fmtMoneyByCurrency(vParcela(s), s.currency)}</span>
+                      {s.valorBRL != null && s.currency !== 'BRL' && (
+                        <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(s.valorBRL)}</span>
+                      )}
+                    </div>
+                    {/* Total Pago */}
+                    <div className="flex flex-col gap-0.5 pt-1">
+                      <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(vTotal(s), s.currency)}</span>
+                      {s.valorBRL != null && s.currency !== 'BRL' && (() => {
+                        const totalBrl = s.paymentHistory.length > 0
+                          ? s.valorBRL * s.paymentHistory.length
+                          : s.valorBRL;
+                        return <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(totalBrl)}</span>;
+                      })()}
+                    </div>
                     <PaymentCell s={s} />
                   </div>
                 );
