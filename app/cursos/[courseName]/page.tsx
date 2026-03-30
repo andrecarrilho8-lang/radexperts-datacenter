@@ -599,7 +599,6 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     {/* Name + flag — exactly like Hotmart page */}
                     <div className="pr-3 pt-0.5 cursor-default"
                       onMouseEnter={e => openTip(e, s)}
-                      onMouseMove={moveTip}
                       onMouseLeave={closeTip}>
                       <div className="flex items-center gap-2 leading-tight">
                         {getStudentFlag(s.flag, 18)}
