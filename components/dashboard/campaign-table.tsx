@@ -73,77 +73,77 @@ function SpendCell({ camp, ctx }: { camp: any, ctx: any }) {
 }
 
 type ColDef = { key: string; label: string; fmt: (c: any, ctx?: any) => React.ReactNode; right?: boolean; highlight?: boolean };
+
+// ── NameCell: proper React component (useState cannot be inside a plain function) ──
+// Previously, `useState` was called inside the `name` column's `fmt` callback.
+// That violated React's Rules of Hooks: when search changed the rendered row count,
+// React lost track of hook order and crashed the entire page.
+function NameCell({ c, ctx }: { c: any; ctx: any }) {
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  return (
+    <div
+      className="relative min-w-[300px] max-w-[450px] py-1 cursor-pointer"
+      onMouseEnter={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={()  => setMousePos(null)}
+    >
+      {mousePos && typeof window !== 'undefined' && createPortal(
+        <button
+          onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer"
+          style={{
+            position: 'fixed',
+            left: mousePos.x + 12,
+            top: mousePos.y - 36,
+            zIndex: 2147483647,
+            background: 'rgba(0,12,32,0.95)',
+            border: '1px solid rgba(232,177,79,0.5)',
+            color: GOLD,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(12px)',
+            pointerEvents: 'auto',
+          }}
+          title="Gerar Feedback da Campanha"
+        >
+          <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
+          <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
+        </button>,
+        document.body
+      )}
+      <span className="font-headline font-black text-white leading-tight uppercase tracking-tight block" title={c.name ?? ''}>
+        {c.name ?? '—'}
+      </span>
+    </div>
+  );
+}
+
 const COLS: Record<string, ColDef> = {
-  go:         { 
-    key: 'go',          
-    label: '',                  
+  go: {
+    key: 'go', label: '',
     fmt: (c, ctx) => (
-      <button 
-        onClick={(e) => { e.stopPropagation(); ctx.router.push(`/campanhas/${c.id}`); }} 
+      <button
+        onClick={(e) => { e.stopPropagation(); ctx.router.push(`/campanhas/${c.id}`); }}
         className="w-8 h-8 flex items-center justify-center rounded-lg transition-all border"
         style={{ background: 'rgba(232,177,79,0.1)', borderColor: 'rgba(232,177,79,0.2)', color: GOLD }}
         title="Ver detalhes da campanha"
       >
         <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
       </button>
-    ), 
-    right: false 
+    ),
+    right: false,
   },
-  status:     { key: 'status', label: 'Status', fmt: () => '', right: false },
-  name:       { 
-    key: 'name', 
-    label: 'Campanha', 
-    fmt: (c, ctx) => {
-      // eslint-disable-next-line react-hooks/rules-of-hooks
-      const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
-      return (
-        <div
-          className="relative min-w-[300px] max-w-[450px] py-1 cursor-pointer"
-          onMouseEnter={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
-          onMouseLeave={()  => setMousePos(null)}
-        >
-          {/* Feedback button — follows mouse cursor, only visible on name hover */}
-          {mousePos && typeof window !== 'undefined' && createPortal(
-            <button
-              onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer"
-              style={{
-                position: 'fixed',
-                left: mousePos.x + 12,
-                top: mousePos.y - 36,
-                zIndex: 2147483647,
-                background: 'rgba(0,12,32,0.95)',
-                border: '1px solid rgba(232,177,79,0.5)',
-                color: GOLD,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(12px)',
-                pointerEvents: 'auto',
-              }}
-              title="Gerar Feedback da Campanha"
-            >
-              <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
-              <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
-            </button>,
-            document.body
-          )}
-          <span className="font-headline font-black text-white leading-tight uppercase tracking-tight block" title={c.name}>
-            {c.name}
-          </span>
-        </div>
-      );
-    },
-    right: false 
-  },
-  spend:      { key: 'spend', label: 'Gasto', fmt: (c, ctx) => <SpendCell camp={c} ctx={ctx} />, right: true },
-  connect:    { key: 'connectRate', label: 'Connect Rate', fmt: c => <RateCell val={c.connectRate} thresholds={[50, 70]} arrows={['arrow_downward', 'arrow_forward', 'arrow_upward']} />, right: true },
-  checkout:   { key: 'checkoutRate', label: 'Checkout Rate', fmt: c => <RateCell val={c.checkoutRate} thresholds={[5, 15]} arrows={['arrow_downward', 'arrow_forward', 'arrow_upward']} />, right: true },
-  ctr:        { key: 'ctr', label: 'CTR', fmt: c => <span className="font-black text-white">{P(c.ctr)}</span>, right: true },
-  leads:      { key: 'leads', label: 'Leads', fmt: c => <span className="font-black text-white">{N(c.leads)}</span>, right: true },
-  vendas:     { key: 'purchases', label: 'Vendas (Meta)', fmt: c => <span className="font-black" style={{ color: GOLD }}>{N(c.purchases || 0)}</span>, right: true, highlight: true },
-  cpa:        { key: 'cpa', label: 'CPA (Meta)', fmt: c => <span className="font-black text-white">{R(campCPAMeta(c))}</span>, right: true },
-  cpl:        { key: 'costPerLead', label: 'Custo / Lead', fmt: c => <span className="font-black text-white">{R(c.costPerLead)}</span>, right: true },
-  impressoes: { key: 'impressions', label: 'Impressões', fmt: c => <span className="font-black text-white">{N(c.impressions)}</span>, right: true },
+  status:     { key: 'status',      label: 'Status',        fmt: () => '',                                                                                                         right: false },
+  name:       { key: 'name',        label: 'Campanha',      fmt: (c, ctx) => <NameCell c={c} ctx={ctx} />,                                                                        right: false },
+  spend:      { key: 'spend',       label: 'Gasto',         fmt: (c, ctx) => <SpendCell camp={c} ctx={ctx} />,                                                                    right: true  },
+  connect:    { key: 'connectRate', label: 'Connect Rate',  fmt: c => <RateCell val={c.connectRate}  thresholds={[50, 70]} arrows={['arrow_downward','arrow_forward','arrow_upward']} />, right: true },
+  checkout:   { key: 'checkoutRate',label: 'Checkout Rate', fmt: c => <RateCell val={c.checkoutRate} thresholds={[5, 15]}  arrows={['arrow_downward','arrow_forward','arrow_upward']} />, right: true },
+  ctr:        { key: 'ctr',         label: 'CTR',           fmt: c => <span className="font-black text-white">{P(c.ctr)}</span>,                                                   right: true  },
+  leads:      { key: 'leads',       label: 'Leads',         fmt: c => <span className="font-black text-white">{N(c.leads)}</span>,                                                 right: true  },
+  vendas:     { key: 'purchases',   label: 'Vendas (Meta)', fmt: c => <span className="font-black" style={{ color: GOLD }}>{N(c.purchases || 0)}</span>,                           right: true, highlight: true },
+  cpa:        { key: 'cpa',         label: 'CPA (Meta)',    fmt: c => <span className="font-black text-white">{R(campCPAMeta(c))}</span>,                                          right: true  },
+  cpl:        { key: 'costPerLead', label: 'Custo / Lead',  fmt: c => <span className="font-black text-white">{R(c.costPerLead)}</span>,                                           right: true  },
+  impressoes: { key: 'impressions', label: 'Impressões',    fmt: c => <span className="font-black text-white">{N(c.impressions)}</span>,                                           right: true  },
 };
+
 
 const campCPAMeta = (c: any) => c.spend / (c.purchases || 1);
 
