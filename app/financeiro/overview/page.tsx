@@ -133,11 +133,12 @@ type Upcoming = {
   accessionDate: number;
 };
 type Overdue = {
-  subscriberCode: string;
+  subscriberCode?: string;
   subscriber: { name: string; email: string };
   product: { name: string };
   plan: string; amount: number; currency: string;
-  accessionDate: number; requestDate: number; lastTransaction: string;
+  accessionDate: number; lastPayDate: number; daysSinceLast: number;
+  lastTransaction: string;
 };
 type Data = {
   totalTransactions: number; totalSubs: number;
@@ -489,8 +490,8 @@ export default function FinanceiroOverviewPage() {
                           )}
                         </td></tr>
                       ) : data!.overdue.map((o, idx) => {
-                        const dias     = daysSince(o.requestDate || o.accessionDate);
-                        const severity = dias > 30 ? '#f87171' : dias > 14 ? GOLD : SILVER;
+                        const dias     = o.daysSinceLast ?? 0;
+                        const severity = dias > 50 ? '#f87171' : dias > 40 ? GOLD : SILVER;
                         const rowBg    = idx % 2 === 0 ? `${tab.accent}04` : `${tab.accent}08`;
                         return (
                           <tr key={o.subscriberCode || idx}
@@ -499,7 +500,10 @@ export default function FinanceiroOverviewPage() {
                             onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
                             {/* Última Transação */}
                             <td className="py-3 px-4">
-                              <span className="text-[11px] font-mono" style={{ color: SILVER }}>{o.lastTransaction || '—'}</span>
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[11px] font-mono" style={{ color: SILVER }}>{o.lastTransaction || '—'}</span>
+                                <span className="text-[9px] font-bold" style={{ color: SILVER }}>últ. pgto: {fmtDate(o.lastPayDate)}</span>
+                              </div>
                             </td>
                             {/* Valor */}
                             <td className="py-3 px-4 text-right whitespace-nowrap">
