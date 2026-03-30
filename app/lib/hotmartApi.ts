@@ -68,6 +68,44 @@ export async function getHotmartToken() {
   throw new Error('Falha no Token Hotmart');
 }
 
+// ── Subscriptions ────────────────────────────────────────────────────────────
+// Returns: Map<productName, Set<subscriberEmail>> for ACTIVE subscriptions only.
+// Paginates automatically through all results.
+export async function fetchActiveSubscriptionsByProduct(): Promise<Map<string, Set<string>>> {
+  const CACHE_KEY = 'hotmart_active_subs_v1';
+  const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+  const cached = getCache(CACHE_KEY);
+  if (cached && cached.expires_at > Date.now()) return cached.data;
+
+  const token = await getHotmartToken();
+  const productMap = new Map<string, Set<string>>();
+
+  let pageToken = '';
+  do {
+    const qs = `/payments/api/v1/subscriptions?status=ACTIVE&max_results=500${pageToken ? `&page_token=${pageToken}` : ''}`;
+    const resp = await httpsRequest('GET', HOTMART_API_HOST, qs, { Authorization: `Bearer ${token}` });
+    if (resp.status !== 200) break;
+
+    let data: any;
+    try { data = JSON.parse(resp.body); } catch { break; }
+
+    const items: any[] = data.items || [];
+    for (const item of items) {
+      const productName  = item.product?.name  || 'Desconhecido';
+      const subscriberEmail = (item.subscriber?.email || '').toLowerCase();
+      if (!subscriberEmail) continue;
+      if (!productMap.has(productName)) productMap.set(productName, new Set());
+      productMap.get(productName)!.add(subscriberEmail);
+    }
+
+    pageToken = data.page_info?.next_page_token || '';
+  } while (pageToken);
+
+  setCache(CACHE_KEY, { data: productMap, expires_at: Date.now() + CACHE_TTL });
+  return productMap;
+}
+
 // ── Fetch Sales ─────────────────────────────────────────────────────────────
 export async function fetchHotmartSales(startDate: string, endDate: string, customChunkSize?: number, concurrency = 4) {
   const token = await getHotmartToken();
