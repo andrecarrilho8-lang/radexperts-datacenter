@@ -325,11 +325,12 @@ export default function FinanceiroOverviewPage() {
                             <td className="py-3 px-4 text-right">
                               <div className="flex flex-col items-end gap-1">
                                 <span className="font-black text-xl" style={{ color: tab.accent }}>
-                                  {fmtBRL(t.currency === 'BRL' ? t.amount : (t.amountBRL ?? t.amount))}
+                                  {/* Main: always local currency – never raw 150000 shown as BRL */}
+                                  {fmtLocalCurrency(t.amount, t.currency)}
                                 </span>
-                                {t.currency !== 'BRL' && (
+                                {t.currency !== 'BRL' && t.amountBRL && (
                                   <span className="text-[10px] font-bold" style={{ color: SILVER }}>
-                                    {t.currency} {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    ≈ {fmtBRL(t.amountBRL)}
                                   </span>
                                 )}
                                 <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>{installLabel}</span>
@@ -466,12 +467,7 @@ export default function FinanceiroOverviewPage() {
                     Inadimplentes{!loading && data ? ` — ${data.overdue.length}` : ''}
                   </p>
                   <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
-                    Assinaturas com pagamento atrasado (DELAYED)
-                    {!loading && data?.statusCounts && (
-                      <span className="ml-2 opacity-50">
-                        [{Object.entries(data.statusCounts).map(([k, v]) => `${k}:${v}`).join(' · ')}]
-                      </span>
-                    )}
+                    Assinaturas e parcelamentos com pagamento atrasado · últ. cobrança há +35 dias
                   </p>
                 </div>
               </div>
@@ -483,7 +479,7 @@ export default function FinanceiroOverviewPage() {
                       <TH right>Valor</TH>
                       <TH>Nome</TH>
                       <TH>Produto</TH>
-                      <TH>Plano</TH>
+                      <TH>Oferta</TH>
                       <TH>Início</TH>
                       <TH>Dias em Atraso</TH>
                     </tr>
