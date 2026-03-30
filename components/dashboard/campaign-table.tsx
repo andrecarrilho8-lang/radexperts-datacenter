@@ -98,9 +98,8 @@ const COLS: Record<string, ColDef> = {
       const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
       return (
         <div
-          className="relative min-w-[300px] max-w-[450px] py-1"
+          className="relative min-w-[300px] max-w-[450px] py-1 cursor-pointer"
           onMouseEnter={(e) => setMousePos({ x: e.clientX, y: e.clientY })}
-          onMouseMove={(e)  => setMousePos({ x: e.clientX, y: e.clientY })}
           onMouseLeave={()  => setMousePos(null)}
         >
           {/* Feedback button — follows mouse cursor, only visible on name hover */}
@@ -149,10 +148,10 @@ const COLS: Record<string, ColDef> = {
 const campCPAMeta = (c: any) => c.spend / (c.purchases || 1);
 
 const COLUMNS_BY_OBJ: Record<string, ColDef[]> = {
-  GERAL:  [COLS.go, COLS.status, COLS.name, COLS.spend, COLS.connect, COLS.checkout, COLS.ctr, COLS.leads, COLS.vendas],
-  VENDAS: [COLS.go, COLS.status, COLS.name, COLS.spend, COLS.connect, COLS.checkout, COLS.ctr, COLS.vendas, COLS.cpa],
-  LEADS:  [COLS.go, COLS.status, COLS.name, COLS.spend, COLS.connect, COLS.ctr, COLS.leads, COLS.cpl],
-  OUTROS: [COLS.go, COLS.status, COLS.name, COLS.spend, COLS.impressoes, COLS.ctr, COLS.leads, COLS.vendas],
+  GERAL:  [COLS.status, COLS.name, COLS.spend, COLS.connect, COLS.checkout, COLS.ctr, COLS.leads, COLS.vendas],
+  VENDAS: [COLS.status, COLS.name, COLS.spend, COLS.connect, COLS.checkout, COLS.ctr, COLS.vendas, COLS.cpa],
+  LEADS:  [COLS.status, COLS.name, COLS.spend, COLS.connect, COLS.ctr, COLS.leads, COLS.cpl],
+  OUTROS: [COLS.status, COLS.name, COLS.spend, COLS.impressoes, COLS.ctr, COLS.leads, COLS.vendas],
 };
 
 export function CampaignTable({ campaigns, loading, ctx }: { campaigns: any[], loading: boolean, ctx: any }) {
