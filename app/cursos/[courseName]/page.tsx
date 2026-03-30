@@ -63,6 +63,7 @@ const TABLE_STYLE: React.CSSProperties = {
   border: '1px solid rgba(255,255,255,0.10)',
   boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 20px 40px -8px rgba(0,0,0,0.55)',
   borderRadius: 24,
+  // NOTE: no backdropFilter here — it creates a stacking context that traps fixed-position children
 };
 const HEADER_STYLE: React.CSSProperties = {
   background: 'linear-gradient(90deg, rgba(255,255,255,0.07) 0%, rgba(180,195,220,0.05) 100%)',
@@ -520,8 +521,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           </div>
 
 
-          {/* Table */}
-          <div style={{ ...TABLE_STYLE, overflow: 'hidden' }}>
+          {/* Table — no overflow:hidden so portaled tooltip renders above all elements */}
+          <div style={{ ...TABLE_STYLE, overflow: 'visible' }}>
             <div className="pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', borderRadius: '24px 24px 0 0', height: 4, marginBottom: -4 }} />
 
             {/* Header */}
