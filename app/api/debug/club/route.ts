@@ -5,22 +5,30 @@ import { getHotmartToken } from '@/app/lib/hotmartApi';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-function clubGet(token: string, path: string): Promise<{ status: number; body: any; raw: string }> {
+function clubReq(token: string, path: string, useHottok = false): Promise<{ status: number; headers: any; raw: string }> {
   return new Promise((resolve) => {
+    const hottok = process.env.HOTMART_HOTTOK || '';
+    const authHeader = useHottok ? `HOTTOK ${hottok}` : `Bearer ${token}`;
     const req = https.request(
-      { hostname: 'developers.hotmart.com', path, method: 'GET',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+      {
+        hostname: 'developers.hotmart.com',
+        path,
+        method: 'GET',
+        headers: {
+          Authorization: authHeader,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      },
       (res) => {
         let data = '';
         res.on('data', (c) => { data += c; });
         res.on('end', () => {
-          let body: any = null;
-          try { body = JSON.parse(data); } catch {}
-          resolve({ status: res.statusCode || 0, body, raw: data.slice(0, 2000) });
+          resolve({ status: res.statusCode || 0, headers: res.headers, raw: data.slice(0, 3000) });
         });
       }
     );
-    req.on('error', (e) => resolve({ status: 0, body: null, raw: e.message }));
+    req.on('error', (e) => resolve({ status: 0, headers: {}, raw: e.message }));
     req.end();
   });
 }
@@ -29,23 +37,20 @@ export async function GET() {
   try {
     const token = await getHotmartToken();
 
-    // Test only neuroexperts first to see full raw response structure
-    const r1 = await clubGet(token, `/club/api/v1/users?subdomain=neuroexperts`);
-    const r2 = await clubGet(token, `/club/api/v1/users?subdomain=neuroexperts&max_results=3`);
-    const r3 = await clubGet(token, `/club/api/v1/memberships`);
-    const r4 = await clubGet(token, `/club/api/v1/users?subdomain=alzheimerexpert`);
+    const [a, b, c, d, e] = await Promise.all([
+      // Standard bearer
+      clubReq(token, '/club/api/v1/users?subdomain=neuroexperts'),
+      // With pagination params
+      clubReq(token, '/club/api/v1/users?subdomain=neuroexperts&page=0&rows=5'),
+      // HOTTOK auth
+      clubReq(token, '/club/api/v1/users?subdomain=neuroexperts', true),
+      // Different endpoint format
+      clubReq(token, '/club/api/v1/users?subdomain=neuroexperts&size=5'),
+      // Try products/memberships
+      clubReq(token, '/payments/api/v1/subscriptions?product_id=&max_results=5'),
+    ]);
 
-    // Keys in responses to understand structure
-    const keys1 = r1.body ? Object.keys(r1.body) : [];
-    const keys2 = r2.body ? Object.keys(r2.body) : [];
-
-    return NextResponse.json({
-      token: token?.slice(0, 20) + '...',
-      neuroexperts_noParam:    { status: r1.status, keys: keys1, raw: r1.raw },
-      neuroexperts_maxResults: { status: r2.status, keys: keys2, raw: r2.raw },
-      alzheimerexpert:         { status: r4.status, keys: r4.body ? Object.keys(r4.body) : [], raw: r4.raw },
-      memberships:             { status: r3.status, keys: r3.body ? Object.keys(r3.body) : [], raw: r3.raw },
-    });
+    return NextResponse.json({ token: token.slice(0, 20) + '...', a, b, c, d, e });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
