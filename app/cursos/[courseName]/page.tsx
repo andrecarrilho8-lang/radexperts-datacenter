@@ -223,17 +223,41 @@ function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
     : s.paymentIsCardInstall ? `${s.paymentLabel} · ${inst}×`
     : s.paymentLabel || s.paymentType;
 
+  // Track mouse position directly via DOM ref — no React re-render lag
+  const divRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!divRef.current) return;
+      const tw = divRef.current.offsetWidth  || 300;
+      const th = divRef.current.offsetHeight || 400;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      // Place to the right of cursor, flip left if near edge
+      let x = e.clientX + 18;
+      let y = e.clientY - 12;
+      if (x + tw > vw - 8) x = e.clientX - tw - 12;
+      if (y + th > vh - 8) y = vh - th - 8;
+      if (y < 8) y = 8;
+      divRef.current.style.left = `${x}px`;
+      divRef.current.style.top  = `${y}px`;
+    };
+    document.addEventListener('mousemove', onMove);
+    return () => document.removeEventListener('mousemove', onMove);
+  }, []);
+
   return (
     <div
+      ref={divRef}
       onMouseEnter={onHoverIn}
       onMouseLeave={onHoverOut}
       style={{
-      position: 'fixed', left: pos.x + 16, top: pos.y - 10,
+      position: 'fixed', left: pos.x + 18, top: pos.y - 12,
       zIndex: 99999, width: 300,
       background: 'linear-gradient(160deg, rgba(0,22,55,0.99) 0%, rgba(0,15,40,0.97) 100%)',
       border: '1px solid rgba(232,177,79,0.22)',
       boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 32px 64px rgba(0,0,0,0.85)',
       borderRadius: 18, backdropFilter: 'blur(32px)',
+      pointerEvents: 'auto',
     }}>
       {/* Header: status badge + email + offer */}
       <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
