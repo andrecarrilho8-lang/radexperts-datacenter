@@ -165,7 +165,7 @@ export function CampaignTable({ campaigns, loading, ctx }: { campaigns: any[], l
 
   const filtered = campaigns
     .filter(c => objTab === 'GERAL' || c.objective === objTab)
-    .filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter(c => !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handleSort = (key: string) => {
     setSortConfig(prev => ({ key, dir: prev?.key === key && prev.dir === 'desc' ? 'asc' : 'desc' }));
