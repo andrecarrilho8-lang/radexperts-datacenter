@@ -116,17 +116,25 @@ const COLS: Record<string, ColDef> = {
     key: 'name', 
     label: 'Campanha', 
     fmt: (c, ctx) => (
-      <div className="flex items-center justify-between gap-4 relative min-w-[300px] max-w-[450px]">
-        <span className="font-headline font-black text-white leading-tight uppercase tracking-tight py-1" title={c.name}>{c.name}</span>
-        <button 
-          onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }} 
-          className="opacity-0 group-hover:opacity-100 flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all cursor-pointer shadow-lg" 
-          style={{ background: 'rgba(232,177,79,0.15)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}
+      <div className="relative min-w-[300px] max-w-[450px] py-1">
+        {/* Feedback button floats above the text on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }}
+          className="absolute opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all cursor-pointer z-10"
+          style={{
+            bottom: '100%', left: 0, marginBottom: 4,
+            background: 'rgba(232,177,79,0.15)', border: '1px solid rgba(232,177,79,0.35)',
+            color: GOLD, pointerEvents: 'auto',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+          }}
           title="Gerar Feedback da Campanha"
         >
-          <span className="material-symbols-outlined text-[14px]">chat_bubble</span>
-          <span className="text-[10px] font-black uppercase tracking-widest leading-none">Feedback</span>
+          <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
+          <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
         </button>
+        <span className="font-headline font-black text-white leading-tight uppercase tracking-tight block" title={c.name}>
+          {c.name}
+        </span>
       </div>
     ),
     right: false 
