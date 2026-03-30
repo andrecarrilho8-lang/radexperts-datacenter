@@ -192,10 +192,9 @@ function PaymentCell({ s }: { s: Student }) {
 }
 
 
-// ── Tooltip — simple, clean ───────────────────────────────────────────────────
-function NameTooltip({ s, initialPos, onHoverIn, onHoverOut }: {
+// ── Tooltip ─────────────────────────────────────────────────────
+function NameTooltip({ s, onHoverIn, onHoverOut }: {
   s: Student;
-  initialPos: { x: number; y: number };
   onHoverIn: () => void;
   onHoverOut: () => void;
 }) {
@@ -203,7 +202,7 @@ function NameTooltip({ s, initialPos, onHoverIn, onHoverOut }: {
   const isSub      = s.paymentIsSub;
   const inst       = s.paymentInstallments;
   const status     = getPayStatus(s);
-  const actualPaid = paid.length; // ← real paid count from API, not time-based
+  const actualPaid = paid.length;
 
   const upcoming: { date: number; label: string }[] = [];
   const isSmartInstall = s.paymentIsSmartInstall;
@@ -224,47 +223,14 @@ function NameTooltip({ s, initialPos, onHoverIn, onHoverOut }: {
     : s.paymentIsCardInstall ? `${s.paymentLabel} · ${inst}×`
     : s.paymentLabel || s.paymentType;
 
-  // ── DOM-ONLY POSITIONING ───────────────────────────────────────
-  // React never writes left/top after initial render — all updates go directly
-  // to the DOM so there is zero React re-render lag.
-  const divRef = React.useRef<HTMLDivElement>(null);
-
-  function placeAt(cx: number, cy: number) {
-    const el = divRef.current;
-    if (!el) return;
-    const tw = el.offsetWidth  || 300;
-    const th = el.offsetHeight || 400;
-    let x = cx + 16;
-    let y = cy - 10;
-    if (x + tw > window.innerWidth  - 8) x = cx - tw - 12;
-    if (y + th > window.innerHeight - 8) y = window.innerHeight - th - 8;
-    if (y < 8) y = 8;
-    el.style.left = `${x}px`;
-    el.style.top  = `${y}px`;
-  }
-
-  // Set initial position immediately after mount (no visible flash)
-  React.useLayoutEffect(() => {
-    placeAt(initialPos.x, initialPos.y);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Follow mouse in real-time via global listener
-  React.useEffect(() => {
-    const onMove = (e: MouseEvent) => placeAt(e.clientX, e.clientY);
-    document.addEventListener('mousemove', onMove);
-    return () => document.removeEventListener('mousemove', onMove);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
     <div
-      ref={divRef}
+      id="name-tooltip"
       onMouseEnter={onHoverIn}
       onMouseLeave={onHoverOut}
       style={{
         position: 'fixed',
-        left: -9999, // offscreen until useLayoutEffect fires
+        left: -9999,
         top: -9999,
         zIndex: 2147483647,
         width: 300,
@@ -419,13 +385,29 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [sortDir,      setSortDir]      = useState<'desc' | 'asc'>('desc');
   const [statusFilter, setStatusFilter] = useState<'' | 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO'>('');
 
-  // Tooltip
+  // Tooltip — single global mouse tracker, no React state for position
   const [tooltipSt,  setTooltipSt]  = useState<Student | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const tipTimer = React.useRef<any>(null);
-  const openTip  = (e: React.MouseEvent, s: Student) => { clearTimeout(tipTimer.current); setTooltipPos({ x: e.clientX, y: e.clientY }); setTooltipSt(s); };
-  const moveTip  = (e: React.MouseEvent) => setTooltipPos({ x: e.clientX, y: e.clientY });
+  const openTip  = (_e: React.MouseEvent, s: Student) => { clearTimeout(tipTimer.current); setTooltipSt(s); };
   const closeTip = () => { tipTimer.current = setTimeout(() => setTooltipSt(null), 150); };
+
+  // One listener tracks mouse and moves tooltip div directly — no React state involved
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const tip = document.getElementById('name-tooltip');
+      if (!tip) return;
+      const tw = tip.offsetWidth  || 300;
+      const th = tip.offsetHeight || 200;
+      let x = e.clientX + 16;
+      let y = e.clientY + 12;
+      if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - 8;
+      if (y + th > window.innerHeight - 8) y = e.clientY - th - 8;
+      tip.style.left = x + 'px';
+      tip.style.top  = y + 'px';
+    };
+    document.addEventListener('mousemove', onMove);
+    return () => document.removeEventListener('mousemove', onMove);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -667,7 +649,6 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       {tooltipSt && typeof window !== 'undefined' && createPortal(
         <NameTooltip
           s={tooltipSt}
-          initialPos={tooltipPos}
           onHoverIn={() => clearTimeout(tipTimer.current)}
           onHoverOut={closeTip}
         />,
