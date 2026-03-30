@@ -44,16 +44,20 @@ async function fetchActiveSubs(token: string): Promise<any[]> {
   return items;
 }
 
-/* ── Same logic as /api/cursos/[courseName] ─────────────────────────────── */
-function classifySub(isSub: boolean, isSmartInstall: boolean,
+/* ── Same logic as /api/cursos/[courseName] — fixed order ──────────────── */
+function classifySub(
+  isSub: boolean, isSmartInstall: boolean,
   lastPayTs: number, maxRecur: number, inst: number,
-  nowMs: number): 'ACTIVE' | 'OVERDUE' | 'CANCELLED' {
+  nowMs: number
+): 'ACTIVE' | 'OVERDUE' | 'CANCELLED' {
   if (!isSub && !isSmartInstall) return 'ACTIVE'; // one-time = always paid
+  // ── Smart installments: check completion FIRST (before timing) ──────────
+  // A person who paid ALL installments is QUITADO even if last charge was >35d ago
+  if (isSmartInstall && inst > 1 && maxRecur >= inst) return 'CANCELLED'; // QUITADO
   if (!lastPayTs) return 'ACTIVE';
   const daysSince = (nowMs - lastPayTs) / 86_400_000;
   if (daysSince > 65) return 'CANCELLED';
   if (daysSince > 35) return 'OVERDUE';
-  if (isSmartInstall && maxRecur >= inst && inst > 1) return 'ACTIVE'; // fully paid
   return 'ACTIVE';
 }
 
@@ -200,10 +204,16 @@ export async function GET() {
     /* ── 3. Upcoming — from Hotmart ACTIVE subscriptions ─────────────────── */
     let upcoming: any[] = [];
     let totalSubs = 0;
+    // activeEmailSet: emails of people being charged normally → exclude from inadimplentes
+    const activeEmailSet = new Set<string>();
     try {
       const token      = await getHotmartToken();
       const activeSubs = await fetchActiveSubs(token);
       totalSubs = activeSubs.length;
+      activeSubs.forEach(s => {
+        const email = (s.subscriber?.email || '').toLowerCase().trim();
+        if (email) activeEmailSet.add(email);
+      });
       upcoming = activeSubs
         .filter(s => s.date_next_charge && s.date_next_charge > nowMs)
         .sort((a, b) => a.date_next_charge - b.date_next_charge)
@@ -224,11 +234,14 @@ export async function GET() {
         });
     } catch { /* upcoming stays [] */ }
 
+    // Filter overdue: exclude anyone with an active subscription (they're paying normally)
+    const filteredOverdue = overdue.filter(o => !activeEmailSet.has(o.email));
+
     return NextResponse.json({
       totalTransactions: approved.length,
       recentTransactions,
       upcoming,
-      overdue,
+      overdue: filteredOverdue,
       totalSubs,
     });
   } catch (e: any) {

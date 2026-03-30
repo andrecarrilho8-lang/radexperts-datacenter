@@ -96,7 +96,7 @@ function Flag({ currency, size = 18 }: { currency: string; size?: number }) {
 function NameBtn({ name, email, router }: { name: string; email: string; router: ReturnType<typeof useRouter> }) {
   return (
     <button onClick={() => router.push(`/alunos/${emailToId(email)}`)}
-      className="text-sm font-black text-white uppercase hover:underline text-left"
+      className="text-[15px] font-black text-white uppercase hover:underline text-left"
       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
       onMouseLeave={e => (e.currentTarget.style.color = '#fff')}>
@@ -107,7 +107,7 @@ function NameBtn({ name, email, router }: { name: string; email: string; router:
 
 function TH({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return (
-    <th className={`py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap${right ? ' text-right' : ''}`}
+    <th className={`py-4 px-4 text-[12px] font-black uppercase tracking-widest whitespace-nowrap${right ? ' text-right' : ''}`}
       style={{ color: SILVER, borderBottom: `1px solid ${cardBorder}` }}>
       {children}
     </th>
@@ -581,18 +581,18 @@ export default function FinanceiroOverviewPage() {
                                   <Flag currency={o.currency} />
                                   <NameBtn name={o.subscriber.name} email={o.subscriber.email} router={router} />
                                 </div>
-                                <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
+                                <span className="text-[11px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
                               </div>
                             </td>
                             {/* Produto */}
                             <td className="py-3 px-4">
-                              <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
+                              <span className="text-[12px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
                                 {o.product.name}
                               </span>
                             </td>
                             {/* Plano */}
                             <td className="py-3 px-4">
-                              <span className="text-[11px] font-bold" style={{ color: SILVER }}>{o.plan}</span>
+                              <span className="text-[12px] font-bold" style={{ color: SILVER }}>{o.plan}</span>
                             </td>
                             {/* Início */}
                             <td className="py-3 px-4 whitespace-nowrap">
@@ -600,7 +600,7 @@ export default function FinanceiroOverviewPage() {
                             </td>
                             {/* Dias em Atraso */}
                             <td className="py-3 px-4">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black"
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
                                 style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
                                 {dias}d
                               </span>
