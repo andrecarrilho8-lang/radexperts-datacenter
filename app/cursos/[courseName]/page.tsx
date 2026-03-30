@@ -224,15 +224,36 @@ function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
     : s.paymentIsCardInstall ? `${s.paymentLabel} · ${inst}×`
     : s.paymentLabel || s.paymentType;
 
+  // Follow mouse precisely — DOM ref update without React re-render lag
+  const divRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const el = divRef.current;
+      if (!el) return;
+      const tw = el.offsetWidth  || 300;
+      const th = el.offsetHeight || 400;
+      let x = e.clientX + 16;
+      let y = e.clientY - 10;
+      if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - 12;
+      if (y + th > window.innerHeight - 8) y = window.innerHeight - th - 8;
+      if (y < 8) y = 8;
+      el.style.left = `${x}px`;
+      el.style.top  = `${y}px`;
+    };
+    document.addEventListener('mousemove', onMove);
+    return () => document.removeEventListener('mousemove', onMove);
+  }, []);
+
   return (
     <div
+      ref={divRef}
       onMouseEnter={onHoverIn}
       onMouseLeave={onHoverOut}
       style={{
         position: 'fixed',
         left: pos.x + 16,
         top: pos.y - 10,
-        zIndex: 2147483647, // max z-index, always on top
+        zIndex: 2147483647,
         width: 300,
         background: 'linear-gradient(160deg, rgba(0,22,55,0.99) 0%, rgba(0,15,40,0.97) 100%)',
         border: '1px solid rgba(232,177,79,0.22)',
@@ -240,7 +261,6 @@ function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
         borderRadius: 18,
         backdropFilter: 'blur(32px)',
         pointerEvents: 'auto',
-        isolation: 'isolate',
       }}>
       {/* Header: status badge + email + offer */}
       <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
