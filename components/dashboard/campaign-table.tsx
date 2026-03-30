@@ -24,19 +24,7 @@ function RateCell({ val, thresholds, arrows }: { val: number; thresholds: [numbe
 
 function SpendCell({ camp, ctx }: { camp: any, ctx: any }) {
   const [hover, setHover] = useState(false);
-  const [data, setData] = useState<{bestDay: string, bestDayLeads?: string} | null>(null);
-  const [loading, setLoading] = useState(false);
   const [coords, setCoords] = useState({ x: 0, y: 0 });
-
-  useEffect(() => {
-    if (hover && !data && !loading && ctx?.dateFrom && ctx?.dateTo) {
-      setLoading(true);
-      fetch(`/api/meta/campaign/${camp.id}/daily?dateFrom=${ctx.dateFrom}&dateTo=${ctx.dateTo}`)
-        .then(r => r.json())
-        .then(d => { setData(d); setLoading(false); })
-        .catch(() => setLoading(false));
-    }
-  }, [hover, camp.id, data, loading, ctx]);
 
   const ctxStart = new Date(ctx?.dateFrom || today).getTime();
   const ctxEnd = new Date(ctx?.dateTo || today).getTime();
@@ -69,16 +57,6 @@ function SpendCell({ camp, ctx }: { camp: any, ctx: any }) {
         <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>INVESTIMENTO DIÁRIO MÉDIO:</span><span className="text-xs font-black text-white">{R(avgSpend)}</span></div>
         {isVendas && <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>MÉDIA VENDAS DIÁRIAS:</span><span className="text-xs font-black text-white">{N(avgSales)}</span></div>}
         {isLeads && <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>MÉDIA LEADS DIÁRIOS:</span><span className="text-xs font-black text-white">{N(avgLeads)}</span></div>}
-        {(isVendas || isLeads) && (
-          loading ? (
-             <div className="flex justify-center mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}><div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: `${GOLD} transparent transparent transparent` }}/></div>
-          ) : data ? (
-            <>
-              {isVendas && <div className="flex justify-between items-center mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>MELHOR DIA P/ VENDAS:</span><span className="text-xs font-black" style={{ color: '#22c55e' }}>{data.bestDay || 'Sem dados'}</span></div>}
-              {isLeads && <div className="flex justify-between items-center mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>MELHOR DIA P/ LEADS:</span><span className="text-xs font-black" style={{ color: '#22c55e' }}>{data.bestDayLeads || 'Sem dados'}</span></div>}
-            </>
-          ) : null
-        )}
       </div>
     </div>
   ) : null;
@@ -115,28 +93,38 @@ const COLS: Record<string, ColDef> = {
   name:       { 
     key: 'name', 
     label: 'Campanha', 
-    fmt: (c, ctx) => (
-      <div className="relative min-w-[300px] max-w-[450px] py-1">
-        {/* Feedback button floats above the text on hover */}
-        <button
-          onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }}
-          className="absolute opacity-0 group-hover:opacity-100 flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all cursor-pointer z-10"
-          style={{
-            bottom: '100%', left: 0, marginBottom: 4,
-            background: 'rgba(232,177,79,0.15)', border: '1px solid rgba(232,177,79,0.35)',
-            color: GOLD, pointerEvents: 'auto',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-          }}
-          title="Gerar Feedback da Campanha"
+    fmt: (c, ctx) => {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [nameHover, setNameHover] = useState(false);
+      return (
+        <div
+          className="relative min-w-[300px] max-w-[450px] py-1"
+          onMouseEnter={() => setNameHover(true)}
+          onMouseLeave={() => setNameHover(false)}
         >
-          <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
-          <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
-        </button>
-        <span className="font-headline font-black text-white leading-tight uppercase tracking-tight block" title={c.name}>
-          {c.name}
-        </span>
-      </div>
-    ),
+          {/* Feedback button floats above the text — only when hovering the name */}
+          <button
+            onClick={(e) => { e.stopPropagation(); ctx.setFeedbackCamp(c); }}
+            className="absolute flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all cursor-pointer z-10"
+            style={{
+              bottom: '100%', left: 0, marginBottom: 4,
+              background: 'rgba(232,177,79,0.15)', border: '1px solid rgba(232,177,79,0.35)',
+              color: GOLD, pointerEvents: nameHover ? 'auto' : 'none',
+              opacity: nameHover ? 1 : 0,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+              transition: 'opacity 0.15s ease',
+            }}
+            title="Gerar Feedback da Campanha"
+          >
+            <span className="material-symbols-outlined text-[13px]">chat_bubble</span>
+            <span className="text-[9px] font-black uppercase tracking-widest leading-none">Feedback</span>
+          </button>
+          <span className="font-headline font-black text-white leading-tight uppercase tracking-tight block" title={c.name}>
+            {c.name}
+          </span>
+        </div>
+      );
+    },
     right: false 
   },
   spend:      { key: 'spend', label: 'Gasto', fmt: (c, ctx) => <SpendCell camp={c} ctx={ctx} />, right: true },
