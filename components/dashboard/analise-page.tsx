@@ -122,8 +122,10 @@ function Step2({ product, onConfirm, onBack }: { product: string; onConfirm: (c:
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    fetch(`/api/meta?dateFrom=${dateFrom}&dateTo=${dateTo}`).then(r => r.json())
-      .then(d => { setCampaigns(d.tableData || []); setLoading(false); }).catch(() => setLoading(false));
+    fetch(`/api/meta/analise-campaigns?dateFrom=${dateFrom}&dateTo=${dateTo}`)
+      .then(r => r.json())
+      .then(d => { setCampaigns(d.campaigns || []); setLoading(false); })
+      .catch(() => setLoading(false));
   }, [dateFrom, dateTo]);
 
   const toggle   = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
