@@ -42,8 +42,17 @@ type Student   = {
   name: string; email: string;
   entryDate: number | null; lastPayDate: number | null;
   turma: string; valor: number; currency: string; flag: string; transaction: string;
-  paymentType: string; paymentInstallments: number;
-  paymentIsSub: boolean; paymentRecurrency: number;
+  // Payment fields
+  paymentType: string;           // CREDIT_CARD, PIX, BILLET, PAYPAL, WALLET
+  paymentMethod: string;         // CREDIT_CARD_VISA, CREDIT_CARD_ELO, etc.
+  paymentLabel: string;          // Human-readable: "Cartão Visa", "Pix", etc.
+  offerCode: string;             // Offer code for this student
+  paymentMode: string;           // SUBSCRIPTION | UNIQUE_PAYMENT
+  paymentInstallments: number;   // # installments (1 for PIX, 12 for 12x, etc.)
+  paymentIsSub: boolean;         // true if subscription
+  paymentIsSmartInstall: boolean; // true if smart installments (multiple Hotmart charges)
+  paymentIsCardInstall: boolean;  // true if standard bank card installments
+  paymentRecurrency: number;     // max recurrency_number seen (= actual paid count for smart/sub)
   subStatus: SubStatus;
   paymentHistory: PayHist[];
 };
@@ -83,46 +92,42 @@ function addMonths(ts: number, n: number): number {
 type PayStatus = 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO';
 
 function getPayStatus(s: Student): PayStatus {
-  // Single payment (PIX, Boleto, card à vista) → always QUITADO
-  if (!s.paymentIsSub && s.paymentInstallments <= 1) return 'QUITADO';
-  // Card installments: use ACTUAL paid count from history
-  if (!s.paymentIsSub && s.paymentInstallments > 1) {
-    const actualPaid = s.paymentHistory.length;
-    return actualPaid >= s.paymentInstallments ? 'QUITADO' : 'ADIMPLENTE';
+  // 1. ONE_TIME (PIX, Boleto, card à vista) → QUITADO
+  if (!s.paymentIsSub && !s.paymentIsSmartInstall && s.paymentInstallments <= 1) return 'QUITADO';
+  // 2. Standard bank card installments → QUITADO (Hotmart received full amount, bank splits)
+  if (s.paymentIsCardInstall) return 'QUITADO';
+  // 3. Smart Installments: track actual paid vs total
+  if (s.paymentIsSmartInstall) {
+    if (s.paymentHistory.length >= s.paymentInstallments && s.paymentInstallments > 1) return 'QUITADO';
+    if (s.subStatus === 'OVERDUE')   return 'INADIMPLENTE';
+    if (s.subStatus === 'CANCELLED') return 'QUITADO';
+    return 'ADIMPLENTE';
   }
-  // Subscription
+  // 4. Subscription
   if (s.subStatus === 'ACTIVE')    return 'ADIMPLENTE';
   if (s.subStatus === 'OVERDUE')   return 'INADIMPLENTE';
   if (s.subStatus === 'CANCELLED') return 'QUITADO';
   return 'ADIMPLENTE';
 }
-
-
-// ── Payment Cell — ultra-clean ─────────────────────────────────────────────────
 function PaymentCell({ s }: { s: Student }) {
   const status = getPayStatus(s);
-  const t      = (s.paymentType || '').toUpperCase();
-  const inst   = s.paymentInstallments;
-  const paid   = s.paymentRecurrency;
   const days   = daysSince(s.lastPayDate);
+  const inst   = s.paymentInstallments;
+  const paid   = s.paymentHistory.length;
+  const method = s.paymentLabel || s.paymentType || 'Outro';
 
-  // Method label
-  let method = '';
-  if (s.paymentIsSub)                                          method = 'Assinatura';
-  else if (t.includes('PIX'))                                  method = 'Pix';
-  else if (t.includes('BILLET') || t.includes('BOLETO'))       method = 'Boleto';
-  else if (t.includes('PAYPAL'))                               method = 'PayPal';
-  else if (inst > 1)                                           method = `Cartão ${inst}×`;
-  else if (t.includes('DEBIT'))                                method = 'Débito';
-  else                                                         method = 'Cartão';
-
-  // Progress for installments — uses ACTUAL paid count from history
-  const showProgress = !s.paymentIsSub && inst > 1;
-  const actualPaid   = showProgress ? s.paymentHistory.length : 0;
-  const paidSoFar    = Math.min(actualPaid, inst);
+  const showProgress = s.paymentIsSmartInstall && inst > 1;
+  const paidSoFar    = showProgress ? Math.min(paid, inst) : 0;
   const leftover     = inst - paidSoFar;
 
-  // INADIMPLENTE
+  const modeInfo = s.paymentIsSub
+    ? `Assinatura · Ciclo ${s.paymentRecurrency}`
+    : s.paymentIsSmartInstall
+      ? `Parcelamento · ${paid}/${inst}`
+      : s.paymentIsCardInstall
+        ? `${method} · ${inst}× (banco)`
+        : method;
+
   if (status === 'INADIMPLENTE') return (
     <div className="flex flex-col gap-1.5">
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider w-fit animate-pulse"
@@ -131,11 +136,10 @@ function PaymentCell({ s }: { s: Student }) {
         Inadimplente
       </span>
       <span className="text-[10px]" style={{ color: '#fbbf24' }}>{days} dias sem pagamento</span>
-      <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>{method} · {paid} pagamentos</span>
+      <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>{modeInfo}</span>
     </div>
   );
 
-  // QUITADO
   if (status === 'QUITADO') return (
     <div className="flex flex-col gap-1.5">
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider w-fit"
@@ -144,12 +148,11 @@ function PaymentCell({ s }: { s: Student }) {
         {s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'Quitado'}
       </span>
       <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>
-        {method}{showProgress ? ` · ${inst}/${inst}` : s.paymentIsSub ? ` · ${paid} pgtos` : ''}
+        {s.paymentIsSmartInstall ? `${inst}/${inst} parcelas` : s.paymentIsCardInstall ? `${method} · ${inst}×` : method}
       </span>
     </div>
   );
 
-  // ADIMPLENTE
   return (
     <div className="flex flex-col gap-1.5">
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider w-fit"
@@ -168,13 +171,12 @@ function PaymentCell({ s }: { s: Student }) {
           <span className="text-[9px]" style={{ color: SILVER }}>{leftover} parcela{leftover !== 1 ? 's' : ''} restante{leftover !== 1 ? 's' : ''}</span>
         </div>
       ) : (
-        <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>
-          {method}{s.paymentIsSub ? ` · ${paid} pgtos` : ''}
-        </span>
+        <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>{modeInfo}</span>
       )}
     </div>
   );
 }
+
 
 // ── Tooltip — simple, clean ───────────────────────────────────────────────────
 function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
@@ -189,25 +191,24 @@ function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
   const status     = getPayStatus(s);
   const actualPaid = paid.length; // ← real paid count from API, not time-based
 
-  // Upcoming: from last real payment date, count remaining installments
   const upcoming: { date: number; label: string }[] = [];
-  if (isSub && s.lastPayDate && status !== 'QUITADO') {
-    for (let i = 1; i <= 3; i++) {
-      upcoming.push({ date: addMonths(s.lastPayDate, i), label: `Mês estimado` });
-    }
-  } else if (!isSub && inst > 1 && actualPaid < inst) {
-    const ref = s.lastPayDate || s.entryDate || Date.now();
-    const remaining = inst - actualPaid;
-    for (let i = 1; i <= remaining; i++) {
+  const isSmartInstall = s.paymentIsSmartInstall;
+  if ((isSub || isSmartInstall) && s.lastPayDate && status !== 'QUITADO') {
+    for (let i = 1; i <= (isSub ? 3 : inst - actualPaid); i++) {
       upcoming.push({
-        date: addMonths(ref, i),
-        label: `Parcela ${actualPaid + i}/${inst}`,
+        date: addMonths(s.lastPayDate, i),
+        label: isSub ? 'Mês estimado' : `Parcela ${actualPaid + i}/${inst}`,
       });
     }
   }
 
   const statusColor = status === 'INADIMPLENTE' ? '#f87171' : status === 'QUITADO' ? '#4ade80' : '#38bdf8';
   const statusLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'Quitado') : 'Adimplente';
+  const offerLabel = s.offerCode && s.offerCode !== 'default' ? `Oferta: ${s.offerCode}` : '';
+  const modeLabel = s.paymentIsSub ? `Assinatura · Ciclo ${s.paymentRecurrency}`
+    : isSmartInstall ? `Parcel. Inteligente ${actualPaid}/${inst}`
+    : s.paymentIsCardInstall ? `${s.paymentLabel} · ${inst}×`
+    : s.paymentLabel || s.paymentType;
 
   return (
     <div
@@ -221,15 +222,22 @@ function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
       boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 32px 64px rgba(0,0,0,0.85)',
       borderRadius: 18, backdropFilter: 'blur(32px)',
     }}>
-      {/* Header: status badge + email, NO repeated name */}
+      {/* Header: status badge + email + offer */}
       <div className="px-5 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md"
             style={{ background: `${statusColor}20`, color: statusColor, border: `1px solid ${statusColor}40` }}>
             {statusLabel}
           </span>
+          {offerLabel && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: 'rgba(255,255,255,0.06)', color: SILVER }}>
+              {offerLabel}
+            </span>
+          )}
         </div>
         <p className="text-[10px] mt-1" style={{ color: SILVER }}>{s.email}</p>
+        {modeLabel && <p className="text-[9px] mt-0.5 font-bold" style={{ color: GOLD }}>{modeLabel}</p>}
       </div>
 
       {/* Paid */}
