@@ -139,16 +139,18 @@ type Upcoming = {
   subscriberCode: string;
   subscriber: { name: string; email: string };
   product: { name: string };
-  plan: string; dateNextCharge: number; amount: number; currency: string;
+  plan: string; dateNextCharge: number;
+  amount: number; currency: string; amountBRL: number | null;
   accessionDate: number;
 };
 type Overdue = {
   subscriberCode?: string;
   subscriber: { name: string; email: string };
   product: { name: string };
-  plan: string; amount: number; currency: string; amountBRL: number | null;
-  accessionDate: number; lastPayDate: number; daysSinceLast: number;
-  lastTransaction: string;
+  plan: string; status?: string;
+  amount: number; currency: string; amountBRL: number | null;
+  accessionDate: number; dateNextCharge?: number;
+  daysSinceLast: number; lastTransaction: string;
 };
 type Data = {
   totalTransactions: number; totalSubs: number;
@@ -412,7 +414,16 @@ export default function FinanceiroOverviewPage() {
                             </td>
                             {/* Valor */}
                             <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <span className="font-black text-lg" style={{ color: tab.accent }}>{fmtBRL(u.amount)}</span>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="font-black text-lg" style={{ color: tab.accent }}>
+                                  {fmtLocalCurrency(u.amount, u.currency)}
+                                </span>
+                                {u.currency !== 'BRL' && u.amountBRL && (
+                                  <span className="text-[9px] font-bold" style={{ color: SILVER }}>
+                                    ≈ {fmtBRL(u.amountBRL)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             {/* Dias */}
                             <td className="py-3 px-4">
@@ -508,7 +519,9 @@ export default function FinanceiroOverviewPage() {
                             <td className="py-3 px-4">
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-[11px] font-mono" style={{ color: SILVER }}>{o.lastTransaction || '—'}</span>
-                                <span className="text-[9px] font-bold" style={{ color: SILVER }}>últ. pgto: {fmtDate(o.lastPayDate)}</span>
+                                {o.dateNextCharge && (
+                                  <span className="text-[9px] font-bold" style={{ color: SILVER }}>venc.: {fmtDate(o.dateNextCharge)}</span>
+                                )}
                               </div>
                             </td>
                             {/* Valor */}

@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import https from 'https';
 import { getHotmartToken } from '@/app/lib/hotmartApi';
 import { getCachedAllSales } from '@/app/lib/salesCache';
+import { getAllRates, getConvertedValue } from '@/app/lib/currency';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const APPROVED_STATUS = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
 
-/* ─── Subscriptions API (for upcoming payments only) ──────────────────────── */
+/* ── Hotmart subscriptions API ──────────────────────────────────────────── */
 function httpsGet(token: string, path: string): Promise<{ status: number; body: any }> {
   return new Promise((resolve) => {
     const req = https.request(
@@ -29,11 +30,12 @@ function httpsGet(token: string, path: string): Promise<{ status: number; body: 
   });
 }
 
-async function fetchActiveSubs(token: string, limit = 300): Promise<any[]> {
+/** Fetch ALL subscriptions (no status filter) — paginated */
+async function fetchAllSubs(token: string, limit = 500): Promise<any[]> {
   const items: any[] = [];
   let pageToken = '';
   do {
-    const qs = `/payments/api/v1/subscriptions?status=ACTIVE&max_results=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
+    const qs = `/payments/api/v1/subscriptions?max_results=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
     const r = await httpsGet(token, qs);
     if (r.status !== 200) break;
     const batch: any[] = r.body?.items || [];
@@ -44,25 +46,13 @@ async function fetchActiveSubs(token: string, limit = 300): Promise<any[]> {
   return items;
 }
 
-/* ─── Same logic used by /api/cursos/[courseName] ──────────────────────── */
-function classifyByLastPayment(lastPayTs: number, nowMs: number): 'ACTIVE' | 'OVERDUE' | 'CANCELLED' {
-  if (!lastPayTs) return 'ACTIVE';
-  const daysSince = (nowMs - lastPayTs) / 86_400_000;
-  if (daysSince > 65) return 'CANCELLED';
-  if (daysSince > 35) return 'OVERDUE'; // ← INADIMPLENTE
-  return 'ACTIVE';
-}
-
 export async function GET() {
   try {
+    /* ── 1. Recent transactions from sales cache ─────────────────────────── */
     const allSales = await getCachedAllSales();
-    const nowMs    = Date.now();
-
-    // Only approved sales
     const approved = allSales.filter((s: any) => APPROVED_STATUS.has(s.purchase?.status));
 
-    /* ─── 1. Recent transactions — last 10 across all time ─── */
-    const sortedAll = approved.sort((a: any, b: any) => {
+    const sortedAll = [...approved].sort((a: any, b: any) => {
       const ta = new Date(b.purchase?.approved_date || b.purchase?.order_date || 0).getTime();
       const tb = new Date(a.purchase?.approved_date || a.purchase?.order_date || 0).getTime();
       return ta - tb;
@@ -83,135 +73,82 @@ export async function GET() {
       recurrencyNumber: s.purchase?.recurrency_number || null,
     }));
 
-    /* ─── 2. Inadimplentes — exactly same logic as course detail ─── */
-    // Group by email × product to track last payment per subscription
-    type SubKey = string; // `${email}|${product}`
-    const subMap = new Map<SubKey, {
-      email: string; name: string; product: string;
-      offerCode: string; offerName: string; paymentMode: string;
-      amount: number; currency: string; amountBRL: number | null;
-      lastPayTs: number; firstPayTs: number;
-      lastTransaction: string;
-      isSub: boolean; isSmartInstall: boolean;
-      maxRecurrency: number; installments: number;
-    }>();
+    /* ── 2 & 3. Subscriptions: upcoming + inadimplentes ─────────────────── */
+    const token   = await getHotmartToken();
+    const allSubs = await fetchAllSubs(token, 500);
+    const nowMs   = Date.now();
 
-    for (const s of approved) {
-      const email      = (s.buyer?.email || '').toLowerCase().trim();
-      const product    = s.product?.name || '—';
-      if (!email || !product) continue;
-
-      const ts          = new Date(s.purchase?.approved_date || s.purchase?.order_date || 0).getTime();
-      const paymentMode = (s.purchase?.offer?.payment_mode || 'UNIQUE_PAYMENT').toUpperCase();
-      const recur       = s.purchase?.recurrency_number || 1;
-      const inst        = s.purchase?.payment?.installments_number || 1;
-      const isSub       = paymentMode === 'SUBSCRIPTION' || s.purchase?.is_subscription === true;
-      const offerCode   = s.purchase?.offer?.code || '';
-      // Try offer.name first; fall back to cleaning up the code
-      const rawOfferName = (s.purchase?.offer?.name || '').trim();
-      const cleanCode    = offerCode.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase());
-      const offerName    = rawOfferName || cleanCode || offerCode;
-      const amountBRL    = s.purchase?.price?.currency_code === 'BRL' ? null
-                         : (s.purchase?.price?.converted_value || null);
-
-      // Only track subscriptions and smart installments (one-time = quitado immediately)
-      const maxRecurForEntry = recur; // starts at current recurrency
-      if (!isSub && inst <= 1) continue; // skip one-time & standard card splits
-
-      const isSmartInstall = !isSub && recur > 1;
-      const key: SubKey = `${email}|${product}`;
-      const existing = subMap.get(key);
-
-      if (!existing) {
-        subMap.set(key, {
-          email,
-          name:            s.buyer?.name || '—',
-          product,
-          offerCode,
-          offerName,
-          paymentMode,
-          amount:          s.purchase?.price?.value ?? 0,
-          currency:        s.purchase?.price?.currency_code || 'BRL',
-          amountBRL,
-          lastPayTs:       ts,
-          firstPayTs:      ts,
-          lastTransaction: s.purchase?.transaction || '—',
-          isSub,
-          isSmartInstall,
-          maxRecurrency:   maxRecurForEntry,
-          installments:    inst,
-        });
-      } else {
-        if (ts > existing.lastPayTs) {
-          existing.lastPayTs       = ts;
-          existing.lastTransaction = s.purchase?.transaction || existing.lastTransaction;
-          existing.name            = s.buyer?.name || existing.name;
-          existing.offerName       = offerName || existing.offerName; // use latest offer name
-          if (amountBRL) existing.amountBRL = amountBRL;
-        }
-        if (ts > 0 && ts < existing.firstPayTs) existing.firstPayTs = ts;
-        if (recur > existing.maxRecurrency) existing.maxRecurrency = recur;
-        if (inst > existing.installments)   existing.installments  = inst;
-      }
+    // Collect all unique non-BRL currencies for batch rate fetch
+    const allCurrencies = [...new Set(
+      [...recentTransactions, ...allSubs.map(s => s.price?.currency_code)]
+        .map(c => (typeof c === 'string' ? c : 'BRL').toUpperCase())
+        .filter(c => c !== 'BRL')
+    )];
+    if (allCurrencies.length > 0) {
+      await getAllRates(allCurrencies); // warms cache once; getConvertedValue used below
     }
 
-    const overdue: any[] = [];
-    for (const entry of subMap.values()) {
-      const status = classifyByLastPayment(entry.lastPayTs, nowMs);
-      if (status !== 'OVERDUE') continue;
-
-      // Smart installment: if all paid, skip
-      if (entry.isSmartInstall && entry.maxRecurrency >= entry.installments && entry.installments > 1) continue;
-
-      const daysSinceLast = Math.floor((nowMs - entry.lastPayTs) / 86_400_000);
-
-      overdue.push({
-        email:           entry.email,
-        subscriber:      { name: entry.name.toUpperCase(), email: entry.email },
-        product:         { name: entry.product },
-        plan:            entry.offerName || entry.offerCode,
-        amount:          entry.amount,
-        currency:        entry.currency,
-        amountBRL:       entry.amountBRL ?? null,
-        accessionDate:   entry.firstPayTs,
-        lastPayDate:     entry.lastPayTs,
-        daysSinceLast,
-        lastTransaction: entry.lastTransaction,
-        paymentMode:     entry.paymentMode,
-      });
-    }
-    // Sort: most days overdue first
-    overdue.sort((a, b) => b.daysSinceLast - a.daysSinceLast);
-
-    /* ─── 3. Upcoming payments — from Hotmart ACTIVE subscriptions ─── */
-    let upcoming: any[] = [];
-    try {
-      const token      = await getHotmartToken();
-      const activeSubs = await fetchActiveSubs(token, 300);
-      upcoming = activeSubs
-        .filter(s => s.date_next_charge && s.date_next_charge > nowMs)
-        .sort((a, b) => a.date_next_charge - b.date_next_charge)
-        .slice(0, 10)
-        .map(s => ({
+    /* Upcoming — ACTIVE with future charge */
+    const upcoming = allSubs
+      .filter(s => s.status === 'ACTIVE' && s.date_next_charge && s.date_next_charge > nowMs)
+      .sort((a, b) => a.date_next_charge - b.date_next_charge)
+      .slice(0, 10)
+      .map(s => {
+        const cur     = (s.price?.currency_code || 'BRL').toUpperCase();
+        const amount  = s.price?.value ?? 0;
+        const amountBRL = cur === 'BRL' ? null : getConvertedValue(amount, cur);
+        return {
           subscriberCode: s.subscriber_code,
           subscriber:     { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
           product:        { name: s.product?.name || '—' },
           plan:           s.plan?.name || '—',
           dateNextCharge: s.date_next_charge,
-          amount:         s.price?.value ?? 0,
-          currency:       s.price?.currency_code || 'BRL',
+          amount, currency: cur, amountBRL,
           accessionDate:  s.accession_date,
-        }));
-    } catch { /* upcoming is [] */ }
+        };
+      });
+
+    /* Inadimplentes — INACTIVE or DELAYED: subscriptions that stopped paying */
+    const OVERDUE_STATUSES = new Set(['INACTIVE', 'DELAYED', 'OVERDUE',
+      'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_ADMIN']);
+
+    const overdue = allSubs
+      .filter(s => OVERDUE_STATUSES.has(s.status))
+      .map(s => {
+        const cur      = (s.price?.currency_code || 'BRL').toUpperCase();
+        const amount   = s.price?.value ?? 0;
+        const amountBRL = cur === 'BRL' ? null : getConvertedValue(amount, cur);
+        // Days since subscription should have renewed
+        const refTs    = s.date_next_charge && s.date_next_charge < nowMs
+          ? s.date_next_charge
+          : s.accession_date || nowMs;
+        const daysSinceLast = Math.max(0, Math.floor((nowMs - refTs) / 86_400_000));
+        return {
+          subscriberCode:  s.subscriber_code,
+          subscriber:      { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
+          product:         { name: s.product?.name || '—' },
+          plan:            s.plan?.name || '—',
+          status:          s.status,
+          amount, currency: cur, amountBRL,
+          accessionDate:   s.accession_date,
+          dateNextCharge:  s.date_next_charge,
+          daysSinceLast,
+          lastTransaction: s.transaction || s.subscriber_code || '—',
+        };
+      })
+      .sort((a, b) => b.daysSinceLast - a.daysSinceLast);
+
+    /* Status summary */
+    const statusCounts: Record<string, number> = {};
+    allSubs.forEach(s => { statusCounts[s.status] = (statusCounts[s.status] || 0) + 1; });
 
     return NextResponse.json({
       totalTransactions: approved.length,
       recentTransactions,
       upcoming,
       overdue,
-      // debug
-      overdueCount: overdue.length,
-      subsTracked:  subMap.size,
+      statusCounts,
+      totalSubs: allSubs.length,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
