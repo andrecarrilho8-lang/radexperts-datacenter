@@ -1,34 +1,35 @@
 import { NextResponse } from 'next/server';
+import https from 'https';
+import { getHotmartToken } from '@/app/lib/hotmartApi';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-async function getHotmartToken() {
-  const res = await fetch('https://api-sec-vlc.hotmart.com/security/oauth/token', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${process.env.HOTMART_BASIC_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ grant_type: 'client_credentials' }),
+function clubGet(token: string, path: string): Promise<{ status: number; body: any }> {
+  return new Promise((resolve) => {
+    const req = https.request(
+      { hostname: 'developers.hotmart.com', path, method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => { data += c; });
+        res.on('end', () => {
+          let body: any = null;
+          try { body = JSON.parse(data); } catch {}
+          resolve({ status: res.statusCode || 0, body });
+        });
+      }
+    );
+    req.on('error', (e) => resolve({ status: 0, body: { error: e.message } }));
+    req.end();
   });
-  const data = await res.json();
-  return data.access_token as string;
 }
 
-// Candidate subdomains to test — gathered from public product pages
+// Candidate subdomains to test
 const CANDIDATES = [
-  'neuroexperts',
-  'neuroexpert',
-  'radexperts',
-  'radexpert',
-  'cepexpert',
-  'bodyexpert',
-  'academiaalzheimerexpert',
-  'alzheimerexpert',
-  'skeletalexpert',
-  'wexpert',
-  'neuroreview',
+  'neuroexperts', 'neuroexpert', 'radexperts', 'radexpert',
+  'cepexpert', 'bodyexpert', 'academiaalzheimerexpert', 'alzheimerexpert',
+  'skeletalexpert', 'wexpert', 'neuroreview',
 ];
 
 export async function GET() {
@@ -36,40 +37,24 @@ export async function GET() {
     const token = await getHotmartToken();
 
     const results: Record<string, any> = {};
-
-    // Test each candidate subdomain
     await Promise.all(CANDIDATES.map(async (sub) => {
-      try {
-        const res = await fetch(
-          `https://developers.hotmart.com/club/api/v1/users?subdomain=${sub}&max_results=5`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        const status = res.status;
-        let body: any = null;
-        try { body = await res.json(); } catch {}
-        results[sub] = { status, count: body?.total || body?.data?.length || 0, error: body?.error || body?.message || null, sample: body?.data?.[0] || null };
-      } catch (e: any) {
-        results[sub] = { status: 'fetch_error', error: e.message };
-      }
+      const r = await clubGet(token, `/club/api/v1/users?subdomain=${sub}&max_results=5`);
+      results[sub] = {
+        status:  r.status,
+        count:   r.body?.total ?? r.body?.data?.length ?? 0,
+        error:   r.body?.error || r.body?.message || null,
+        sample:  r.body?.data?.[0] || null,
+      };
     }));
 
-    // Also try listing memberships if endpoint exists
-    let memberships: any = null;
-    try {
-      const mRes = await fetch('https://developers.hotmart.com/club/api/v1/memberships', {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      });
-      memberships = { status: mRes.status, body: await mRes.json().catch(() => null) };
-    } catch (e: any) {
-      memberships = { error: e.message };
-    }
+    // Also check memberships listing endpoint
+    const memberships = await clubGet(token, '/club/api/v1/memberships');
 
-    return NextResponse.json({ token: token?.slice(0, 20) + '...', memberships, subdomainTests: results });
+    return NextResponse.json({
+      token: token?.slice(0, 20) + '...',
+      memberships,
+      subdomainTests: results,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
