@@ -39,12 +39,17 @@ export async function GET(request: Request) {
     const accountInsightFields = 'spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values,date_start';
     const campaignInsightFields = INSIGHT_FIELDS.join(',');
 
+    // Include PAUSED/ARCHIVED so Meta returns spend for all statuses in the period
+    const ALL_STATUSES = JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']);
+
     // Build URLSearchParams to ensure correct encoding of time_range JSON
+    // effective_status MUST be set or Meta will omit paused campaigns from insights
     const buildInsightParams = (level: string, extraFields?: string): URLSearchParams => {
       const p = new URLSearchParams({
         fields: level === 'account' ? accountInsightFields : (extraFields || campaignInsightFields),
         level,
         limit: '500',
+        effective_status: ALL_STATUSES,
         access_token: accessToken!,
       });
       if (dSince && dUntil) {
@@ -60,6 +65,7 @@ export async function GET(request: Request) {
 
     const campaignParams = new URLSearchParams({
       fields: 'id,name,status,effective_status,created_time,objective',
+      effective_status: ALL_STATUSES,
       limit: '1000',
       access_token: accessToken!,
     });
