@@ -113,11 +113,22 @@ export function CustomerCard({ customer, rank }: { customer: any; rank: number }
   );
 }
 
+const GREETINGS = [
+  'Diagnóstico preciso começa com dados confiáveis.',
+  'Cada imagem conta uma história. Cada dado, uma decisão.',
+  'Transformando inteligência em resultados clínicos reais.',
+  'Onde a radiologia encontra o poder da análise estratégica.',
+  'Bem-vindo ao centro de comando da RAD Experts.',
+  'Precisão diagnóstica elevada à máxima potência.',
+  'Visão completa. Tomada de decisão cirúrgica.',
+];
+
 export function LoginScreen({ onLogin }: { onLogin: (token: string, role: string, name: string) => void }) {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,58 +155,179 @@ export function LoginScreen({ onLogin }: { onLogin: (token: string, role: string
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-500 rounded-full blur-[150px]" />
-        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-violet-500 rounded-full blur-[150px]" />
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{ fontFamily: "'Inter', sans-serif" }}>
+
+      {/* ── Background: x-ray image with dark overlay ── */}
+      <div className="absolute inset-0">
+        <img
+          src="/xray-bg.jpg"
+          alt=""
+          className="w-full h-full object-cover"
+          style={{ filter: 'saturate(0.7) brightness(0.45)' }}
+        />
+        {/* Dark navy gradient over the image */}
+        <div className="absolute inset-0"
+          style={{ background: 'linear-gradient(135deg, rgba(0,10,30,0.85) 0%, rgba(0,20,50,0.70) 50%, rgba(0,8,25,0.88) 100%)' }} />
+        {/* Radial gold glow behind the card */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div style={{ width: 600, height: 600, background: 'radial-gradient(ellipse, rgba(232,177,79,0.08) 0%, transparent 70%)', borderRadius: '50%' }} />
+        </div>
       </div>
-      <div className="w-full max-w-[420px] relative z-10 animate-in fade-in zoom-in-95 duration-700">
-        <div className="bg-white rounded-[48px] p-12 shadow-[0_40px_100px_rgba(0,0,0,0.5)] border border-white/10">
-          <div className="flex flex-col items-center mb-12">
-            <img src="/logo_10x.png" alt="Advogado 10x" className="h-6 mb-4 filter drop-shadow-sm" />
-            <div className="h-px w-8 bg-slate-100 mb-4" />
-            <h1 className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400">Restricted Access</h1>
+
+      {/* ── Glossy login card ── */}
+      <div className="relative z-10 w-full max-w-[440px] mx-6"
+        style={{ animation: 'fadeInUp 0.7s cubic-bezier(.16,1,.3,1) both' }}>
+
+        <style>{`
+          @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(32px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0)    scale(1);    }
+          }
+          @keyframes shimmer {
+            0%   { transform: translateX(-100%) skewX(-12deg); }
+            100% { transform: translateX(300%)  skewX(-12deg); }
+          }
+          .login-btn:hover .shimmer { animation: shimmer 0.9s ease forwards; }
+        `}</style>
+
+        {/* Outer glow ring */}
+        <div className="absolute -inset-[1px] rounded-[36px] pointer-events-none"
+          style={{ background: 'linear-gradient(135deg, rgba(232,177,79,0.4) 0%, rgba(255,255,255,0.05) 50%, rgba(232,177,79,0.15) 100%)' }} />
+
+        {/* Card glass */}
+        <div className="relative rounded-[34px] p-10 overflow-hidden"
+          style={{
+            background: 'linear-gradient(160deg, rgba(0,18,48,0.96) 0%, rgba(0,10,32,0.98) 100%)',
+            boxShadow: '0 4px 0 rgba(255,255,255,0.08) inset, 0 -1px 0 rgba(0,0,0,0.5) inset, 0 40px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(232,177,79,0.12)',
+            backdropFilter: 'blur(40px)',
+          }}>
+
+          {/* Glass highlight top */}
+          <div className="absolute top-0 left-0 right-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 30%, rgba(232,177,79,0.3) 50%, rgba(255,255,255,0.18) 70%, transparent 100%)' }} />
+
+          {/* Subtle inner gloss arc */}
+          <div className="absolute top-0 left-0 right-0 h-40 pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%)', borderRadius: '34px 34px 0 0' }} />
+
+          {/* ── Logo ── */}
+          <div className="flex flex-col items-center mb-10">
+            <div className="mb-6 relative">
+              {/* Gold glow behind logo */}
+              <div className="absolute inset-0 blur-2xl opacity-40"
+                style={{ background: 'radial-gradient(ellipse, rgba(232,177,79,0.6) 0%, transparent 70%)' }} />
+              <img
+                src="/logo_radexperts.png"
+                alt="RAD Experts"
+                className="relative h-14 drop-shadow-lg"
+                style={{ filter: 'brightness(1.1)' }}
+              />
+            </div>
+            {/* Divider */}
+            <div className="flex items-center gap-3 w-full mb-6">
+              <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(232,177,79,0.3))' }} />
+              <span className="text-[9px] font-black uppercase tracking-[0.4em]"
+                style={{ color: 'rgba(232,177,79,0.6)' }}>Data Center</span>
+              <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, rgba(232,177,79,0.3), transparent)' }} />
+            </div>
+            {/* Greeting */}
+            <p className="text-center text-[11px] font-medium leading-relaxed px-2"
+              style={{ color: 'rgba(160,180,210,0.8)', fontStyle: 'italic' }}>
+              "{greeting}"
+            </p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-6">
+
+          {/* ── Form ── */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            {/* User field */}
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">USUÁRIO</label>
-              <input
-                type="text" value={user} onChange={e => setUser(e.target.value)}
-                className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-inner"
-                placeholder="Insira seu login" required autoFocus
-              />
+              <label className="block text-[9px] font-black uppercase tracking-[0.25em] mb-2 ml-1"
+                style={{ color: 'rgba(232,177,79,0.7)' }}>Usuário</label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px]"
+                  style={{ color: 'rgba(160,180,210,0.5)' }}>person</span>
+                <input
+                  type="text" value={user} onChange={e => setUser(e.target.value)}
+                  className="w-full pl-11 pr-5 py-4 rounded-2xl text-sm font-bold outline-none transition-all"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.border = '1px solid rgba(232,177,79,0.5)'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                  onBlur={e => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                  placeholder="Insira seu login" required autoFocus
+                />
+              </div>
             </div>
+
+            {/* Password field */}
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">SENHA</label>
-              <input
-                type="password" value={pass} onChange={e => setPass(e.target.value)}
-                className="w-full px-8 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-800 placeholder:text-slate-300 shadow-inner"
-                placeholder="••••••••" required
-              />
+              <label className="block text-[9px] font-black uppercase tracking-[0.25em] mb-2 ml-1"
+                style={{ color: 'rgba(232,177,79,0.7)' }}>Senha</label>
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[18px]"
+                  style={{ color: 'rgba(160,180,210,0.5)' }}>lock</span>
+                <input
+                  type="password" value={pass} onChange={e => setPass(e.target.value)}
+                  className="w-full pl-11 pr-5 py-4 rounded-2xl text-sm font-bold outline-none transition-all"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.3)',
+                  }}
+                  onFocus={e => { e.currentTarget.style.border = '1px solid rgba(232,177,79,0.5)'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+                  onBlur={e => { e.currentTarget.style.border = '1px solid rgba(255,255,255,0.1)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                  placeholder="••••••••" required
+                />
+              </div>
             </div>
+
+            {/* Error */}
             {error && (
-              <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center">{error}</p>
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl"
+                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <span className="material-symbols-outlined text-[15px] text-red-400">error</span>
+                <p className="text-[10px] font-black uppercase tracking-widest text-red-400">{error}</p>
+              </div>
             )}
+
+            {/* Submit button */}
             <button
               type="submit" disabled={loading}
-              className="w-full bg-slate-900 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-[10px] py-6 rounded-2xl hover:bg-black transition-all shadow-2xl active:scale-[0.98] disabled:opacity-50 group mt-4 overflow-hidden relative"
-            >
+              className="login-btn relative w-full overflow-hidden rounded-2xl py-5 mt-2 transition-all active:scale-[0.98] disabled:opacity-60"
+              style={{
+                background: 'linear-gradient(135deg, #c99a38 0%, #E8B14F 40%, #d4a43e 100%)',
+                boxShadow: '0 2px 0 rgba(255,255,255,0.25) inset, 0 -2px 0 rgba(0,0,0,0.25) inset, 0 12px 32px rgba(232,177,79,0.35)',
+                color: '#001a35',
+              }}>
+              {/* Shimmer */}
+              <div className="shimmer absolute top-0 left-0 w-1/3 h-full"
+                style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)' }} />
               {loading ? (
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#001a35', animationDelay: '0s' }} />
+                  <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#001a35', animationDelay: '0.12s' }} />
+                  <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#001a35', animationDelay: '0.24s' }} />
                 </div>
               ) : (
-                <span className="relative z-10 flex items-center justify-center gap-2">
+                <span className="relative font-black uppercase tracking-[0.2em] text-[11px] flex items-center justify-center gap-2">
                   Entrar no Data Center
-                  <span className="material-symbols-outlined text-[14px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                  <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
                 </span>
               )}
             </button>
           </form>
-          <div className="mt-12 flex justify-center">
-            <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">v 3.0.0-Lumina</p>
+
+          {/* Footer */}
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <p className="text-[8px] font-black uppercase tracking-[0.3em]"
+              style={{ color: 'rgba(255,255,255,0.2)' }}>v 3.0.0 · Acesso Restrito</p>
+            <div className="h-px flex-1" style={{ background: 'rgba(255,255,255,0.06)' }} />
           </div>
         </div>
       </div>
