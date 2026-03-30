@@ -10,6 +10,11 @@ const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
 const NAVY   = '#001a35';
 
+function emailToId(email: string): string {
+  return btoa((email || '').toLowerCase().trim())
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 // ── Flag image — exactly how Hotmart page does it ─────────────────────────────
 const CURRENCY_TO_ISO: Record<string, string> = {
   BRL: 'br', USD: 'us', EUR: 'eu', COP: 'co', MXN: 'mx',
@@ -585,7 +590,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       <div className="flex items-center gap-2 leading-tight">
                         {getStudentFlag(s.flag, 18)}
                         <button
-                          onClick={() => router.push(`/alunos/${encodeURIComponent(s.email)}`)}
+                          onClick={() => router.push(`/alunos/${emailToId(s.email)}`)}
                           className="text-[12px] font-black text-white truncate text-left transition-colors"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           onMouseEnter={e => (e.currentTarget.style.color = GOLD)}

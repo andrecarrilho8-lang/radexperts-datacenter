@@ -13,6 +13,12 @@ const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
 const SILVER = '#A8B2C0';
 
+// Encode email → URL-safe base64 ID (avoids %40 in URL)
+function emailToId(email: string): string {
+  return btoa(email.toLowerCase().trim())
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 const glossy: React.CSSProperties = {
   background: 'linear-gradient(160deg, rgba(255,255,255,0.085) 0%, rgba(255,255,255,0.03) 50%, rgba(0,10,30,0.55) 100%)',
   border: '1px solid rgba(255,255,255,0.10)',
@@ -645,7 +651,7 @@ export default function HotmartPage() {
                             <div className="flex items-center gap-2 leading-tight">
                               {getFlagImgByCurrency(s.purchase?.price?.currency_code, 18)}
                               <button
-                                onClick={() => router.push(`/alunos/${encodeURIComponent(s.buyer.email)}`)}
+                                onClick={() => router.push(`/alunos/${emailToId(s.buyer.email)}`)}
                                 className="text-sm font-black text-white uppercase hover:underline text-left transition-colors"
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                                 onMouseEnter={e => (e.currentTarget.style.color = '#E8B14F')}

@@ -1,0 +1,432 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { LoginWrapper } from '@/components/dashboard/login-wrapper';
+import { Navbar } from '@/components/dashboard/navbar';
+
+const GOLD   = '#E8B14F';
+const NAVY   = '#001a35';
+const SILVER = '#A8B2C0';
+
+const card: React.CSSProperties = {
+  background: 'linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 50%, rgba(0,10,30,0.5) 100%)',
+  border: '1px solid rgba(255,255,255,0.09)',
+  backdropFilter: 'blur(24px)',
+  WebkitBackdropFilter: 'blur(24px)',
+  boxShadow: '0 1px 0 rgba(255,255,255,0.1) inset, 0 20px 40px -10px rgba(0,0,0,0.5)',
+  borderRadius: 24,
+};
+
+const R = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+function RF(v: number, cur: string) {
+  if (!v) return '—';
+  if (cur === 'BRL') return R(v);
+  try { return v.toLocaleString('pt-BR', { style: 'currency', currency: cur }); }
+  catch { return `${cur} ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`; }
+}
+function DT(iso?: string | null) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  catch { return iso; }
+}
+function D(iso?: string | null) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('pt-BR'); }
+  catch { return iso; }
+}
+
+function Badge({ label, bg, color }: { label: string; bg: string; color: string }) {
+  return (
+    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg"
+      style={{ background: bg, color, border: `1px solid ${color}30` }}>{label}</span>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const s = (status || '').toUpperCase();
+  const approved = ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'];
+  const cancelled = ['CANCELED','REFUNDED','CHARGEBACK','EXPIRED'];
+  if (approved.includes(s)) return <Badge label="Aprovado" bg="rgba(34,197,94,0.12)" color="#4ade80" />;
+  if (cancelled.includes(s)) return <Badge label={s === 'REFUNDED' ? 'Reembolsado' : s === 'CHARGEBACK' ? 'Chargeback' : 'Cancelado'} bg="rgba(239,68,68,0.12)" color="#f87171" />;
+  if (s === 'WAITING_PAYMENT') return <Badge label="Aguardando" bg="rgba(232,177,79,0.12)" color={GOLD} />;
+  return <Badge label={s} bg="rgba(255,255,255,0.07)" color={SILVER} />;
+}
+
+function InitialsAvatar({ name, email }: { name?: string | null; email: string }) {
+  const initials = (name || email || '?').split(' ').filter(Boolean).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
+  return (
+    <div className="w-20 h-20 rounded-full flex items-center justify-center font-black text-2xl flex-shrink-0"
+      style={{ background: `linear-gradient(135deg, ${GOLD} 0%, #c47d1a 100%)`, color: NAVY, boxShadow: `0 0 0 4px rgba(232,177,79,0.2), 0 8px 32px rgba(232,177,79,0.3)` }}>
+      {initials}
+    </div>
+  );
+}
+
+type TimelineEvent = {
+  date: string; type: string; title: string; subtitle?: string; color: string; icon: string;
+};
+
+export default function AlunoPage() {
+  const params  = useParams();
+  const router  = useRouter();
+  const id      = params?.id as string;
+
+  const [data,    setData]    = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    fetch(`/api/alunos/${id}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, [id]);
+
+  const handlePDF = () => {
+    const s = document.createElement('style');
+    s.innerHTML = `@media print{.no-print{display:none!important}body{background:#fff!important;color:#000!important}}`;
+    document.head.appendChild(s);
+    window.print();
+    setTimeout(() => document.head.removeChild(s), 1000);
+  };
+
+  // Build timeline
+  const timeline: TimelineEvent[] = [];
+  if (data) {
+    const APPROVED = new Set(['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED']);
+    (data.purchases || []).forEach((p: any) => {
+      const ok = APPROVED.has((p.status||'').toUpperCase());
+      timeline.push({ date: p.date, type: 'purchase', title: p.product || 'Compra', subtitle: `${RF(p.grossValue, p.currency)} · ${p.paymentType || 'Pagamento'} · ${p.status}`, color: ok ? '#4ade80' : '#f87171', icon: 'shopping_cart' });
+    });
+    if (data.ac?.created)          timeline.push({ date: data.ac.created,      type: 'ac',       title: 'Entrou no ActiveCampaign',           subtitle: data.ac.email, color: '#38bdf8', icon: 'person_add' });
+    (data.ac?.tags || []).forEach((t: any) => t.created && timeline.push({ date: t.created, type: 'tag', title: `Tag: ${t.tagName}`, color: GOLD, icon: 'label' }));
+    (data.ac?.lists || []).forEach((l: any) => l.created && timeline.push({ date: l.created, type: 'list', title: `Lista: ${l.name}`, subtitle: l.status === '1' ? 'Inscrito' : 'Cancelado', color: l.status === '1' ? '#4ade80' : '#f87171', icon: 'group' }));
+    (data.ac?.automations || []).forEach((a: any) => a.entered && timeline.push({ date: a.entered, type: 'auto', title: `Automação: ${a.name}`, subtitle: a.completed ? 'Concluída' : 'Em andamento', color: '#818cf8', icon: 'alt_route' }));
+    (data.ac?.deals || []).forEach((d: any) => d.created && timeline.push({ date: d.created, type: 'deal', title: `Deal: ${d.title || 'Sem título'}`, color: '#fb923c', icon: 'handshake' }));
+    timeline.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  }
+
+  const ac        = data?.ac;
+  const displayName = data?.name || data?.email || '';
+  const approvedCount = (data?.purchases || []).filter((p: any) => ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes((p.status||'').toUpperCase())).length;
+
+  return (
+    <LoginWrapper>
+      <div className="min-h-screen pb-24">
+        <Navbar />
+        <div className="h-[80px]" />
+        <main className="px-6 max-w-[1400px] mx-auto pt-10">
+
+          {/* Toolbar */}
+          <div className="flex items-center justify-between mb-8 no-print">
+            <button onClick={() => router.back()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>Voltar
+            </button>
+            {!loading && data && (
+              <button onClick={handlePDF}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest"
+                style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}>
+                <span className="material-symbols-outlined text-lg">picture_as_pdf</span>Salvar PDF
+              </button>
+            )}
+          </div>
+
+          {/* Loading */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-40 gap-6">
+              <div className="w-14 h-14 rounded-full border-2 border-t-transparent animate-spin"
+                style={{ borderColor: `${GOLD} transparent transparent transparent` }} />
+              <div className="text-center">
+                <p className="font-black text-white text-base mb-1">Montando o dossiê…</p>
+                <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
+                  Buscando dados Hotmart + ActiveCampaign
+                </p>
+              </div>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <span className="material-symbols-outlined text-3xl text-red-400 block mb-2">error</span>
+              <p className="text-red-400 font-black text-sm">{error}</p>
+            </div>
+          )}
+
+          {!loading && data && !data.error && (
+            <div className="space-y-6">
+
+              {/* ── HERO ──────────────────────────────────────────────────── */}
+              <div style={card} className="p-8 relative overflow-hidden">
+                <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg, rgba(232,177,79,0.06) 0%, transparent 60%)', borderRadius: 24 }} />
+                <div className="relative z-10 flex flex-col md:flex-row items-start gap-6">
+                  <InitialsAvatar name={displayName} email={data.email} />
+                  <div className="flex-1">
+                    <h1 className="font-headline font-black text-3xl md:text-4xl text-white tracking-tight leading-none mb-1">
+                      {displayName || data.email}
+                    </h1>
+                    <p className="text-sm font-bold mb-4" style={{ color: SILVER }}>{data.email}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {data.phone && (
+                        <span className="flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)', color: SILVER }}>
+                          <span className="material-symbols-outlined text-[14px]">phone</span>{data.phone}
+                        </span>
+                      )}
+                      {ac?.score != null && (
+                        <span className="flex items-center gap-1 text-[11px] font-black px-3 py-1.5 rounded-xl" style={{ background: 'rgba(232,177,79,0.1)', border: `1px solid rgba(232,177,79,0.3)`, color: GOLD }}>
+                          <span className="material-symbols-outlined text-[14px]">star</span>Score AC: {ac.score}
+                        </span>
+                      )}
+                      {ac && (
+                        <span className="flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.2)', color: '#38bdf8' }}>
+                          AC #{ac.id}
+                        </span>
+                      )}
+                    </div>
+                    {ac?.created && (
+                      <p className="text-[10px] font-bold mt-3" style={{ color: SILVER }}>
+                        Entrou no AC: {DT(ac.created)}
+                      </p>
+                    )}
+                  </div>
+                  {/* KPIs */}
+                  <div className="grid grid-cols-3 gap-3 flex-shrink-0 w-full md:w-auto">
+                    {[
+                      { label: 'LTV Total', value: R(data.ltv || 0), color: '#4ade80', icon: 'trending_up' },
+                      { label: 'Compras OK', value: String(approvedCount), color: GOLD, icon: 'shopping_cart' },
+                      { label: 'Produtos', value: String(data.uniqueProducts?.length || 0), color: '#818cf8', icon: 'school' },
+                    ].map(k => (
+                      <div key={k.label} className="text-center rounded-2xl px-4 py-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <span className="material-symbols-outlined text-[20px] block mb-1" style={{ color: k.color }}>{k.icon}</span>
+                        <p className="font-black text-lg leading-none" style={{ color: k.color }}>{k.value}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest mt-1" style={{ color: SILVER }}>{k.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── GRID: Timeline + Lateral ───────────────────────────── */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+                {/* Timeline (2/3) */}
+                <div className="xl:col-span-2" style={card}>
+                  <div className="px-7 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: GOLD }}>
+                      <span className="material-symbols-outlined text-sm">timeline</span>Jornada Completa
+                      <span className="ml-auto text-[9px]" style={{ color: SILVER }}>{timeline.length} eventos</span>
+                    </p>
+                  </div>
+                  <div className="p-6 max-h-[640px] overflow-y-auto space-y-1">
+                    {timeline.length === 0 ? (
+                      <p className="text-center py-12 text-[12px]" style={{ color: SILVER }}>Nenhum evento encontrado</p>
+                    ) : timeline.map((ev, i) => (
+                      <div key={i} className="flex gap-4 items-start group">
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                            style={{ background: `${ev.color}20`, border: `1px solid ${ev.color}50` }}>
+                            <span className="material-symbols-outlined text-[14px]" style={{ color: ev.color }}>{ev.icon}</span>
+                          </div>
+                          {i < timeline.length - 1 && <div className="w-px h-4 mt-1" style={{ background: 'rgba(255,255,255,0.06)' }} />}
+                        </div>
+                        <div className="flex-1 pb-3">
+                          <div className="flex items-start gap-2 flex-wrap">
+                            <p className="font-black text-white text-[12px] leading-tight flex-1">{ev.title}</p>
+                            <span className="text-[9px] font-bold flex-shrink-0" style={{ color: SILVER }}>{DT(ev.date)}</span>
+                          </div>
+                          {ev.subtitle && <p className="text-[10px] mt-0.5" style={{ color: SILVER }}>{ev.subtitle}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Lateral cards (1/3) */}
+                <div className="flex flex-col gap-4">
+
+                  {/* AC personal data */}
+                  {ac && (
+                    <div style={card} className="p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: '#38bdf8' }}>
+                        <span className="material-symbols-outlined text-sm">person</span>ActiveCampaign
+                      </p>
+                      <div className="space-y-2.5">
+                        {[
+                          { label: 'Nome',      value: `${ac.firstName || ''} ${ac.lastName || ''}`.trim() || '—' },
+                          { label: 'Email',     value: ac.email || '—' },
+                          { label: 'Telefone',  value: ac.phone || '—' },
+                          { label: 'Desde',     value: D(ac.created) },
+                        ].map(row => (
+                          <div key={row.label} className="flex justify-between gap-2 items-baseline">
+                            <span className="text-[10px] font-bold uppercase tracking-wider flex-shrink-0" style={{ color: SILVER }}>{row.label}</span>
+                            <span className="text-[11px] font-black text-white text-right break-all">{row.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  {ac?.tags?.length > 0 && (
+                    <div style={card} className="p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: GOLD }}>
+                        <span className="material-symbols-outlined text-sm">label</span>Tags ({ac.tags.length})
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ac.tags.map((t: any, i: number) => (
+                          <div key={i} className="group relative">
+                            <span className="px-2 py-1 rounded-lg text-[10px] font-black cursor-default"
+                              style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.25)', color: GOLD }}>
+                              {t.tagName}
+                            </span>
+                            {t.created && (
+                              <span className="absolute -top-7 left-0 whitespace-nowrap text-[9px] font-bold px-2 py-0.5 rounded-lg z-20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                style={{ background: '#0d1f33', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>
+                                {D(t.created)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lists */}
+                  {ac?.lists?.length > 0 && (
+                    <div style={card} className="p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: '#818cf8' }}>
+                        <span className="material-symbols-outlined text-sm">group</span>Listas AC
+                      </p>
+                      <div className="space-y-2">
+                        {ac.lists.map((l: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-black text-white leading-tight">{l.name}</span>
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-lg flex-shrink-0"
+                              style={l.status === '1' ? { background: 'rgba(34,197,94,0.1)', color: '#4ade80' } : { background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+                              {l.status === '1' ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Automations */}
+                  {ac?.automations?.length > 0 && (
+                    <div style={card} className="p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: '#818cf8' }}>
+                        <span className="material-symbols-outlined text-sm">alt_route</span>Automações ({ac.automations.length})
+                      </p>
+                      <div className="space-y-2">
+                        {ac.automations.map((a: any, i: number) => (
+                          <div key={i} className="rounded-xl p-3" style={{ background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.12)' }}>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-black text-white text-[11px] leading-tight">{a.name}</p>
+                              <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md flex-shrink-0"
+                                style={a.completed ? { background: 'rgba(34,197,94,0.1)', color: '#4ade80' } : { background: 'rgba(232,177,79,0.1)', color: GOLD }}>
+                                {a.completed ? 'OK' : 'Ativo'}
+                              </span>
+                            </div>
+                            <p className="text-[9px] mt-0.5" style={{ color: SILVER }}>{D(a.entered)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Produtos */}
+                  {(data.uniqueProducts || []).length > 0 && (
+                    <div style={card} className="p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: GOLD }}>
+                        <span className="material-symbols-outlined text-sm">school</span>Produtos
+                      </p>
+                      <div className="space-y-2">
+                        {data.uniqueProducts.map((prod: string, i: number) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>menu_book</span>
+                            <p className="text-[11px] font-black text-white leading-tight">{prod}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Histórico completo de compras ─────────────────────── */}
+              <div style={{ ...card, padding: 0 }}>
+                <div className="px-7 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: GOLD }}>
+                    <span className="material-symbols-outlined text-sm">receipt_long</span>
+                    Histórico Hotmart · {data.purchases?.length || 0} transações · Últimos 3 anos
+                  </p>
+                </div>
+                {(data.purchases || []).length === 0 ? (
+                  <div className="py-16 text-center">
+                    <span className="material-symbols-outlined text-4xl mb-3 block" style={{ color: SILVER }}>receipt</span>
+                    <p className="text-[12px] font-bold" style={{ color: SILVER }}>Nenhuma compra encontrada nos últimos 3 anos</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+                          {['Data','Produto','Moeda','Bruto','Líquido BRL','Pagamento','Status','Parcelamento','Tracking'].map(h => (
+                            <th key={h} className="py-3 px-4 text-left text-[9px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(data.purchases || []).map((p: any, i: number) => {
+                          const ok = ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes((p.status||'').toUpperCase());
+                          const netBRL = p.netBRL ?? p.convertedBRL ?? (p.currency === 'BRL' ? (p.netValue ?? p.grossValue) : null);
+                          const hasTracking = p.utmSource || p.src || p.sck || p.utmCampaign;
+                          return (
+                            <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                              <td className="py-3 px-4 text-[10px] font-bold text-white whitespace-nowrap">{DT(p.date)}</td>
+                              <td className="py-3 px-4 text-[11px] font-black text-white max-w-[200px]"><span className="block leading-tight">{p.product}</span></td>
+                              <td className="py-3 px-4 text-[10px] font-black" style={{ color: SILVER }}>{p.currency}</td>
+                              <td className="py-3 px-4 text-[11px] font-black text-white whitespace-nowrap">{RF(p.grossValue, p.currency)}</td>
+                              <td className="py-3 px-4 text-[11px] font-black whitespace-nowrap" style={{ color: ok ? '#4ade80' : '#f87171' }}>{netBRL != null ? R(netBRL) : '—'}</td>
+                              <td className="py-3 px-4 text-[10px] font-bold" style={{ color: SILVER }}>{p.paymentType || '—'}</td>
+                              <td className="py-3 px-4"><StatusBadge status={p.status} /></td>
+                              <td className="py-3 px-4 text-[10px]" style={{ color: SILVER }}>
+                                {p.isSubscription ? `Sub · C${p.recurrencyNum||'?'}` : p.installments > 1 ? `${p.installments}x` : 'À vista'}
+                              </td>
+                              <td className="py-3 px-4">
+                                {hasTracking ? (
+                                  <div className="text-[9px] font-bold space-y-0.5" style={{ color: SILVER }}>
+                                    {p.src         && <div>src: <span className="text-white">{p.src}</span></div>}
+                                    {p.sck         && <div>sck: <span className="text-white">{p.sck}</span></div>}
+                                    {p.utmSource   && <div>src: <span className="text-white">{p.utmSource}</span></div>}
+                                    {p.utmMedium   && <div>md: <span className="text-white">{p.utmMedium}</span></div>}
+                                    {p.utmCampaign && <div>cmp: <span className="text-white">{p.utmCampaign}</span></div>}
+                                  </div>
+                                ) : <span className="text-[10px]" style={{ color: SILVER }}>—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {!loading && data?.error && (
+            <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <p className="text-red-400 font-black">{data.error}</p>
+            </div>
+          )}
+        </main>
+      </div>
+    </LoginWrapper>
+  );
+}
