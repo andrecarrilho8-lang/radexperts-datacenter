@@ -52,24 +52,14 @@ export async function GET(request: Request) {
       } else {
         p.set('date_preset', 'last_30d');
       }
-      // For campaign-level insights, include ALL effective statuses so paused campaigns
-      // that had spend in the period are returned (Meta omits them by default otherwise)
-      if (level !== 'account') {
-        const filters: any[] = [
-          { field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED'] },
-        ];
-        if (campaignId) {
-          filters.push({ field: 'campaign.id', operator: 'EQUAL', value: campaignId });
-        }
-        p.set('filtering', JSON.stringify(filters));
+      if (campaignId && level !== 'account') {
+        p.set('filtering', JSON.stringify([{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]));
       }
       return p;
     };
 
-    // Fetch ALL campaign statuses (ACTIVE + PAUSED + ARCHIVED) for the campaign list
     const campaignParams = new URLSearchParams({
       fields: 'id,name,status,effective_status,created_time,objective',
-      effective_status: JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']),
       limit: '1000',
       access_token: accessToken!,
     });
