@@ -150,12 +150,17 @@ type Data = {
 /* ─── Page ──────────────────────────────────────────────────────────────────── */
 export default function FinanceiroOverviewPage() {
   const router = useRouter();
-  const [data,    setData]    = useState<Data | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>('entradas');
+  const [data,       setData]       = useState<Data | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
+  const [activeTab,  setActiveTab]  = useState<Tab>('entradas');
+  const [hoveredTab, setHoveredTab] = useState<Tab | null>(null);
 
   useEffect(() => {
+    // Tie into the global golden loading bar
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('dashboard:loading'));
+    }
     fetch('/api/financeiro/overview')
       .then(r => r.json())
       .then(d => { if (d.error) setError(d.error); else setData(d); setLoading(false); })
@@ -198,23 +203,44 @@ export default function FinanceiroOverviewPage() {
           {/* ── Tabs ──────────────────────────────────────────────────────── */}
           <div className="flex gap-2 mb-6 flex-wrap">
             {TABS.map(t => {
-              const isActive = activeTab === t.key;
+              const isActive  = activeTab === t.key;
+              const isHovered = hoveredTab === t.key;
               return (
                 <button key={t.key} id={`fin-tab-${t.key}`}
                   onClick={() => setActiveTab(t.key)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black transition-all"
+                  onMouseEnter={() => setHoveredTab(t.key)}
+                  onMouseLeave={() => setHoveredTab(null)}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black"
                   style={{
                     fontSize: '13px',
-                    background: isActive ? `${t.accent}18` : 'rgba(255,255,255,0.04)',
-                    border: `1.5px solid ${isActive ? t.accent + '55' : 'rgba(255,255,255,0.08)'}`,
-                    color: isActive ? t.accent : SILVER,
-                    boxShadow: isActive ? `0 0 20px ${t.accent}18` : 'none',
+                    transition: 'all 0.18s cubic-bezier(0.4,0,0.2,1)',
+                    background: isActive
+                      ? `${t.accent}22`
+                      : isHovered
+                        ? `${t.accent}12`
+                        : 'rgba(255,255,255,0.04)',
+                    border: `1.5px solid ${
+                      isActive ? `${t.accent}60`
+                      : isHovered ? `${t.accent}38`
+                      : 'rgba(255,255,255,0.08)'
+                    }`,
+                    color: isActive || isHovered ? t.accent : SILVER,
+                    boxShadow: isActive
+                      ? `0 0 24px ${t.accent}22, 0 4px 12px rgba(0,0,0,0.3)`
+                      : isHovered
+                        ? `0 0 14px ${t.accent}14`
+                        : 'none',
+                    transform: isHovered && !isActive ? 'translateY(-1px)' : 'none',
                   }}>
-                  <span className="material-symbols-outlined text-[17px]">{t.icon}</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>{t.icon}</span>
                   {t.label}
                   {!loading && (
                     <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black"
-                      style={{ background: `${t.accent}22`, color: t.accent }}>
+                      style={{
+                        background: `${t.accent}22`,
+                        color: isActive || isHovered ? t.accent : SILVER,
+                        transition: 'color 0.18s',
+                      }}>
                       {counts[t.key]}
                     </span>
                   )}
