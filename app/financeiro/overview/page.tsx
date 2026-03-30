@@ -149,8 +149,8 @@ type Overdue = {
   product: { name: string };
   plan: string; status?: string;
   amount: number; currency: string; amountBRL: number | null;
-  accessionDate: number; dateNextCharge?: number;
-  daysSinceLast: number; lastTransaction: string;
+  accessionDate: number; lastPayDate: number; daysSinceLast: number;
+  lastTransaction: string;
 };
 type Data = {
   totalTransactions: number; totalSubs: number;
@@ -483,10 +483,19 @@ export default function FinanceiroOverviewPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '130px' }} />{/* Último Pgto */}
+                    <col style={{ width: '145px' }} />{/* Valor */}
+                    <col style={{ width: '240px' }} />{/* Nome */}
+                    <col style={{ width: '180px' }} />{/* Produto */}
+                    <col style={{ width: '160px' }} />{/* Oferta */}
+                    <col style={{ width: '90px' }} /> {/* Início */}
+                    <col style={{ width: '90px' }} /> {/* Dias em Atraso */}
+                  </colgroup>
                   <thead>
                     <tr style={{ background: `${tab.accent}08` }}>
-                      <TH>Última Transação</TH>
+                      <TH>Último Pagamento</TH>
                       <TH right>Valor</TH>
                       <TH>Nome</TH>
                       <TH>Produto</TH>
@@ -515,13 +524,11 @@ export default function FinanceiroOverviewPage() {
                             style={{ background: rowBg, borderBottom: `1px solid ${tab.accent}18` }}
                             onMouseEnter={e => (e.currentTarget.style.background = `${tab.accent}14`)}
                             onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                            {/* Última Transação */}
-                            <td className="py-3 px-4">
+                            {/* Último Pagamento */}
+                            <td className="py-3 px-4 whitespace-nowrap">
                               <div className="flex flex-col gap-0.5">
-                                <span className="text-[11px] font-mono" style={{ color: SILVER }}>{o.lastTransaction || '—'}</span>
-                                {o.dateNextCharge && (
-                                  <span className="text-[9px] font-bold" style={{ color: SILVER }}>venc.: {fmtDate(o.dateNextCharge)}</span>
-                                )}
+                                <span className="text-sm font-black text-white">{fmtDate(o.lastPayDate)}</span>
+                                <span className="text-[9px] font-bold" style={{ color: SILVER }}>{o.lastTransaction.slice(0, 14)}…</span>
                               </div>
                             </td>
                             {/* Valor */}

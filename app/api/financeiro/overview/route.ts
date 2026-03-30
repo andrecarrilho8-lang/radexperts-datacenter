@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 
 const APPROVED_STATUS = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
 
-/* ── Hotmart subscriptions API ──────────────────────────────────────────── */
+/* ── Subscriptions API (ACTIVE only) ─────────────────────────────────────── */
 function httpsGet(token: string, path: string): Promise<{ status: number; body: any }> {
   return new Promise((resolve) => {
     const req = https.request(
@@ -30,40 +30,51 @@ function httpsGet(token: string, path: string): Promise<{ status: number; body: 
   });
 }
 
-/** Fetch ALL subscriptions (no status filter) — paginated */
-async function fetchAllSubs(token: string, limit = 500): Promise<any[]> {
+async function fetchActiveSubs(token: string): Promise<any[]> {
   const items: any[] = [];
   let pageToken = '';
   do {
-    const qs = `/payments/api/v1/subscriptions?max_results=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
+    const qs = `/payments/api/v1/subscriptions?status=ACTIVE&max_results=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
     const r = await httpsGet(token, qs);
     if (r.status !== 200) break;
     const batch: any[] = r.body?.items || [];
     items.push(...batch);
     pageToken = r.body?.page_info?.next_page_token || '';
-    if (items.length >= limit) break;
   } while (pageToken);
   return items;
 }
 
+/* ── Same logic as /api/cursos/[courseName] ─────────────────────────────── */
+function classifySub(isSub: boolean, isSmartInstall: boolean,
+  lastPayTs: number, maxRecur: number, inst: number,
+  nowMs: number): 'ACTIVE' | 'OVERDUE' | 'CANCELLED' {
+  if (!isSub && !isSmartInstall) return 'ACTIVE'; // one-time = always paid
+  if (!lastPayTs) return 'ACTIVE';
+  const daysSince = (nowMs - lastPayTs) / 86_400_000;
+  if (daysSince > 65) return 'CANCELLED';
+  if (daysSince > 35) return 'OVERDUE';
+  if (isSmartInstall && maxRecur >= inst && inst > 1) return 'ACTIVE'; // fully paid
+  return 'ACTIVE';
+}
+
 export async function GET() {
   try {
-    /* ── 1. Recent transactions from sales cache ─────────────────────────── */
     const allSales = await getCachedAllSales();
+    const nowMs    = Date.now();
     const approved = allSales.filter((s: any) => APPROVED_STATUS.has(s.purchase?.status));
 
-    const sortedAll = [...approved].sort((a: any, b: any) => {
-      const ta = new Date(b.purchase?.approved_date || b.purchase?.order_date || 0).getTime();
-      const tb = new Date(a.purchase?.approved_date || a.purchase?.order_date || 0).getTime();
-      return ta - tb;
-    });
-    const recentTransactions = sortedAll.slice(0, 10).map((s: any) => ({
+    /* ── 1. Recent Transactions — last 10 ───────────────────────────────── */
+    const sortedAll = [...approved].sort((a: any, b: any) =>
+      new Date(b.purchase?.approved_date || b.purchase?.order_date || 0).getTime() -
+      new Date(a.purchase?.approved_date || a.purchase?.order_date || 0).getTime()
+    );
+    const recentRaw = sortedAll.slice(0, 10).map((s: any) => ({
       transaction:      s.purchase?.transaction,
       date:             s.purchase?.approved_date || s.purchase?.order_date,
       buyer:            { name: s.buyer?.name || '—', email: s.buyer?.email || '—' },
       product:          { name: s.product?.name || '—' },
       amount:           s.purchase?.price?.value ?? 0,
-      currency:         s.purchase?.price?.currency_code || 'BRL',
+      currency:         (s.purchase?.price?.currency_code || 'BRL').toUpperCase(),
       amountBRL:        s.purchase?.price?.converted_value || null,
       paymentType:      s.purchase?.payment?.type || '—',
       status:           s.purchase?.status,
@@ -73,82 +84,141 @@ export async function GET() {
       recurrencyNumber: s.purchase?.recurrency_number || null,
     }));
 
-    /* ── 2 & 3. Subscriptions: upcoming + inadimplentes ─────────────────── */
-    const token   = await getHotmartToken();
-    const allSubs = await fetchAllSubs(token, 500);
-    const nowMs   = Date.now();
+    /* ── 2. Inadimplentes — sales-based, deduplicated by email×product ─── */
+    type AggKey = string;
+    const subMap = new Map<AggKey, {
+      email: string; name: string; product: string;
+      offerCode: string; offerName: string;
+      amount: number; currency: string;
+      lastPayTs: number; firstPayTs: number;
+      lastTransaction: string;
+      isSub: boolean; isSmartInstall: boolean;
+      maxRecurrency: number; installments: number;
+    }>();
 
-    // Collect all unique non-BRL currencies for batch rate fetch
-    const allCurrencies = [...new Set(
-      [...recentTransactions, ...allSubs.map(s => s.price?.currency_code)]
-        .map(c => (typeof c === 'string' ? c : 'BRL').toUpperCase())
-        .filter(c => c !== 'BRL')
-    )];
-    if (allCurrencies.length > 0) {
-      await getAllRates(allCurrencies); // warms cache once; getConvertedValue used below
+    for (const s of approved) {
+      const email   = (s.buyer?.email || '').toLowerCase().trim();
+      const product = s.product?.name || '—';
+      if (!email || !product) continue;
+
+      const ts         = new Date(s.purchase?.approved_date || s.purchase?.order_date || 0).getTime();
+      const mode       = (s.purchase?.offer?.payment_mode || 'UNIQUE_PAYMENT').toUpperCase();
+      const recur      = s.purchase?.recurrency_number || 1;
+      const inst       = s.purchase?.payment?.installments_number || 1;
+      const isSub      = mode === 'SUBSCRIPTION' || s.purchase?.is_subscription === true;
+      const isSmartInstall = !isSub && recur > 1;
+
+      // Skip one-time & standard card splits — they're always QUITADO
+      if (!isSub && !isSmartInstall) continue;
+
+      const offerCode = s.purchase?.offer?.code || '';
+      const rawName   = (s.purchase?.offer?.name || '').trim();
+      const cleanCode = offerCode.replace(/_/g, ' ')
+        .toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase());
+      const offerName = rawName || cleanCode || offerCode;
+
+      const key: AggKey = `${email}|${product}`;
+      const cur = subMap.get(key);
+      if (!cur) {
+        subMap.set(key, {
+          email, name: s.buyer?.name || '—', product,
+          offerCode, offerName,
+          amount:   s.purchase?.price?.value ?? 0,
+          currency: (s.purchase?.price?.currency_code || 'BRL').toUpperCase(),
+          lastPayTs: ts, firstPayTs: ts,
+          lastTransaction: s.purchase?.transaction || '—',
+          isSub, isSmartInstall,
+          maxRecurrency: recur, installments: inst,
+        });
+      } else {
+        if (ts > cur.lastPayTs) {
+          cur.lastPayTs       = ts;
+          cur.lastTransaction = s.purchase?.transaction || cur.lastTransaction;
+          cur.name            = s.buyer?.name || cur.name;
+          cur.offerName       = offerName || cur.offerName;
+          cur.amount          = s.purchase?.price?.value ?? cur.amount;
+          cur.currency        = (s.purchase?.price?.currency_code || 'BRL').toUpperCase();
+        }
+        if (ts > 0 && ts < cur.firstPayTs) cur.firstPayTs = ts;
+        if (recur > cur.maxRecurrency)     cur.maxRecurrency = recur;
+        if (inst  > cur.installments)      cur.installments  = inst;
+      }
     }
 
-    /* Upcoming — ACTIVE with future charge */
-    const upcoming = allSubs
-      .filter(s => s.status === 'ACTIVE' && s.date_next_charge && s.date_next_charge > nowMs)
-      .sort((a, b) => a.date_next_charge - b.date_next_charge)
-      .slice(0, 10)
-      .map(s => {
-        const cur     = (s.price?.currency_code || 'BRL').toUpperCase();
-        const amount  = s.price?.value ?? 0;
-        const amountBRL = cur === 'BRL' ? null : getConvertedValue(amount, cur);
-        return {
-          subscriberCode: s.subscriber_code,
-          subscriber:     { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
-          product:        { name: s.product?.name || '—' },
-          plan:           s.plan?.name || '—',
-          dateNextCharge: s.date_next_charge,
-          amount, currency: cur, amountBRL,
-          accessionDate:  s.accession_date,
-        };
+    // Collect all LATAM currencies for batch rate fetch
+    const allCurrencies = new Set<string>();
+    recentRaw.forEach(t => { if (t.currency !== 'BRL' && !t.amountBRL) allCurrencies.add(t.currency); });
+    subMap.forEach(e => { if (e.currency !== 'BRL') allCurrencies.add(e.currency); });
+    if (allCurrencies.size > 0) await getAllRates(Array.from(allCurrencies));
+
+    // Enrich recent transactions with BRL conversion if missing
+    const recentTransactions = recentRaw.map(t => ({
+      ...t,
+      amountBRL: t.amountBRL ?? (t.currency !== 'BRL' ? getConvertedValue(t.amount, t.currency) : null),
+    }));
+
+    // Build overdue list (deduplicated — one per unique subscriber+product)
+    const overdue: any[] = [];
+    for (const entry of subMap.values()) {
+      const status = classifySub(
+        entry.isSub, entry.isSmartInstall,
+        entry.lastPayTs, entry.maxRecurrency, entry.installments, nowMs
+      );
+      if (status !== 'OVERDUE') continue;
+
+      const daysSinceLast = Math.floor((nowMs - entry.lastPayTs) / 86_400_000);
+      const amountBRL     = entry.currency === 'BRL' ? null
+        : getConvertedValue(entry.amount, entry.currency);
+
+      overdue.push({
+        email:          entry.email,
+        subscriber:     { name: (entry.name || '').toUpperCase(), email: entry.email },
+        product:        { name: entry.product },
+        plan:           entry.offerName || entry.offerCode,
+        amount:         entry.amount,
+        currency:       entry.currency,
+        amountBRL,
+        accessionDate:  entry.firstPayTs,
+        lastPayDate:    entry.lastPayTs,   // actual date of last payment
+        daysSinceLast,
+        lastTransaction: entry.lastTransaction,
       });
+    }
+    overdue.sort((a, b) => b.daysSinceLast - a.daysSinceLast);
 
-    /* Inadimplentes — INACTIVE or DELAYED: subscriptions that stopped paying */
-    const OVERDUE_STATUSES = new Set(['INACTIVE', 'DELAYED', 'OVERDUE',
-      'CANCELLED_BY_CUSTOMER', 'CANCELLED_BY_SELLER', 'CANCELLED_BY_ADMIN']);
-
-    const overdue = allSubs
-      .filter(s => OVERDUE_STATUSES.has(s.status))
-      .map(s => {
-        const cur      = (s.price?.currency_code || 'BRL').toUpperCase();
-        const amount   = s.price?.value ?? 0;
-        const amountBRL = cur === 'BRL' ? null : getConvertedValue(amount, cur);
-        // Days since subscription should have renewed
-        const refTs    = s.date_next_charge && s.date_next_charge < nowMs
-          ? s.date_next_charge
-          : s.accession_date || nowMs;
-        const daysSinceLast = Math.max(0, Math.floor((nowMs - refTs) / 86_400_000));
-        return {
-          subscriberCode:  s.subscriber_code,
-          subscriber:      { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
-          product:         { name: s.product?.name || '—' },
-          plan:            s.plan?.name || '—',
-          status:          s.status,
-          amount, currency: cur, amountBRL,
-          accessionDate:   s.accession_date,
-          dateNextCharge:  s.date_next_charge,
-          daysSinceLast,
-          lastTransaction: s.transaction || s.subscriber_code || '—',
-        };
-      })
-      .sort((a, b) => b.daysSinceLast - a.daysSinceLast);
-
-    /* Status summary */
-    const statusCounts: Record<string, number> = {};
-    allSubs.forEach(s => { statusCounts[s.status] = (statusCounts[s.status] || 0) + 1; });
+    /* ── 3. Upcoming — from Hotmart ACTIVE subscriptions ─────────────────── */
+    let upcoming: any[] = [];
+    let totalSubs = 0;
+    try {
+      const token      = await getHotmartToken();
+      const activeSubs = await fetchActiveSubs(token);
+      totalSubs = activeSubs.length;
+      upcoming = activeSubs
+        .filter(s => s.date_next_charge && s.date_next_charge > nowMs)
+        .sort((a, b) => a.date_next_charge - b.date_next_charge)
+        .slice(0, 10)
+        .map(s => {
+          const cur       = (s.price?.currency_code || 'BRL').toUpperCase();
+          const amount    = s.price?.value ?? 0;
+          const amountBRL = cur === 'BRL' ? null : getConvertedValue(amount, cur);
+          return {
+            subscriberCode: s.subscriber_code,
+            subscriber:     { name: s.subscriber?.name || '—', email: s.subscriber?.email || '—' },
+            product:        { name: s.product?.name || '—' },
+            plan:           s.plan?.name || '—',
+            dateNextCharge: s.date_next_charge,
+            amount, currency: cur, amountBRL,
+            accessionDate:  s.accession_date,
+          };
+        });
+    } catch { /* upcoming stays [] */ }
 
     return NextResponse.json({
       totalTransactions: approved.length,
       recentTransactions,
       upcoming,
       overdue,
-      statusCounts,
-      totalSubs: allSubs.length,
+      totalSubs,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
