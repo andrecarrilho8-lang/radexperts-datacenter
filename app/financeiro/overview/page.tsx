@@ -25,6 +25,16 @@ function emailToId(email: string) {
 const fmtBRL = (v: number) =>
   v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 
+function fmtLocalCurrency(amount: number, currency: string): string {
+  const cur = (currency || 'BRL').toUpperCase();
+  if (cur === 'BRL') return fmtBRL(amount);
+  try {
+    return amount.toLocaleString('pt-BR', { style: 'currency', currency: cur, minimumFractionDigits: 2 });
+  } catch {
+    return `${cur} ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  }
+}
+
 function fmtDate(ts: number | string | null): string {
   if (!ts) return '—';
   return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
@@ -136,7 +146,7 @@ type Overdue = {
   subscriberCode?: string;
   subscriber: { name: string; email: string };
   product: { name: string };
-  plan: string; amount: number; currency: string;
+  plan: string; amount: number; currency: string; amountBRL: number | null;
   accessionDate: number; lastPayDate: number; daysSinceLast: number;
   lastTransaction: string;
 };
@@ -507,7 +517,16 @@ export default function FinanceiroOverviewPage() {
                             </td>
                             {/* Valor */}
                             <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <span className="font-black text-lg" style={{ color: tab.accent }}>{fmtBRL(o.amount)}</span>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="font-black text-lg" style={{ color: tab.accent }}>
+                                  {fmtLocalCurrency(o.amount, o.currency)}
+                                </span>
+                                {o.currency !== 'BRL' && o.amountBRL && (
+                                  <span className="text-[9px] font-bold" style={{ color: SILVER }}>
+                                    ≈ {fmtBRL(o.amountBRL)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             {/* Nome */}
                             <td className="py-3 px-4">

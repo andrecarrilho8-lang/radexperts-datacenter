@@ -88,8 +88,8 @@ export async function GET() {
     type SubKey = string; // `${email}|${product}`
     const subMap = new Map<SubKey, {
       email: string; name: string; product: string;
-      offerCode: string; paymentMode: string;
-      amount: number; currency: string;
+      offerCode: string; offerName: string; paymentMode: string;
+      amount: number; currency: string; amountBRL: number | null;
       lastPayTs: number; firstPayTs: number;
       lastTransaction: string;
       isSub: boolean; isSmartInstall: boolean;
@@ -106,6 +106,13 @@ export async function GET() {
       const recur       = s.purchase?.recurrency_number || 1;
       const inst        = s.purchase?.payment?.installments_number || 1;
       const isSub       = paymentMode === 'SUBSCRIPTION' || s.purchase?.is_subscription === true;
+      const offerCode   = s.purchase?.offer?.code || '';
+      // Try offer.name first; fall back to cleaning up the code
+      const rawOfferName = (s.purchase?.offer?.name || '').trim();
+      const cleanCode    = offerCode.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase());
+      const offerName    = rawOfferName || cleanCode || offerCode;
+      const amountBRL    = s.purchase?.price?.currency_code === 'BRL' ? null
+                         : (s.purchase?.price?.converted_value || null);
 
       // Only track subscriptions and smart installments (one-time = quitado immediately)
       const maxRecurForEntry = recur; // starts at current recurrency
@@ -120,10 +127,12 @@ export async function GET() {
           email,
           name:            s.buyer?.name || '—',
           product,
-          offerCode:       s.purchase?.offer?.code || '—',
+          offerCode,
+          offerName,
           paymentMode,
           amount:          s.purchase?.price?.value ?? 0,
           currency:        s.purchase?.price?.currency_code || 'BRL',
+          amountBRL,
           lastPayTs:       ts,
           firstPayTs:      ts,
           lastTransaction: s.purchase?.transaction || '—',
@@ -137,6 +146,8 @@ export async function GET() {
           existing.lastPayTs       = ts;
           existing.lastTransaction = s.purchase?.transaction || existing.lastTransaction;
           existing.name            = s.buyer?.name || existing.name;
+          existing.offerName       = offerName || existing.offerName; // use latest offer name
+          if (amountBRL) existing.amountBRL = amountBRL;
         }
         if (ts > 0 && ts < existing.firstPayTs) existing.firstPayTs = ts;
         if (recur > existing.maxRecurrency) existing.maxRecurrency = recur;
@@ -158,9 +169,10 @@ export async function GET() {
         email:           entry.email,
         subscriber:      { name: entry.name.toUpperCase(), email: entry.email },
         product:         { name: entry.product },
-        plan:            entry.offerCode,
+        plan:            entry.offerName || entry.offerCode,
         amount:          entry.amount,
         currency:        entry.currency,
+        amountBRL:       entry.amountBRL ?? null,
         accessionDate:   entry.firstPayTs,
         lastPayDate:     entry.lastPayTs,
         daysSinceLast,
