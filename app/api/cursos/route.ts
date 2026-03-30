@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { getCachedAllSales } from '@/app/lib/salesCache';
 import { getCache, setCache } from '@/app/lib/metaApi';
 
+// Statuses that mean the student has legitimate paid access (per Hotmart docs)
 const APPROVED  = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_KEY = 'cursos_list_v3';
+const CACHE_KEY = 'cursos_list_v4'; // bump: re-count with corrected logic
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 export async function GET() {
