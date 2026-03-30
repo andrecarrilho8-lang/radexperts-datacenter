@@ -43,10 +43,16 @@ const CURRENCY_TO_ISO: Record<string, string> = {
   HNL: 'hn', NIO: 'ni', PAB: 'pa', GBP: 'gb', CAD: 'ca',
 };
 
+/**
+ * Returns the payment amount in the purchase's native currency.
+ * For BRL: price.value in R$.
+ * For LATAM: price.value in local currency (COP, ARS, MXN, etc.)
+ *
+ * Note: Hotmart's sales/history API does NOT include a BRL-converted field for LATAM.
+ * We show the raw amount with the correct currency code (fmtMoneyByCurrency on frontend).
+ */
 function getBRLValue(purchase: any): number {
-  const currency = (purchase?.price?.currency_code || 'BRL').toUpperCase();
-  if (currency === 'BRL') return purchase?.price?.value ?? 0;
-  return purchase?.price?.actual_value ?? purchase?.price?.converted_value ?? 0;
+  return purchase?.price?.value ?? 0;
 }
 
 function getCurrency(purchase: any): string {
@@ -63,7 +69,7 @@ export async function GET(
   const turma      = searchParams.get('turma') || '';
 
   // v10: offer-aware payment mode detection
-  const CACHE_KEY = `curso_v10_${courseName}`;
+  const CACHE_KEY = `curso_v11_${courseName}`;
   const hit = getCache(CACHE_KEY);
   if (hit?.expires_at > Date.now()) {
     const result = hit.data;

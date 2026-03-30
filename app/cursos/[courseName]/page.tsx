@@ -78,6 +78,19 @@ function fmtMoney(val: number): string {
   if (!val) return '—';
   return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 }
+// For LATAM: show value in original currency when not BRL
+function fmtMoneyByCurrency(val: number, currency: string): string {
+  if (!val || val === 0) return '—';
+  const cur = (currency || 'BRL').toUpperCase();
+  if (cur === 'BRL') {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+  }
+  try {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: cur, minimumFractionDigits: 2 });
+  } catch {
+    return `${cur} ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  }
+}
 function daysSince(ts: number | null): number {
   return ts ? Math.floor((Date.now() - ts) / 86_400_000) : 9999;
 }
@@ -261,7 +274,7 @@ function NameTooltip({ s, pos, onHoverIn, onHoverOut }: {
                       <p className="text-[9px]" style={{ color: SILVER }}>{fmtDate(p.date)}</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-black" style={{ color: '#4ade80' }}>{fmtMoney(p.valor)}</span>
+                  <span className="text-[10px] font-black" style={{ color: '#4ade80' }}>{fmtMoneyByCurrency(p.valor, s.currency)}</span>
                 </div>
               );
             })
@@ -397,15 +410,21 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const inadimN = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
   const quitN  = students.filter(s => getPayStatus(s) === 'QUITADO').length;
 
-  // vParcela = valor de uma parcela (s.valor = amount per Hotmart transaction/charge)
-  // vTotal   = soma real de todos os pagamentos registrados no histórico
+  // vParcela: for BRL = price.value; for LATAM = price.value in original currency
+  // We use paymentHistory to get the avg per-payment amount
   function vParcela(s: Student): number {
+    // If history has values, use last payment amount (most accurate installment value)
+    const hist = s.paymentHistory;
+    if (hist && hist.length > 0 && hist[hist.length - 1].valor > 0) {
+      return hist[hist.length - 1].valor;
+    }
     return s.valor || 0;
   }
   function vTotal(s: Student): number {
     const hist = s.paymentHistory;
     if (hist && hist.length > 0) {
-      return hist.reduce((sum, p) => sum + p.valor, 0);
+      const sum = hist.reduce((acc, p) => acc + p.valor, 0);
+      if (sum > 0) return sum;
     }
     return s.valor || 0;
   }
@@ -492,19 +511,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm font-bold outline-none"
                 style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.11)', color: 'white' }} />
             </div>
-            {turmas.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Turma:</span>
-                {['', ...turmas].map(t => (
-                  <button key={t || 'all'} onClick={() => { setTurmaFilter(t); setPage(0); }}
-                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
-                    style={{ background: turmaFilter === t ? GOLD : 'rgba(255,255,255,0.07)', color: turmaFilter === t ? NAVY : SILVER, border: `1px solid ${turmaFilter === t ? GOLD : 'rgba(255,255,255,0.1)'}` }}>
-                    {t || 'Todas'}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
+
 
           {/* Table */}
           <div style={{ ...TABLE_STYLE, overflow: 'hidden' }}>
@@ -565,8 +573,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     </div>
 
                     <span className="text-[11px] font-bold truncate pr-3 pt-1" style={{ color: SILVER }}>{s.email}</span>
-                    <span className="text-[12px] font-bold pt-1" style={{ color: GOLD }}>{fmtMoney(vParcela(s))}</span>
-                    <span className="text-[12px] font-bold pt-1 text-white">{fmtMoney(vTotal(s))}</span>
+                    <span className="text-[12px] font-bold pt-1" style={{ color: GOLD }}>{fmtMoneyByCurrency(vParcela(s), s.currency)}</span>
+                    <span className="text-[12px] font-bold pt-1 text-white">{fmtMoneyByCurrency(vTotal(s), s.currency)}</span>
                     <PaymentCell s={s} />
                   </div>
                 );
