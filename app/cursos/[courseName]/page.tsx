@@ -579,12 +579,19 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     <span className="text-[11px] font-bold pt-1" style={{ color: SILVER }}>{fmtDate(s.entryDate)}</span>
 
                     {/* Name + flag — exactly like Hotmart page */}
-                    <div className="pr-3 pt-0.5 cursor-default"
+                    <div className="pr-3 pt-0.5"
                       onMouseEnter={e => openTip(e, s)}
                       onMouseLeave={closeTip}>
                       <div className="flex items-center gap-2 leading-tight">
                         {getStudentFlag(s.flag, 18)}
-                        <p className="text-[12px] font-black text-white truncate" title={s.name}>{s.name}</p>
+                        <button
+                          onClick={() => router.push(`/alunos/${encodeURIComponent(s.email)}`)}
+                          className="text-[12px] font-black text-white truncate text-left transition-colors"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
+                          onMouseLeave={e => (e.currentTarget.style.color = '#fff')}
+                          title={s.name}
+                        >{s.name}</button>
                       </div>
                       {status === 'INADIMPLENTE' && (
                         <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#f87171' }}>

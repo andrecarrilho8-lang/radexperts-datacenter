@@ -7,6 +7,7 @@ import { R, RF, N, D } from '@/app/lib/utils';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
+import { useRouter } from 'next/navigation';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -65,6 +66,7 @@ const PAGE_SIZE_OPTIONS = [50, 100, 150, 200];
 
 export default function HotmartPage() {
   const { dateFrom, dateTo } = useDashboard();
+  const router = useRouter();
   const data = useDashboardData();
   const [selectedProductTags, setSelectedProductTags] = useState<string[]>([]);
   const [productSearch, setProductSearch]             = useState('');
@@ -642,7 +644,13 @@ export default function HotmartPage() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2 leading-tight">
                               {getFlagImgByCurrency(s.purchase?.price?.currency_code, 18)}
-                              <span className="text-sm font-black text-white uppercase">{s.buyer.name}</span>
+                              <button
+                                onClick={() => router.push(`/alunos/${encodeURIComponent(s.buyer.email)}`)}
+                                className="text-sm font-black text-white uppercase hover:underline text-left transition-colors"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#E8B14F')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#fff')}
+                              >{s.buyer.name}</button>
                             </div>
                             <span className="text-[10px] font-bold" style={{ color: SILVER }}>{s.buyer.email}</span>
                           </div>
