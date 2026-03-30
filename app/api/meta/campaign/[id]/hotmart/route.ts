@@ -90,21 +90,45 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         const currency = (purchase.price?.currency_code || 'BRL').toUpperCase();
         const grossValue = purchase.price?.actual_value ?? purchase.price?.value ?? 0;
 
-        // Liquid net: use commission PRODUCER source when available
-        const commData    = commissionMap.get(txId);
-        const isBRL       = currency === 'BRL';
-        const feePct      = purchase.hotmart_fee?.percentage ?? 0;
+        // ── Net BRL: usar exatamente a mesma lógica da página Hotmart ──
+        // Prioridade: producer_net_brl (campo já convertido pela Hotmart) →
+        //             converted_value × (1 - fee%) →
+        //             commissions API (USD) →
+        //             gross × (1 - fee%) via AwesomeAPI (fallback)
+        const commData = commissionMap.get(txId);
+        const isBRL    = currency === 'BRL';
+        const feePct   = purchase.hotmart_fee?.percentage ?? 0;
         let netValue: number;
-        if (commData?.producerNet != null) {
-          if (isBRL) {
-            netValue = commData.producerNet;
+
+        if (isBRL) {
+          // BRL: usa producer_net direto ou gross - hotmart_fee
+          const producerNet = purchase.producer_net ?? commData?.producerNet;
+          if (producerNet != null) {
+            netValue = producerNet;
           } else {
-            netValue = await convertToBRLOnDate(commData.producerNet, 'USD', dateIso);
+            const fee = purchase.hotmart_fee?.total ?? 0;
+            netValue = Math.max(0, grossValue - fee);
           }
         } else {
-          // Fallback: gross × (1 - hotmartFee%)
-          const grossBRLFb = await convertToBRLOnDate(grossValue, currency, dateIso);
-          netValue = grossBRLFb * (1 - feePct / 100);
+          // LATAM (outras moedas):
+          // 1. producer_net_brl = campo que a Hotmart já envia convertido
+          const producerNetBRL = purchase.producer_net_brl;
+          if (producerNetBRL != null) {
+            netValue = producerNetBRL;
+          } else {
+            // 2. converted_value × (1 - fee%) — mesmo cálculo da página Hotmart
+            const convertedValue = purchase.price?.converted_value;
+            if (convertedValue != null && convertedValue > 0) {
+              netValue = convertedValue * (1 - feePct / 100);
+            } else if (commData?.producerNet != null) {
+              // 3. commission API (USD → BRL)
+              netValue = await convertToBRLOnDate(commData.producerNet, 'USD', dateIso);
+            } else {
+              // 4. último fallback: cotação histórica
+              const grossBRLFb = await convertToBRLOnDate(grossValue, currency, dateIso);
+              netValue = grossBRLFb * (1 - feePct / 100);
+            }
+          }
         }
 
         matchedSales.push({ value: grossValue, netBRL: netValue, currency, dateIso, feePct });
