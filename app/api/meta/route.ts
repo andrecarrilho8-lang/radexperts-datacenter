@@ -39,17 +39,12 @@ export async function GET(request: Request) {
     const accountInsightFields = 'spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values,date_start';
     const campaignInsightFields = INSIGHT_FIELDS.join(',');
 
-    // Include PAUSED/ARCHIVED so Meta returns spend for all statuses in the period
-    const ALL_STATUSES = JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']);
-
     // Build URLSearchParams to ensure correct encoding of time_range JSON
-    // effective_status MUST be set or Meta will omit paused campaigns from insights
     const buildInsightParams = (level: string, extraFields?: string): URLSearchParams => {
       const p = new URLSearchParams({
         fields: level === 'account' ? accountInsightFields : (extraFields || campaignInsightFields),
         level,
         limit: '500',
-        effective_status: ALL_STATUSES,
         access_token: accessToken!,
       });
       if (dSince && dUntil) {
@@ -57,18 +52,28 @@ export async function GET(request: Request) {
       } else {
         p.set('date_preset', 'last_30d');
       }
-      if (campaignId && level !== 'account') {
-        p.set('filtering', JSON.stringify([{ field: 'campaign.id', operator: 'EQUAL', value: campaignId }]));
+      // For campaign-level insights, include ALL effective statuses so paused campaigns
+      // that had spend in the period are returned (Meta omits them by default otherwise)
+      if (level !== 'account') {
+        const filters: any[] = [
+          { field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED'] },
+        ];
+        if (campaignId) {
+          filters.push({ field: 'campaign.id', operator: 'EQUAL', value: campaignId });
+        }
+        p.set('filtering', JSON.stringify(filters));
       }
       return p;
     };
 
+    // Fetch ALL campaign statuses (ACTIVE + PAUSED + ARCHIVED) for the campaign list
     const campaignParams = new URLSearchParams({
       fields: 'id,name,status,effective_status,created_time,objective',
-      effective_status: ALL_STATUSES,
+      effective_status: JSON.stringify(['ACTIVE', 'PAUSED', 'ARCHIVED', 'DELETED']),
       limit: '1000',
       access_token: accessToken!,
     });
+
 
     // ── Fetch data in parallel via HTTP with proper URL encoding ──
     const hotmartStart = dSince ? `${dSince}T00:00:00-03:00` : '2026-01-01T00:00:00-03:00';
