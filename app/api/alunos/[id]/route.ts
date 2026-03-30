@@ -231,9 +231,13 @@ export async function GET(
         .filter(Boolean)
     )];
 
+    // Hotmart buyer name from first approved sale
+    const hotmartName = rawSales.find((s: any) => s.buyer?.name)?.buyer?.name || null;
+
     return NextResponse.json({
       email,
-      name: [acFirstName, acLastName].filter(Boolean).join(' ') || null,
+      name: [acFirstName, acLastName].filter(Boolean).join(' ') || hotmartName || null,
+      hotmartName,
       phone: acPhone || null,
       ltv,
       purchases,

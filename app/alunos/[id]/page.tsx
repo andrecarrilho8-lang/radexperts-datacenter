@@ -111,7 +111,10 @@ export default function AlunoPage() {
 
   const ac        = data?.ac;
   const displayName = data?.name || data?.email || '';
-  const approvedCount = (data?.purchases || []).filter((p: any) => ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes((p.status||'').toUpperCase())).length;
+  const showEmail   = data?.name && data.email !== data.name;
+  const approvedCount = (data?.purchases || []).filter((p: any) =>
+    ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes((p.status||'').toUpperCase())
+  ).length;
 
   return (
     <LoginWrapper>
@@ -167,9 +170,18 @@ export default function AlunoPage() {
                   <InitialsAvatar name={displayName} email={data.email} />
                   <div className="flex-1">
                     <h1 className="font-headline font-black text-3xl md:text-4xl text-white tracking-tight leading-none mb-1">
-                      {displayName || data.email}
+                      {displayName}
                     </h1>
-                    <p className="text-sm font-bold mb-4" style={{ color: SILVER }}>{data.email}</p>
+                    {/* Show email as subtitle only if it's different from displayName */}
+                    {showEmail && (
+                      <p className="text-sm font-bold mb-4" style={{ color: SILVER }}>{data.email}</p>
+                    )}
+                    {/* If name = email (no name found), show a note */}
+                    {!data?.name && (
+                      <p className="text-xs font-bold mb-3" style={{ color: 'rgba(251,146,60,0.8)' }}>
+                        ⚠ Nome não encontrado no ActiveCampaign
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       {data.phone && (
                         <span className="flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)', color: SILVER }}>
@@ -235,10 +247,10 @@ export default function AlunoPage() {
                         </div>
                         <div className="flex-1 pb-3">
                           <div className="flex items-start gap-2 flex-wrap">
-                            <p className="font-black text-white text-[12px] leading-tight flex-1">{ev.title}</p>
-                            <span className="text-[9px] font-bold flex-shrink-0" style={{ color: SILVER }}>{DT(ev.date)}</span>
+                            <p className="font-black text-white text-sm leading-tight flex-1">{ev.title}</p>
+                            <span className="text-[11px] font-bold flex-shrink-0" style={{ color: SILVER }}>{DT(ev.date)}</span>
                           </div>
-                          {ev.subtitle && <p className="text-[10px] mt-0.5" style={{ color: SILVER }}>{ev.subtitle}</p>}
+                          {ev.subtitle && <p className="text-xs mt-0.5 font-medium" style={{ color: SILVER }}>{ev.subtitle}</p>}
                         </div>
                       </div>
                     ))}
@@ -344,11 +356,11 @@ export default function AlunoPage() {
                       <p className="text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2" style={{ color: GOLD }}>
                         <span className="material-symbols-outlined text-sm">school</span>Produtos
                       </p>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {data.uniqueProducts.map((prod: string, i: number) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[14px]" style={{ color: GOLD }}>menu_book</span>
-                            <p className="text-[11px] font-black text-white leading-tight">{prod}</p>
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="material-symbols-outlined text-[16px] flex-shrink-0 mt-0.5" style={{ color: GOLD }}>menu_book</span>
+                            <p className="text-sm font-black text-white leading-tight">{prod}</p>
                           </div>
                         ))}
                       </div>
