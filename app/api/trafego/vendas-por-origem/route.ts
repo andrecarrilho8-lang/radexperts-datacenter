@@ -9,27 +9,32 @@ const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRM
 const META_BASE = 'https://graph.facebook.com/v19.0';
 const INSIGHT_F  = 'spend,impressions,clicks,outbound_clicks,ctr,cpc,actions,action_values,landing_page_view';
 
-/* ── UTM parser — handles both object and query-string formats ──────────── */
+/* ── UTM parser — tries every field name variation Hotmart might use ─────── */
 function parseUTM(s: any) {
-  // Format 1: purchase.tracking = { source, campaign, medium, content, term }
-  const t: any = s.purchase?.tracking || {};
-  // Format 2: purchase.tracking_parameters = "utm_source=...&utm_campaign=..."
-  const qs = new URLSearchParams(typeof s.purchase?.tracking_parameters === 'string'
-    ? s.purchase.tracking_parameters : '');
-
-  const pick = (...keys: string[]) => {
+  const p  = s.purchase || {};
+  const t1 = p.tracking              || {};
+  const t2 = (typeof p.tracking_parameters === 'object' && p.tracking_parameters) ? p.tracking_parameters : {};
+  const t3 = p.origin               || {};
+  const t4 = p.url_parameters       || {};
+  const t5 = p.channel              || {};
+  const toQS = (v: unknown) => (typeof v === 'string' ? new URLSearchParams(v) : new URLSearchParams());
+  const qs1 = toQS(p.tracking_parameters);
+  const qs2 = toQS(p.ref_url);
+  const qs3 = toQS(p.affiliate_url);
+  const pick = (...keys: string[]): string => {
     for (const k of keys) {
-      const v = t[k] || qs.get(k);
-      if (v) return v.trim();
+      const v = t1[k] ?? t2[k] ?? t3[k] ?? t4[k] ?? t5[k]
+        ?? qs1.get(k) ?? qs2.get(k) ?? qs3.get(k);
+      if (v && typeof v === 'string' && v.trim()) return v.trim();
     }
     return '';
   };
   return {
-    source:   pick('utm_source',   'source')  .toLowerCase(),
-    campaign: pick('utm_campaign', 'campaign'),
+    source:   pick('utm_source',   'source',   'src', 'channel').toLowerCase(),
+    campaign: pick('utm_campaign', 'campaign', 'utm_campaign_name'),
     medium:   pick('utm_medium',   'medium'),
     content:  pick('utm_content',  'content'),
-    term:     pick('utm_term',     'term'),
+    term:     pick('utm_term',     'term', 'ad_id', 'affTrackingCode'),
   };
 }
 
@@ -58,11 +63,32 @@ export async function GET(request: Request) {
   const dateFrom = searchParams.get('dateFrom');
   const dateTo   = searchParams.get('dateTo');
   const force    = searchParams.get('force') === '1';
+  const debug    = searchParams.get('debug') === '1';
 
   const accessToken = process.env.META_ACCESS_TOKEN;
   const adAccountId = process.env.META_AD_ACCOUNT_ID;
   if (!accessToken || !adAccountId)
     return NextResponse.json({ error: 'Missing credentials' }, { status: 500 });
+
+  // Debug: inspect raw Hotmart sale structure to find UTM field names
+  if (debug) {
+    const allS = await getCachedAllSales() as any[];
+    const samples = allS
+      .filter(s => ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes(s.purchase?.status))
+      .slice(0, 5)
+      .map(s => ({
+        purchase_keys: Object.keys(s.purchase || {}),
+        tracking:      s.purchase?.tracking,
+        tracking_parameters: s.purchase?.tracking_parameters,
+        origin:        s.purchase?.origin,
+        url_parameters: s.purchase?.url_parameters,
+        ref_url:       s.purchase?.ref_url,
+        src:           s.purchase?.src,
+        sck:           s.purchase?.sck,
+        utm_parsed:    parseUTM(s),
+      }));
+    return NextResponse.json({ samples });
+  }
 
   const cacheKey = `vendas_origem|${dateFrom}|${dateTo}`;
   if (!force) {

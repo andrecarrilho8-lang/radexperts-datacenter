@@ -356,7 +356,7 @@ export default function VendasPorOrigemPage() {
 
   return (
     <LoginWrapper>
-      <div style={{ minHeight: '100vh', background: `radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,177,79,0.04) 0%, transparent 70%), ${NAVY}` }}>
+      <div style={{ minHeight: '100vh' }}>
         <Navbar />
         <div className="h-[80px]" />
         <main className="px-4 md:px-8 max-w-[1800px] mx-auto pt-10 pb-24">
