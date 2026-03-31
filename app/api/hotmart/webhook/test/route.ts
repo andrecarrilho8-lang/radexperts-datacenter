@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     raw_payload: simulatedPayload,
   };
 
-  await storeWebhookSale(sale);
+  storeWebhookSale(sale);
 
   return NextResponse.json({
     success: true,
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
     utm_medium:   utms.utm_medium,
     utm_content:  utms.utm_content,
     utm_source:   utms.utm_source,
-    total_in_store: (await getWebhookSales()).length,
+    total_in_store: getWebhookSales().length,
     hint: 'Acesse /trafego/vendas-por-origem para ver o dado aparecer na tabela.',
   });
 }
@@ -137,6 +137,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
-  await clearWebhookStore();
+  clearWebhookStore();
   return NextResponse.json({ success: true, cleared: true });
 }

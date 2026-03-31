@@ -138,7 +138,7 @@ export async function GET(request: Request) {
     ((adInsRaw.data    || []) as any[]).forEach((d: any) => adIns.set(d.ad_id,         d));
 
     /* ── Webhook sales filtered to the selected period ── */
-    const allSales = (await getWebhookSales()).filter(s => {
+    const allSales = getWebhookSales().filter(s => {
       const ts = s.approvedDateMs || Date.parse(s.orderDate);
       return ts >= fromMs && ts <= toMs;
     });

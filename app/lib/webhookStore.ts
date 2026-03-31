@@ -1,35 +1,41 @@
 /**
- * Webhook Store — Upstash Redis (KV) backed persistent storage.
+ * Webhook Store — in-memory + /tmp file fallback.
  *
- * ARCHITECTURE:
- *  - PRIMARY: Upstash Redis (KV_REST_API_URL / KV_REST_API_TOKEN)
- *    → Persists across Vercel deploys, cold starts, and scaling events
- *  - FALLBACK: In-memory Map (for local dev without Redis, or Redis unavailable)
+ * PERSISTENCE STRATEGY:
+ *  1. `global.__hotmartWebhookSales` — survives module re-imports within the same Node.js process
+ *  2. `/tmp/hotmart-webhook-sales.json` — survives across invocations of the same Lambda container
  *
- * All webhook sales are stored as a Redis Hash:
- *   HSET hotmart:sales <sale_id> <json>
- *
- * Functions are async to support the Redis client.
+ * NOTE: Data resets on new Vercel deploys or cold starts.
  */
 
-import { Redis } from '@upstash/redis';
+import fs from 'fs';
 
-const REDIS_KEY = 'hotmart:sales:v1';
+const TMP_FILE = '/tmp/hotmart-webhook-sales.json';
 
-/* ── Redis client (lazy init) ───────────────────────────────────────────── */
-let _redis: Redis | null = null;
+declare global {
+  var __hotmartWebhookSales: Map<string, WebhookSale> | undefined;
+}
 
-function getRedis(): Redis | null {
-  if (_redis) return _redis;
-  const url   = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return null;
-  try {
-    _redis = new Redis({ url, token });
-    return _redis;
-  } catch {
-    return null;
+function getStore(): Map<string, WebhookSale> {
+  if (!global.__hotmartWebhookSales) {
+    global.__hotmartWebhookSales = new Map();
+    // Try to restore from /tmp
+    try {
+      if (fs.existsSync(TMP_FILE)) {
+        const raw = fs.readFileSync(TMP_FILE, 'utf-8');
+        const arr: WebhookSale[] = JSON.parse(raw);
+        arr.forEach(s => global.__hotmartWebhookSales!.set(s.sale_id, s));
+      }
+    } catch {}
   }
+  return global.__hotmartWebhookSales;
+}
+
+function persist() {
+  try {
+    const arr = Array.from(getStore().values());
+    fs.writeFileSync(TMP_FILE, JSON.stringify(arr));
+  } catch {}
 }
 
 /* ── Types ──────────────────────────────────────────────────────────────── */
@@ -37,7 +43,6 @@ export type WebhookSale = {
   sale_id:      string;
   event:        string;
   receivedAt:   number;
-  /** Where this record originated */
   source:       'webhook' | 'api' | 'report';
   product_id:   string | number;
   product_name: string;
@@ -64,7 +69,7 @@ export type WebhookSale = {
   raw_payload?: any;
 };
 
-/* ── Attribution status calculator ─────────────────────────────────────── */
+/* ── Attribution status ─────────────────────────────────────────────────── */
 export function calcAttributionStatus(
   utm_source:   string | null,
   utm_campaign: string | null,
@@ -111,7 +116,6 @@ export function extractUTMsFromPayload(payload: any): {
     return null;
   }
 
-  // Direct UTMs (top level or in purchase)
   const directSource   = purchase.utm_source   || deepSearch(data, 'utm_source')   || null;
   const directCampaign = purchase.utm_campaign || deepSearch(data, 'utm_campaign') || null;
   const directMedium   = purchase.utm_medium   || deepSearch(data, 'utm_medium')   || null;
@@ -126,7 +130,6 @@ export function extractUTMsFromPayload(payload: any): {
     };
   }
 
-  // Parse from origin.src (may contain full query string)
   const raw_src  = origin.src  || '';
   const raw_sck  = origin.sck  || '';
   const raw_xcod = origin.xcod || '';
@@ -138,7 +141,6 @@ export function extractUTMsFromPayload(payload: any): {
     }
   }
 
-  // Fallback: treat raw fields as UTM values
   return {
     utm_source:   null,
     utm_campaign: raw_src  || null,
@@ -149,113 +151,40 @@ export function extractUTMsFromPayload(payload: any): {
   };
 }
 
-/* ── Store operations ───────────────────────────────────────────────────── */
-
-/**
- * Store a single webhook sale permanently in Redis (+ memory fallback).
- */
-export async function storeWebhookSale(sale: WebhookSale): Promise<void> {
-  const r = getRedis();
-  if (r) {
-    try {
-      await r.hset(REDIS_KEY, { [sale.sale_id]: JSON.stringify(sale) });
-    } catch (e: any) {
-      console.error('[webhookStore] Redis write error:', e.message);
-    }
-  }
-  // Always update in-memory too for fast reads in the same request
-  _memStore.set(sale.sale_id, sale);
+/* ── Store operations (sync) ────────────────────────────────────────────── */
+export function storeWebhookSale(sale: WebhookSale): void {
+  getStore().set(sale.sale_id, sale);
+  persist();
 }
 
-/**
- * Store multiple historical/report sales.
- * Webhook data always wins over report/api data for the same sale_id.
- */
-export async function storeHistoricalSales(sales: WebhookSale[]): Promise<void> {
-  if (sales.length === 0) return;
-  const existing = await getWebhookSales();
-  const existingMap = new Map(existing.map(s => [s.sale_id, s]));
-
-  const toWrite: Record<string, string> = {};
+export function storeHistoricalSales(sales: WebhookSale[]): void {
+  const STORE = getStore();
+  let changed = false;
   for (const sale of sales) {
-    const prev = existingMap.get(sale.sale_id);
-    if (!prev) {
-      toWrite[sale.sale_id] = JSON.stringify(sale);
-      _memStore.set(sale.sale_id, sale);
-    } else if (prev.source === 'webhook') {
-      continue; // webhook wins
+    const existing = STORE.get(sale.sale_id);
+    if (!existing) {
+      STORE.set(sale.sale_id, sale);
+      changed = true;
+    } else if (existing.source === 'webhook') {
+      continue;
     } else {
-      const prevUtms = [prev.utm_source, prev.utm_campaign, prev.utm_medium, prev.utm_content, prev.utm_term].filter(Boolean).length;
-      const newUtms  = [sale.utm_source, sale.utm_campaign, sale.utm_medium, sale.utm_content, sale.utm_term].filter(Boolean).length;
-      if (newUtms > prevUtms) {
-        toWrite[sale.sale_id] = JSON.stringify(sale);
-        _memStore.set(sale.sale_id, sale);
-      }
+      const prev = [existing.utm_source, existing.utm_campaign, existing.utm_medium, existing.utm_content, existing.utm_term].filter(Boolean).length;
+      const next = [sale.utm_source,     sale.utm_campaign,     sale.utm_medium,     sale.utm_content,     sale.utm_term    ].filter(Boolean).length;
+      if (next > prev) { STORE.set(sale.sale_id, sale); changed = true; }
     }
   }
-
-  if (Object.keys(toWrite).length > 0) {
-    const r = getRedis();
-    if (r) {
-      try { await r.hset(REDIS_KEY, toWrite); } catch (e: any) {
-        console.error('[webhookStore] Redis batch write error:', e.message);
-      }
-    }
-  }
+  if (changed) persist();
 }
 
-// In-memory fallback / cache
-const _memStore = new Map<string, WebhookSale>();
-let _memLoaded = false;
-
-/**
- * Get all stored sales. Loads from Redis on first call, then uses memory cache.
- */
-export async function getWebhookSales(): Promise<WebhookSale[]> {
-  if (!_memLoaded) {
-    const r = getRedis();
-    if (r) {
-      try {
-        const all = await r.hgetall(REDIS_KEY);
-        if (all) {
-          for (const [id, val] of Object.entries(all)) {
-            try {
-              const sale: WebhookSale = typeof val === 'string' ? JSON.parse(val) : val as WebhookSale;
-              _memStore.set(id, sale);
-            } catch {}
-          }
-        }
-        _memLoaded = true;
-      } catch (e: any) {
-        console.error('[webhookStore] Redis read error:', e.message);
-      }
-    }
-  }
-  return Array.from(_memStore.values());
+export function getWebhookSales(): WebhookSale[] {
+  return Array.from(getStore().values());
 }
 
-/**
- * Clear all sales (used by test endpoint or admin).
- */
-export async function clearWebhookStore(): Promise<void> {
-  _memStore.clear();
-  _memLoaded = false;
-  const r = getRedis();
-  if (r) {
-    try { await r.del(REDIS_KEY); } catch {}
-  }
+export function clearWebhookStore(): void {
+  getStore().clear();
+  try { fs.unlinkSync(TMP_FILE); } catch {}
 }
 
-/**
- * Get count of stored sales without loading all data.
- */
-export async function getWebhookSalesCount(): Promise<number> {
-  const r = getRedis();
-  if (r) {
-    try {
-      const count = await r.hlen(REDIS_KEY);
-      return count;
-    } catch {}
-  }
-  return _memStore.size;
+export function getWebhookSalesCount(): number {
+  return getStore().size;
 }

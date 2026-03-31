@@ -107,7 +107,7 @@ export async function POST(request: Request) {
         raw_payload:  { imported: true, original: row },
       };
 
-      await storeWebhookSale(sale);
+      storeWebhookSale(sale);
       imported.push(txId);
     } catch (e: any) {
       errors.push(`Row error: ${e.message}`);

@@ -14,7 +14,6 @@ const TRAFEGO_ITEMS = [
   { label: 'Campanhas',       href: '/campanhas',                    icon: 'campaign' },
   { label: 'Análise',         href: '/trafego/analise',              icon: 'analytics' },
   { label: 'Histórico',       href: '/historico',                    icon: 'history' },
-  { label: 'Vendas por Origem', href: '/trafego/vendas-por-origem', icon: 'route' },
 ];
 
 const FINANCEIRO_ITEMS = [
