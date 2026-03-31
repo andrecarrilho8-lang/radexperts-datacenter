@@ -178,36 +178,52 @@ export async function POST(request: Request) {
 }
 
 /**
- * GET /api/hotmart/webhook?key=HOTTOK
- * Debug: list all stored webhook sales (requires hottok as query param).
+ * GET /api/hotmart/webhook
+ * Public diagnostic: returns count + attribution breakdown.
+ * Full sale list requires ?key=HOTTOK.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const key    = searchParams.get('key');
-  const hottok = process.env.HOTMART_HOTTOK;
-
-  if (hottok && key !== hottok) {
-    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-  }
+  const hottok = process.env.HOTMART_HOTTOK || '';
 
   const sales = getWebhookSales();
-  return NextResponse.json({
+
+  // Attribution breakdown (always public — no sensitive data)
+  const attrBreakdown = { complete: 0, partial: 0, missing: 0 };
+  sales.forEach(s => { attrBreakdown[s.attribution_status]++; });
+
+  const base = {
     count: sales.length,
-    sales: sales.map(s => ({
-      sale_id:            s.sale_id,
-      event:              s.event,
-      receivedAt:         new Date(s.receivedAt).toISOString(),
-      product_name:       s.product_name,
-      amountBrl:          s.amountBrl,
-      attribution_status: s.attribution_status,
-      utm_source:         s.utm_source,
-      utm_campaign:       s.utm_campaign,
-      utm_medium:         s.utm_medium,
-      utm_content:        s.utm_content,
-      utm_term:           s.utm_term,
-      raw_src:            s.raw_src,
-      raw_sck:            s.raw_sck,
-      raw_xcod:           s.raw_xcod,
-    })),
-  });
+    attrBreakdown,
+    // First 8 chars only — helps diagnose env var mismatch between local and Vercel
+    hottok_prefix_vercel: hottok ? `${hottok.slice(0, 8)}… (${hottok.length} chars)` : 'NOT_SET',
+    key_matches: !!hottok && key === hottok,
+  };
+
+  // Full details only when key matches
+  if (!hottok || key === hottok) {
+    return NextResponse.json({
+      ...base,
+      sales: sales.map(s => ({
+        sale_id:            s.sale_id,
+        event:              s.event,
+        receivedAt:         new Date(s.receivedAt).toISOString(),
+        product_name:       s.product_name,
+        amountBrl:          s.amountBrl,
+        attribution_status: s.attribution_status,
+        utm_source:         s.utm_source,
+        utm_campaign:       s.utm_campaign,
+        utm_medium:         s.utm_medium,
+        utm_content:        s.utm_content,
+        utm_term:           s.utm_term,
+        raw_src:            s.raw_src,
+        raw_sck:            s.raw_sck,
+        raw_xcod:           s.raw_xcod,
+      })),
+    });
+  }
+
+  // Return base stats only (key didn't match — no sensitive list)
+  return NextResponse.json({ ...base, sales: [] });
 }
