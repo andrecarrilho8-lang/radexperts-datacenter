@@ -63,6 +63,10 @@ export async function GET(request: Request) {
 
     const HOST = 'developers.hotmart.com';
 
+    // ── Date range (shared across all modes) ────────────────────────────────
+    const now  = Date.now();
+    const past = now - (days * 24 * 60 * 60 * 1000);
+
     // ── Mode: inspect a specific transaction ─────────────────────────────────
     if (transaction) {
       const results = await Promise.all([
@@ -73,9 +77,78 @@ export async function GET(request: Request) {
       return NextResponse.json({ mode: 'transaction_detail', transaction, results });
     }
 
+    // ── Mode: SCK sales report ────────────────────────────────────────────────
+    if (mode === 'sck') {
+      const salesResp = await tryGet(token, HOST,
+        `/payments/api/v1/sales/history?start_date=${past}&end_date=${now}&max_results=500&commission_as=PRODUCER`
+      );
+      const items: any[] = salesResp.body?.items || [];
+      const APPROVED = new Set(['APPROVED', 'COMPLETE', 'CONFIRMED', 'PRODUCER_CONFIRMED']);
+      const approved = items.filter((s: any) => APPROVED.has(s.purchase?.status || ''));
+
+      // Group by SCK
+      const sckMap: Record<string, {
+        sck: string;
+        count: number;
+        brl: number;
+        usd: number;
+        other: number;
+        products: Record<string, number>;
+        sales: { tx: string; product: string; buyer: string; amount: number; currency: string; date: string }[];
+      }> = {};
+
+      for (const item of approved) {
+        const purchase = item.purchase || {};
+        const sck      = purchase.tracking?.source_sck || '(sem SCK)';
+        const amount   = purchase.price?.value || purchase.price?.actual_value || 0;
+        const currency = purchase.price?.currency_code || 'BRL';
+        const product  = item.product?.name || 'Desconhecido';
+        const buyer    = item.buyer?.name   || '';
+        const tx       = purchase.transaction || '';
+        const date     = new Date(purchase.approved_date || purchase.order_date || 0).toISOString().slice(0, 10);
+
+        if (!sckMap[sck]) {
+          sckMap[sck] = { sck, count: 0, brl: 0, usd: 0, other: 0, products: {}, sales: [] };
+        }
+        const entry = sckMap[sck];
+        entry.count++;
+        if (currency === 'BRL') entry.brl += amount;
+        else if (currency === 'USD') entry.usd += amount;
+        else entry.other += amount;
+        entry.products[product] = (entry.products[product] || 0) + 1;
+        entry.sales.push({ tx, product, buyer, amount: Math.round(amount * 100) / 100, currency, date });
+      }
+
+      // Sort by count desc
+      const report = Object.values(sckMap)
+        .sort((a, b) => b.count - a.count)
+        .map(e => ({
+          sck:          e.sck,
+          total_vendas: e.count,
+          receita_brl:  Math.round(e.brl   * 100) / 100,
+          receita_usd:  Math.round(e.usd   * 100) / 100,
+          receita_other: Math.round(e.other * 100) / 100,
+          produtos:     Object.entries(e.products)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([nome, qtd]) => ({ nome, qtd })),
+          vendas:       e.sales.sort((a, b) => b.date.localeCompare(a.date)),
+        }));
+
+      const totalVendas = approved.length;
+      const comSck      = approved.filter((s: any) => s.purchase?.tracking?.source_sck).length;
+
+      return NextResponse.json({
+        mode: 'sck_report',
+        period_days: days,
+        total_aprovadas: totalVendas,
+        com_sck: comSck,
+        sem_sck: totalVendas - comSck,
+        taxa_rastreamento: `${((comSck / totalVendas) * 100).toFixed(1)}%`,
+        por_sck: report,
+      });
+    }
+
     // ── Main mode: dump tracking fields of recent BRL approved sales ─────────
-    const now  = Date.now();
-    const past = now - (days * 24 * 60 * 60 * 1000);
 
     const salesResp = await tryGet(token, HOST,
       `/payments/api/v1/sales/history?start_date=${past}&end_date=${now}&max_results=500&commission_as=PRODUCER`
