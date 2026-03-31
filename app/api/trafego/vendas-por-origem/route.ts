@@ -5,52 +5,33 @@ import { parseMetrics, getCache, setCache } from '@/app/lib/metaApi';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const APPROVED = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
 const META_BASE = 'https://graph.facebook.com/v19.0';
-const INSIGHT_F  = 'spend,impressions,clicks,outbound_clicks,ctr,cpc,actions,action_values,landing_page_view';
+const INSIGHT_FIELDS = [
+  'spend', 'impressions', 'clicks', 'outbound_clicks',
+  'ctr', 'cpc', 'actions', 'action_values', 'landing_page_view',
+].join(',');
 
-/* ── UTM parser — tries every field name variation Hotmart might use ─────── */
-function parseUTM(s: any) {
-  const p  = s.purchase || {};
-  const t1 = p.tracking              || {};
-  const t2 = (typeof p.tracking_parameters === 'object' && p.tracking_parameters) ? p.tracking_parameters : {};
-  const t3 = p.origin               || {};
-  const t4 = p.url_parameters       || {};
-  const t5 = p.channel              || {};
-  const toQS = (v: unknown) => (typeof v === 'string' ? new URLSearchParams(v) : new URLSearchParams());
-  const qs1 = toQS(p.tracking_parameters);
-  const qs2 = toQS(p.ref_url);
-  const qs3 = toQS(p.affiliate_url);
-  const pick = (...keys: string[]): string => {
-    for (const k of keys) {
-      const v = t1[k] ?? t2[k] ?? t3[k] ?? t4[k] ?? t5[k]
-        ?? qs1.get(k) ?? qs2.get(k) ?? qs3.get(k);
-      if (v && typeof v === 'string' && v.trim()) return v.trim();
-    }
-    return '';
-  };
-  return {
-    source:   pick('utm_source',   'source',   'src', 'channel').toLowerCase(),
-    campaign: pick('utm_campaign', 'campaign', 'utm_campaign_name'),
-    medium:   pick('utm_medium',   'medium'),
-    content:  pick('utm_content',  'content'),
-    term:     pick('utm_term',     'term', 'ad_id', 'affTrackingCode'),
-  };
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+function cleanStr(s: string) {
+  return (s || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
 }
 
-/* ── Meta Graph API fetch helper ────────────────────────────────────────── */
-async function metaFetch(path: string): Promise<any> {
-  const r = await fetch(`${META_BASE}${path}`);
+function isApproved(status: string) {
+  return ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(status);
+}
+
+async function metaFetch(url: string): Promise<any> {
+  const r = await fetch(url);
   return r.json();
 }
 
-/* ── Collect all pages ──────────────────────────────────────────────────── */
-async function metaAll(path: string): Promise<any[]> {
+async function metaAll(baseUrl: string): Promise<any[]> {
   let items: any[] = [];
-  let url = `${META_BASE}${path}`;
+  let url = baseUrl;
   while (url) {
-    const r = await fetch(url);
-    const j = await r.json();
+    const j = await metaFetch(url);
     if (j.error) break;
     items = items.concat(j.data || []);
     url = j.paging?.next || '';
@@ -58,41 +39,54 @@ async function metaAll(path: string): Promise<any[]> {
   return items;
 }
 
+/* ── Campaign → Hotmart revenue match (same logic as /api/meta) ─────────── */
+function buildHotmartMatcher(cleanSales: any[]) {
+  return function matchCampaign(name: string) {
+    const cleanCampaign = cleanStr(name);
+    const campTokens = name.toLowerCase()
+      .replace(/[\[\]\-\_\(\)]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 3)
+      .filter(t => !['vendas', 'leads', 'hybrid', 'paginas', 'campanha', 'oficial',
+        'atual', 'anuncio', 'geral', '2025', '2026', 'hotmart', 'meta', 'ads',
+        'auto', 'venda', 'frio', 'quente', 'v01', 'v02', 'v03', 'cbo', 'abo'].includes(t));
+
+    let rev = 0, gross = 0, qty = 0;
+    const products: string[] = [];
+
+    cleanSales.forEach((s: any) => {
+      const prodName    = s.product?.name || '';
+      const cleanProd   = cleanStr(prodName);
+      const isMatch = cleanProd.includes(cleanCampaign) ||
+                      cleanCampaign.includes(cleanProd) ||
+                      campTokens.some(tok => cleanProd.includes(cleanStr(tok)));
+      if (isMatch) {
+        const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
+        const g   = s.purchase?.price?.converted_value || 0;
+        rev   += net != null ? net : g;
+        gross += g;
+        qty   += 1;
+        if (!products.includes(prodName)) products.push(prodName);
+      }
+    });
+    return { revenue: rev, gross, sales: qty, products };
+  };
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const dateFrom = searchParams.get('dateFrom');
   const dateTo   = searchParams.get('dateTo');
   const force    = searchParams.get('force') === '1';
-  const debug    = searchParams.get('debug') === '1';
 
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
-  if (!accessToken || !adAccountId)
+  const token   = process.env.META_ACCESS_TOKEN;
+  const account = process.env.META_AD_ACCOUNT_ID;
+  if (!token || !account)
     return NextResponse.json({ error: 'Missing credentials' }, { status: 500 });
 
-  // Debug: inspect raw Hotmart sale structure to find UTM field names
-  if (debug) {
-    const allS = await getCachedAllSales() as any[];
-    const samples = allS
-      .filter(s => ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes(s.purchase?.status))
-      .slice(0, 5)
-      .map(s => ({
-        purchase_keys: Object.keys(s.purchase || {}),
-        tracking:      s.purchase?.tracking,
-        tracking_parameters: s.purchase?.tracking_parameters,
-        origin:        s.purchase?.origin,
-        url_parameters: s.purchase?.url_parameters,
-        ref_url:       s.purchase?.ref_url,
-        src:           s.purchase?.src,
-        sck:           s.purchase?.sck,
-        utm_parsed:    parseUTM(s),
-      }));
-    return NextResponse.json({ samples });
-  }
-
-  const cacheKey = `vendas_origem|${dateFrom}|${dateTo}`;
+  const ck = `vpo2|${dateFrom}|${dateTo}`;
   if (!force) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(ck);
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
   }
 
@@ -101,216 +95,158 @@ export async function GET(request: Request) {
     const tr = dateFrom && dateTo
       ? `time_range=${encodeURIComponent(JSON.stringify({ since: dateFrom, until: dateTo }))}`
       : 'date_preset=last_30d';
+
     const hotStart = dateFrom ? `${dateFrom}T00:00:00-03:00` : '2026-01-01T00:00:00-03:00';
     const hotEnd   = dateTo   ? `${dateTo}T23:59:59-03:00`   : '2026-12-31T23:59:59-03:00';
 
-    /* ── Parallel: Hotmart sales + Meta insights at 3 levels + entity lists ── */
-    const FIELDS = `${INSIGHT_F}&limit=500&access_token=${accessToken}`;
+    const INS = `${INSIGHT_FIELDS}&limit=500&access_token=${token}`;
+    const Q   = `limit=500&access_token=${token}`;
+
+    /* ── Parallel fetch ── */
     const [
       allSales,
-      campInsights,
-      adsetInsights,
-      adInsights,
-      adsList,
-      campList,
-      adsetList,
+      campIns, adsetIns, adIns,
+      campList, adsetList, adList,
     ] = await Promise.all([
       getCachedAllSales(),
-      metaFetch(`/${adAccountId}/insights?level=campaign&${FIELDS}&${tr}`),
-      metaFetch(`/${adAccountId}/insights?level=adset&fields=adset_id,adset_name,campaign_id,campaign_name,${INSIGHT_F}&limit=500&access_token=${accessToken}&${tr}`),
-      metaFetch(`/${adAccountId}/insights?level=ad&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,${INSIGHT_F}&limit=500&access_token=${accessToken}&${tr}`),
-      metaAll(`/${adAccountId}/ads?fields=id,name,status,effective_status,adset_id,campaign_id,creative%7Bthumbnail_url,object_story_spec%7D&limit=500&access_token=${accessToken}`),
-      metaAll(`/${adAccountId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget&limit=500&access_token=${accessToken}`),
-      metaAll(`/${adAccountId}/adsets?fields=id,name,status,effective_status,campaign_id&limit=500&access_token=${accessToken}`),
+      /* Campaign insights */
+      metaFetch(`${META_BASE}/${account}/insights?level=campaign&fields=campaign_id,campaign_name,${INS}&${tr}`),
+      /* Adset insights */
+      metaFetch(`${META_BASE}/${account}/insights?level=adset&fields=adset_id,adset_name,campaign_id,campaign_name,${INS}&${tr}`),
+      /* Ad insights */
+      metaFetch(`${META_BASE}/${account}/insights?level=ad&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,${INS}&${tr}`),
+      /* Entities (for status, budget, thumbnail) */
+      metaAll(`${META_BASE}/${account}/campaigns?fields=id,name,status,effective_status,objective,daily_budget&${Q}`),
+      metaAll(`${META_BASE}/${account}/adsets?fields=id,name,status,effective_status,campaign_id&${Q}`),
+      metaAll(`${META_BASE}/${account}/ads?fields=id,name,status,effective_status,adset_id,campaign_id,creative{thumbnail_url}&${Q}`),
     ]);
 
-    /* ── Build Meta lookup maps ── */
-    // campaign_name → { metrics, status, id, objective, dailyBudget }
-    const campMap = new Map<string, any>();
-    const campById = new Map<string, any>();
-    campList.forEach((c: any) => {
-      const entry = {
-        id: c.id, name: c.name,
-        status: (c.effective_status || c.status || 'UNKNOWN').toUpperCase(),
-        objective: c.objective || '',
-        dailyBudget: c.daily_budget ? parseFloat(c.daily_budget) / 100 : 0,
-      };
-      campMap.set((c.name || '').toLowerCase(), entry);
-      campById.set(c.id, entry);
-    });
-
-    // adset_name → { metrics, status, id, campaign_id }
-    const adsetMap = new Map<string, any>();
-    const adsetById = new Map<string, any>();
-    adsetList.forEach((a: any) => {
-      const entry = {
-        id: a.id, name: a.name, campaignId: a.campaign_id,
-        status: (a.effective_status || a.status || 'UNKNOWN').toUpperCase(),
-      };
-      adsetMap.set((a.name || '').toLowerCase(), entry);
-      adsetById.set(a.id, entry);
-    });
-
-    // ad_id → { model, thumbnail }
-    const adEntityById = new Map<string, any>();
-    adsList.forEach((a: any) => {
-      adEntityById.set(a.id, {
-        id: a.id, name: a.name,
-        adsetId: a.adset_id, campaignId: a.campaign_id,
-        status: (a.effective_status || a.status || 'UNKNOWN').toUpperCase(),
-        thumbnail: a.creative?.thumbnail_url || null,
-      });
-    });
-
-    /* ── Index insights ── */
-    type Metrics = ReturnType<typeof parseMetrics>;
-    const campInsMap = new Map<string, Metrics>();  // campaign_id → metrics
-    ((campInsights.data || []) as any[]).forEach((d: any) => {
-      campInsMap.set(d.campaign_id, parseMetrics(d));
-    });
-
-    const adsetInsMap = new Map<string, Metrics>(); // adset_id → metrics (from insights)
-    const adsetInsNameMap = new Map<string, Metrics>(); // adset_name.lower → metrics
-    ((adsetInsights.data || []) as any[]).forEach((d: any) => {
-      const m = parseMetrics(d);
-      adsetInsMap.set(d.adset_id, m);
-      adsetInsNameMap.set((d.adset_name || '').toLowerCase(), m);
-    });
-
-    const adInsById  = new Map<string, Metrics>(); // ad_id → metrics
-    const adInsName  = new Map<string, Metrics>(); // ad_name.lower → metrics
-    ((adInsights.data || []) as any[]).forEach((d: any) => {
-      const m = parseMetrics(d);
-      adInsById.set(d.ad_id, m);
-      adInsName.set((d.ad_name || '').toLowerCase(), m);
-    });
-
-    /* ── Filter Hotmart sales in period + parse UTMs ── */
+    /* ── Prepare Hotmart clean sales (period-filtered) ── */
     const fromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
     const toMs   = dateTo   ? new Date(`${dateTo}T23:59:59`).getTime() : Infinity;
-
-    const sales = (allSales as any[]).filter(s => {
-      if (!APPROVED.has(s.purchase?.status)) return false;
+    const uniqueTx = new Set<string>();
+    const cleanSales = (allSales as any[]).filter(s => {
+      const tx = s.purchase?.transaction;
+      if (!isApproved(s.purchase?.status) || !tx || uniqueTx.has(tx)) return false;
       const ts = new Date(s.purchase?.approved_date || s.purchase?.order_date || 0).getTime();
-      return ts >= fromMs && ts <= toMs;
+      if (ts < fromMs || ts > toMs) return false;
+      uniqueTx.add(tx);
+      return true;
     });
 
-    const totalSales = sales.length;
+    const totalHotmartSales = cleanSales.length;
+    const totalHotmartRevenue = cleanSales.reduce((acc, s) => {
+      const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
+      return acc + (net != null ? net : (s.purchase?.price?.converted_value || s.purchase?.price?.value || 0));
+    }, 0);
 
-    /* ── Group sales by UTM dimension ── */
-    type Row = {
-      key: string;
-      sales: number;
-      revenue: number;
-      /**spend, impressions… come from Meta join */
-    };
+    const matchCampaign = buildHotmartMatcher(cleanSales);
 
-    const srcMap   = new Map<string, Row>(); // by utm_source
-    const campSales= new Map<string, Row>(); // by utm_campaign  (matches meta campaign name)
-    const adsetSales= new Map<string, Row>();// by utm_medium   (matches meta adset name)
-    const adSales  = new Map<string, Row>(); // by utm_term     (= ad_id) or utm_content
+    /* ── Index entities ── */
+    const campEntity = new Map<string, any>();
+    campList.forEach((c: any) => campEntity.set(c.id, {
+      id: c.id, name: c.name,
+      status: (c.effective_status || c.status || 'UNKNOWN').toUpperCase(),
+      objective: c.objective || '',
+      dailyBudget: c.daily_budget ? parseFloat(c.daily_budget) / 100 : 0,
+    }));
 
-    let parametrized = 0;
+    const adsetEntity = new Map<string, any>();
+    adsetList.forEach((a: any) => adsetEntity.set(a.id, {
+      id: a.id, name: a.name, campaignId: a.campaign_id,
+      status: (a.effective_status || a.status || 'UNKNOWN').toUpperCase(),
+    }));
 
-    for (const s of sales) {
-      const price   = s.purchase?.price?.converted_value
-        ?? s.purchase?.price?.actual_value
-        ?? s.purchase?.price?.value
-        ?? 0;
-      const utm = parseUTM(s);
+    const adEntity = new Map<string, any>();
+    adList.forEach((a: any) => adEntity.set(a.id, {
+      id: a.id, name: a.name, adsetId: a.adset_id, campaignId: a.campaign_id,
+      status: (a.effective_status || a.status || 'UNKNOWN').toUpperCase(),
+      thumbnail: a.creative?.thumbnail_url || null,
+    }));
 
-      // A sale is "parametrized" if it has at least utm_campaign
-      const hasUTM = !!utm.campaign;
-      if (hasUTM) parametrized++;
+    /* ── Index insights ── */
+    const campInsMap  = new Map<string, any>(); // campaign_id → metrics
+    ((campIns.data || []) as any[]).forEach((d: any) => campInsMap.set(d.campaign_id, d));
 
-      const add = (map: Map<string, Row>, key: string) => {
-        if (!key) return;
-        const r = map.get(key) || { key, sales: 0, revenue: 0 };
-        r.sales++;
-        r.revenue += price;
-        map.set(key, r);
-      };
+    const adsetInsMap = new Map<string, any>(); // adset_id → metrics
+    ((adsetIns.data || []) as any[]).forEach((d: any) => adsetInsMap.set(d.adset_id, d));
 
-      add(srcMap,    utm.source   || '(sem origem)');
-      add(campSales, utm.campaign);
-      add(adsetSales,utm.medium);
-      // For ad, prefer utm_term (= ad_id) else fall back to utm_content
-      add(adSales,   utm.term || utm.content);
-    }
+    const adInsMap    = new Map<string, any>(); // ad_id → metrics
+    ((adIns.data || []) as any[]).forEach((d: any) => adInsMap.set(d.ad_id, d));
 
-    /* ── Build final rows helper ── */
-    function buildRow(key: string, { sales, revenue }: Row,
-      metaMetrics: Metrics | null, entity: any): any {
-      const m       = metaMetrics;
+    /* ── Build rows ── */
+    function buildRow(entity: any, insData: any, homart: { revenue: number; sales: number; products: string[] } | null) {
+      const m = insData ? parseMetrics(insData) : null;
       const spend   = m?.spend   ?? 0;
+      const revenue = homart?.revenue ?? 0;
+      const sales   = homart?.sales   ?? 0;
       const roas    = spend > 0 ? revenue / spend : 0;
       const cac     = sales > 0 ? spend   / sales : 0;
       return {
-        key,
-        name:           entity?.name || key,
         id:             entity?.id || null,
+        name:           entity?.name || '—',
         status:         entity?.status || 'UNKNOWN',
         objective:      entity?.objective || '',
         dailyBudget:    entity?.dailyBudget ?? 0,
         thumbnail:      entity?.thumbnail || null,
-        sales,
-        revenue,
+        // Meta funnel
         spend,
         impressions:    m?.impressions    ?? 0,
         clicks:         m?.clicks        ?? 0,
         outboundClicks: m?.outboundClicks ?? 0,
-        connectRate:    m?.connectRate    ?? 0,
-        checkoutRate:   m?.checkoutRate   ?? 0,
-        purchaseRate:   m?.purchaseRate   ?? 0,
+        landingPageViews: m?.landingPageViews ?? 0,
+        checkouts:      m?.checkouts     ?? 0,
+        connectRate:    m?.connectRate   ?? 0,
+        checkoutRate:   m?.checkoutRate  ?? 0,
+        purchaseRate:   m?.purchaseRate  ?? 0,
+        ctr:            m?.ctr           ?? 0,
+        // Hotmart (matched by name)
+        revenue, sales,
+        matchedProducts: homart?.products ?? [],
         cac, roas,
       };
     }
 
-    /* ── Sources ── (no Meta entity, just UTM grouping) */
-    const sources = Array.from(srcMap.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .map(r => buildRow(r.key, r, null, { name: r.key, status: 'ACTIVE', id: null }));
+    /* Campaigns — match Hotmart by name */
+    const campaigns = campList
+      .map((c: any) => {
+        const e   = campEntity.get(c.id)!;
+        const ins = campInsMap.get(c.id);
+        const hm  = matchCampaign(c.name || '');
+        return buildRow(e, ins, hm);
+      })
+      .filter((r: any) => r.spend > 0 || r.sales > 0)
+      .sort((a: any, b: any) => b.spend - a.spend);
 
-    /* ── Campaigns ── */
-    const campaigns = Array.from(campSales.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .map(r => {
-        const entity  = campMap.get(r.key.toLowerCase()) || null;
-        const metrics = entity ? campInsMap.get(entity.id) ?? null : null;
-        return buildRow(r.key, r, metrics, entity);
-      });
+    /* Adsets */
+    const adsets = adsetList
+      .map((a: any) => {
+        const e   = adsetEntity.get(a.id)!;
+        const ins = adsetInsMap.get(a.id);
+        return buildRow(e, ins, null);
+      })
+      .filter((r: any) => r.spend > 0)
+      .sort((a: any, b: any) => b.spend - a.spend);
 
-    /* ── Adsets ── */
-    const adsets = Array.from(adsetSales.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .map(r => {
-        const entity  = adsetMap.get(r.key.toLowerCase()) || null;
-        const metrics = entity ? adsetInsMap.get(entity.id) ?? adsetInsNameMap.get(r.key.toLowerCase()) ?? null : adsetInsNameMap.get(r.key.toLowerCase()) ?? null;
-        return buildRow(r.key, r, metrics, entity);
-      });
-
-    /* ── Ads ── */
-    const ads = Array.from(adSales.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .map(r => {
-        // utm_term = ad_id (most reliable)
-        const entity  = adEntityById.get(r.key) || null;
-        const metrics = adInsById.get(r.key) ?? adInsName.get(r.key.toLowerCase()) ?? null;
-        return buildRow(r.key, r, metrics, entity);
-      });
+    /* Ads */
+    const ads = adList
+      .map((a: any) => {
+        const e   = adEntity.get(a.id)!;
+        const ins = adInsMap.get(a.id);
+        return buildRow(e, ins, null);
+      })
+      .filter((r: any) => r.spend > 0)
+      .sort((a: any, b: any) => b.spend - a.spend);
 
     const result = {
-      totalSales,
-      parametrized,
-      parametrizedPct: totalSales > 0 ? Math.round((parametrized / totalSales) * 100) : 0,
-      sources,
-      campaigns,
-      adsets,
-      ads,
+      totalHotmartSales,
+      totalHotmartRevenue,
+      totalMetaSpend: campaigns.reduce((s: number, c: any) => s + c.spend, 0),
+      campaigns, adsets, ads,
     };
-
-    setCache(cacheKey, result);
+    setCache(ck, result);
     return NextResponse.json(result);
+
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
