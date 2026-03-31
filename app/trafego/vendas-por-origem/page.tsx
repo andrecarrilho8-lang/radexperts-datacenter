@@ -31,14 +31,17 @@ type EntityRow = {
   cpCheckout:       number;
   webhookSales:     number;
   apiSales:         number;
+  reportSales:      number;
   missingSales:     number;
 };
 
 type Data = {
   totalMetaSpend:      number;
   totalWebhookSales:   number;
+  totalReportSales:    number;
   totalApiSales:       number;
   totalWebhookRevenue: number;
+  totalReportRevenue:  number;
   totalApiRevenue:     number;
   attrBreakdown:       { complete: number; partial: number; missing: number };
   apiAttributionNote:  string;
@@ -278,6 +281,11 @@ function VendasTable({
                           {(row.apiSales ?? 0) > 0 && (
                             <span style={{ fontSize: 9, fontWeight: 800, background: `${BLUE}22`, border: `1px solid ${BLUE}44`, color: BLUE, borderRadius: 99, padding: '1px 6px' }}>
                               📡 API{(row.apiSales ?? 0) > 1 ? ` ×${row.apiSales}` : ''}
+                            </span>
+                          )}
+                          {((row as any).reportSales ?? 0) > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 800, background: `${GOLD}22`, border: `1px solid ${GOLD}44`, color: GOLD, borderRadius: 99, padding: '1px 6px' }}>
+                              📋 IMPORT{((row as any).reportSales ?? 0) > 1 ? ` ×${(row as any).reportSales}` : ''}
                             </span>
                           )}
                         </span>
@@ -551,10 +559,10 @@ export default function VendasPorOrigemPage() {
             {/* Hero stats */}
             {!loading && data && (
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <Stat label="Total Investido"    value={fmtR(data.totalMetaSpend)}      sub="Meta Ads no período"      color={BLUE} />
-                <Stat label="Webhook (Tempo Real)" value={String(data.totalWebhookSales)} sub={`R$ ${fmt(data.totalWebhookRevenue)} receita`} color={TEAL} />
-                <Stat label="Histórico (API)"    value={String(data.totalApiSales)}     sub={`R$ ${fmt(data.totalApiRevenue)} receita`}   color={BLUE} />
-                <Stat label="Atribuição Completa" value={`${data.attrBreakdown.complete}`} sub="todas 5 UTMs presentes" color={GREEN} />
+                <Stat label="Total Investido"    value={fmtR(data.totalMetaSpend)}       sub="Meta Ads no período"      color={BLUE} />
+                <Stat label="Webhook (Tempo Real)" value={String(data.totalWebhookSales)} sub={data.totalWebhookSales > 0 ? `R$ ${fmt(data.totalWebhookRevenue)} receita` : 'próxima venda capturada'} color={TEAL} />
+                <Stat label="Importadas (Relatório)" value={String(data.totalReportSales ?? 0)} sub={data.totalReportSales > 0 ? `R$ ${fmt(data.totalReportRevenue ?? 0)} receita` : 'via /api/hotmart/import-utm'} color={GOLD} />
+                <Stat label="Atrib. Completa"    value={`${data.attrBreakdown.complete}`} sub="todas 5 UTMs presentes"   color={GREEN} />
               </div>
             )}
           </div>

@@ -79,9 +79,10 @@ function buildRow(
     compraCheckout:   checkouts > 0 ? (compras  / checkouts) * 100     : 0,
     checkoutPageview: pageviews > 0 ? (checkouts / pageviews) * 100    : 0,
     cpCheckout:       checkouts > 0 ? spend     / checkouts             : 0,
-    webhookSales:     compras,
-    apiSales:         0,
-    missingSales:     0,
+    webhookSales: wSales.filter(s => s.source === 'webhook').length,
+    apiSales:     wSales.filter(s => s.source === 'api').length,
+    reportSales:  wSales.filter(s => s.source === 'report').length,
+    missingSales: 0,
   };
 }
 
@@ -179,15 +180,19 @@ export async function GET(request: Request) {
       .map(r => r.error?.message)
       .filter(Boolean);
 
-    const totalMetaSpend   = campaigns.reduce((s: number, c: any) => s + c.spend, 0);
-    const totalWebhookSales   = allSales.length;
-    const totalWebhookRevenue = allSales.reduce((s, x) => s + (x.amountBrl || x.amount || 0), 0);
+    const totalMetaSpend     = campaigns.reduce((s: number, c: any) => s + c.spend, 0);
+    const totalWebhookSales   = allSales.filter(s => s.source === 'webhook').length;
+    const totalReportSales    = allSales.filter(s => s.source === 'report').length;
+    const totalWebhookRevenue = allSales.filter(s => s.source === 'webhook').reduce((s, x) => s + (x.amountBrl || x.amount || 0), 0);
+    const totalReportRevenue  = allSales.filter(s => s.source === 'report').reduce((s, x) => s + (x.amountBrl || x.amount || 0), 0);
 
     const result = {
       totalMetaSpend,
       totalWebhookSales,
+      totalReportSales,
       totalApiSales:       0,
       totalWebhookRevenue,
+      totalReportRevenue,
       totalApiRevenue:     0,
       attrBreakdown,
       apiAttributionNote: metaErrors.length > 0
