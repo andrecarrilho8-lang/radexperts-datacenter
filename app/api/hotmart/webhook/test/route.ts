@@ -83,6 +83,7 @@ export async function POST(request: Request) {
     sale_id:      txId,
     event:        'PURCHASE_APPROVED',
     receivedAt:   Date.now(),
+    source:       'webhook',
     product_id:   99999,
     product_name: 'NeuroNews [TESTE]',
     buyer_email:  'teste@radexperts.com.br',
