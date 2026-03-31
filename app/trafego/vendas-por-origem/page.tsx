@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { useDashboard } from '@/app/lib/context';
-import { R, P } from '@/app/lib/utils';
+import { R } from '@/app/lib/utils';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#8899AA';
@@ -12,6 +12,7 @@ const GREEN  = '#4ade80';
 const RED    = '#f87171';
 const BLUE   = '#60a5fa';
 const PURPLE = '#a78bfa';
+const TEAL   = '#2dd4bf';
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 type Row = {
@@ -20,11 +21,13 @@ type Row = {
   spend: number; impressions: number; clicks: number;
   outboundClicks: number; landingPageViews: number; checkouts: number;
   connectRate: number; checkoutRate: number; purchaseRate: number; ctr: number;
-  revenue: number; sales: number; matchedProducts?: string[];
+  revenue: number; sales: number;
   cac: number; roas: number;
+  isFromWebhook?: boolean;
 };
 type Data = {
   totalHotmartSales: number; totalHotmartRevenue: number; totalMetaSpend: number;
+  totalWebhookSales: number; totalWebhookRevenue: number; webhookPct: number;
   campaigns: Row[]; adsets: Row[]; ads: Row[];
 };
 
@@ -53,6 +56,20 @@ const StatusPill = ({ status }: { status: string }) => {
       {isActive ? 'Ativa' : s === 'PAUSED' ? 'Pausada' : s}
     </span>
   );
+};
+
+/* Source badge: shows if revenue came from webhook (UTM) or fallback */
+const SourceBadge = ({ fromWebhook }: { fromWebhook?: boolean }) => {
+  if (fromWebhook === undefined) return null;
+  return fromWebhook
+    ? <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+        style={{ background: 'rgba(45,212,191,0.15)', color: TEAL, border: '1px solid rgba(45,212,191,0.3)' }}>
+        UTM ✓
+      </span>
+    : <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+        style={{ background: 'rgba(136,153,170,0.12)', color: SILVER, border: '1px solid rgba(136,153,170,0.2)' }}>
+        Est.
+      </span>;
 };
 
 function SkelRow({ cols }: { cols: number }) {
@@ -158,21 +175,19 @@ function DataTable({
                           }
                         </td>
                       )}
-                      {/* Nome */}
+                      {/* Nome + source badge */}
                       <td className="py-3 px-3">
                         <div className="flex flex-col gap-0.5 max-w-[280px]">
-                          <span className="text-[12px] font-black leading-tight truncate"
-                            style={{ color: isSel ? accent : '#fff' }}>
-                            {row.name}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[12px] font-black leading-tight truncate"
+                              style={{ color: isSel ? accent : '#fff' }}>
+                              {row.name}
+                            </span>
+                            <SourceBadge fromWebhook={row.isFromWebhook} />
+                          </div>
                           {row.dailyBudget && row.dailyBudget > 0 && (
                             <span className="text-[9px] font-bold" style={{ color: SILVER }}>
                               Budget diário: {R(row.dailyBudget)}
-                            </span>
-                          )}
-                          {row.matchedProducts && row.matchedProducts.length > 0 && (
-                            <span className="text-[9px] font-bold truncate" style={{ color: `${GOLD}99` }}>
-                              {row.matchedProducts.join(', ')}
                             </span>
                           )}
                         </div>
@@ -293,13 +308,87 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
   );
 }
 
+/* ── Parametrization banner ───────────────────────────────────────────────── */
+function WebhookBanner({ webhookSales, totalSales, pct }: {
+  webhookSales: number; totalSales: number; pct: number;
+}) {
+  const hasData = webhookSales > 0;
+  return (
+    <div className="flex items-center gap-3 px-5 py-3 rounded-2xl mb-6"
+      style={{
+        background: hasData
+          ? 'linear-gradient(90deg, rgba(45,212,191,0.08) 0%, rgba(45,212,191,0.03) 100%)'
+          : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${hasData ? 'rgba(45,212,191,0.2)' : 'rgba(255,255,255,0.07)'}`,
+      }}>
+      <span className="material-symbols-outlined text-xl flex-shrink-0"
+        style={{ color: hasData ? TEAL : SILVER }}>
+        {hasData ? 'track_changes' : 'wifi_tethering_off'}
+      </span>
+      <div className="flex-1">
+        {hasData ? (
+          <>
+            <span className="text-[13px] font-black" style={{ color: TEAL }}>
+              {webhookSales} venda{webhookSales !== 1 ? 's' : ''} parametrizada{webhookSales !== 1 ? 's' : ''}
+            </span>
+            <span className="text-[12px] font-black text-white"> no período</span>
+            <span className="text-[11px] font-bold mx-2" style={{ color: SILVER }}>·</span>
+            <span className="text-[11px] font-bold" style={{ color: SILVER }}>
+              {pct.toFixed(1)}% do total Hotmart ({totalSales} vendas)
+            </span>
+          </>
+        ) : (
+          <span className="text-[12px] font-bold" style={{ color: SILVER }}>
+            Nenhuma venda parametrizada via webhook ainda. Configure o webhook da Hotmart apontando para{' '}
+            <code className="text-[11px] px-1 py-0.5 rounded font-mono"
+              style={{ background: 'rgba(255,255,255,0.06)' }}>
+              /api/hotmart/webhook
+            </code>
+          </span>
+        )}
+      </div>
+      {/* Pill showing % */}
+      {hasData && (
+        <div className="flex-shrink-0 text-center px-3 py-1.5 rounded-xl"
+          style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.25)' }}>
+          <div className="text-[18px] font-black" style={{ color: TEAL }}>{pct.toFixed(0)}%</div>
+          <div className="text-[8px] font-bold uppercase tracking-wider" style={{ color: SILVER }}>UTM</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Legend ───────────────────────────────────────────────────────────────── */
+function Legend() {
+  return (
+    <div className="flex items-center gap-4 mb-6 flex-wrap">
+      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Legenda:</span>
+      <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: TEAL }}>
+        <span className="text-[8px] px-1.5 py-0.5 rounded-full"
+          style={{ background: 'rgba(45,212,191,0.15)', border: '1px solid rgba(45,212,191,0.3)' }}>
+          UTM ✓
+        </span>
+        Receita via webhook (atribuição real)
+      </span>
+      <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: SILVER }}>
+        <span className="text-[8px] px-1.5 py-0.5 rounded-full"
+          style={{ background: 'rgba(136,153,170,0.12)', border: '1px solid rgba(136,153,170,0.2)' }}>
+          Est.
+        </span>
+        Estimado por nome de produto (fallback)
+      </span>
+    </div>
+  );
+}
+
 /* ── Page ─────────────────────────────────────────────────────────────────── */
 export default function VendasPorOrigemPage() {
   const { dateFrom, dateTo } = useDashboard();
   const [data,    setData]    = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
-  const [selCamp, setSelCamp] = useState<string | null>(null); // campaign name for adset filter
+  const [selCamp, setSelCamp] = useState<string | null>(null);
   const [selAdset, setSelAdset] = useState<string | null>(null);
 
   useEffect(() => {
@@ -322,32 +411,34 @@ export default function VendasPorOrigemPage() {
       });
   }, [dateFrom, dateTo]);
 
-  /* Filter adsets by selected campaign */
+  /* ── Filter adsets by selected campaign name tokens ── */
   const filteredAdsets = useMemo(() => {
     if (!data?.adsets || !selCamp) return data?.adsets || [];
+    const tokens = selCamp.toLowerCase().split(/[\s_\-]+/).filter(t => t.length > 3);
     return data.adsets.filter(a =>
-      a.name.toLowerCase().includes(selCamp.toLowerCase().split('_')[0]?.toLowerCase() || '') ||
-      selCamp.split(/[_\-\s]+/).some(tok => tok.length > 3 && a.name.toLowerCase().includes(tok.toLowerCase()))
+      tokens.some(tok => a.name.toLowerCase().includes(tok))
     );
   }, [data, selCamp]);
 
-  /* Filter ads by selected adset */
+  /* ── Filter ads by selected adset (or campaign) ── */
   const filteredAds = useMemo(() => {
     if (!data?.ads) return [];
     if (selAdset) {
+      const tokens = selAdset.toLowerCase().split(/[\s_\-]+/).filter(t => t.length > 3);
       return data.ads.filter(a =>
-        selAdset.split(/[_\-\s]+/).some(tok => tok.length > 3 && a.name.toLowerCase().includes(tok.toLowerCase()))
+        tokens.some(tok => a.name.toLowerCase().includes(tok))
       );
     }
     if (selCamp) {
+      const tokens = selCamp.toLowerCase().split(/[\s_\-]+/).filter(t => t.length > 3);
       return data.ads.filter(a =>
-        selCamp.split(/[_\-\s]+/).some(tok => tok.length > 3 && a.name.toLowerCase().includes(tok.toLowerCase()))
+        tokens.some(tok => a.name.toLowerCase().includes(tok))
       );
     }
     return data.ads;
   }, [data, selCamp, selAdset]);
 
-  const handleCampClick = (_id: string | null, name: string) => {
+  const handleCampClick  = (_id: string | null, name: string) => {
     setSelCamp(prev => prev === name ? null : name);
     setSelAdset(null);
   };
@@ -380,7 +471,7 @@ export default function VendasPorOrigemPage() {
                 Vendas por Origem
               </h1>
               <p className="text-[11px] font-bold uppercase tracking-widest mt-1" style={{ color: SILVER }}>
-                Meta Ads · Funil de Conversão · Receita Hotmart por Campanha
+                Meta Ads · UTM via Webhook Hotmart · Funil de Conversão
               </p>
             </div>
 
@@ -388,19 +479,39 @@ export default function VendasPorOrigemPage() {
             {!loading && data && (
               <div className="flex items-center gap-3 flex-wrap">
                 <StatCard label="Total Investido" value={R(data.totalMetaSpend)} sub="Meta Ads no período" color={BLUE} />
-                <StatCard label="Receita Hotmart" value={R(data.totalHotmartRevenue)} sub={`${data.totalHotmartSales} vendas`} color={GOLD} />
+                <StatCard label="Receita Hotmart" value={R(data.totalHotmartRevenue)}
+                  sub={`${data.totalHotmartSales} vendas no período`} color={GOLD} />
                 <StatCard label="ROAS Geral"
                   value={data.totalMetaSpend > 0 ? `${(data.totalHotmartRevenue / data.totalMetaSpend).toFixed(2)}×` : '—'}
-                  sub="Receita / Investido" color={data.totalHotmartRevenue / Math.max(data.totalMetaSpend, 1) >= 1.5 ? GREEN : RED} />
+                  sub="Receita / Investido"
+                  color={data.totalHotmartRevenue / Math.max(data.totalMetaSpend, 1) >= 1.5 ? GREEN : RED} />
+                {data.totalWebhookSales > 0 && (
+                  <StatCard label="Via UTM (Webhook)"
+                    value={R(data.totalWebhookRevenue)}
+                    sub={`${data.totalWebhookSales} vendas parametrizadas`}
+                    color={TEAL} />
+                )}
               </div>
             )}
           </div>
+
+          {/* Webhook parametrization banner */}
+          {!loading && data && (
+            <WebhookBanner
+              webhookSales={data.totalWebhookSales}
+              totalSales={data.totalHotmartSales}
+              pct={data.webhookPct}
+            />
+          )}
+
+          {/* Legend */}
+          {!loading && data && <Legend />}
 
           {/* Active filters */}
           {(selCamp || selAdset) && (
             <div className="flex items-center gap-2 mb-6 flex-wrap">
               <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Filtros:</span>
-              {selCamp && <ActiveChip label={selCamp} onClear={() => { setSelCamp(null); setSelAdset(null); }} />}
+              {selCamp  && <ActiveChip label={selCamp}  onClear={() => { setSelCamp(null); setSelAdset(null); }} />}
               {selAdset && <ActiveChip label={selAdset} onClear={() => setSelAdset(null)} />}
             </div>
           )}
@@ -416,7 +527,7 @@ export default function VendasPorOrigemPage() {
 
             {/* 1. Campanhas */}
             <Card title="Campanhas" icon="campaign" accent={GOLD}
-              subtitle="Clique para filtrar conjuntos e anúncios · Receita Hotmart por nome de produto"
+              subtitle="Clique para filtrar conjuntos e anúncios · UTM: utm_campaign"
               chipText={!loading && data ? `${data.campaigns.length} campanhas` : undefined}>
               <DataTable rows={data?.campaigns || []} loading={loading} cols={COLS}
                 accent={GOLD} onRowClick={handleCampClick} selectedId={selCamp} />
@@ -424,7 +535,9 @@ export default function VendasPorOrigemPage() {
 
             {/* 2. Conjuntos */}
             <Card title="Conjuntos de Anúncios" icon="folder_special" accent={BLUE}
-              subtitle={selCamp ? `Filtrado pela campanha selecionada · clique para filtrar anúncios` : 'Clique para filtrar anúncios'}
+              subtitle={selCamp
+                ? `Campanha: ${selCamp} · UTM: utm_medium`
+                : 'Clique para filtrar anúncios · UTM: utm_medium'}
               chipText={!loading ? `${filteredAdsets.length} conjuntos` : undefined}>
               <DataTable rows={filteredAdsets} loading={loading} cols={COLS}
                 accent={BLUE} onRowClick={handleAdsetClick} selectedId={selAdset} />
@@ -432,7 +545,7 @@ export default function VendasPorOrigemPage() {
 
             {/* 3. Anúncios */}
             <Card title="Anúncios" icon="play_circle" accent={PURPLE}
-              subtitle="Dados individuais por anúncio com preview do criativo"
+              subtitle="UTM: utm_content (ID via utm_term para match exato)"
               chipText={!loading ? `${filteredAds.length} anúncios` : undefined}>
               <DataTable rows={filteredAds} loading={loading} cols={COLS + 1}
                 accent={PURPLE} showThumb />
