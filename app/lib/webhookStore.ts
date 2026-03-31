@@ -2,54 +2,80 @@
  * In-memory store for Hotmart webhook purchase events (v2.0.0).
  * Persists across requests within the same Node.js process instance.
  *
- * UTM Field Mapping (Hotmart webhook v2):
- *   purchase.origin.src  → utm_campaign (or raw src identifier)
- *   purchase.origin.sck  → utm_medium   (checkout source)
- *   purchase.origin.xcod → utm_content  (custom code / ad identifier)
+ * ATTRIBUTION MAPPING (per business rules):
+ *   utm_source   → origem
+ *   utm_campaign → campanha
+ *   utm_medium   → conjunto_de_anuncios
+ *   utm_content  → anuncio
+ *   utm_term     → extra ad identifier / ad metadata reference
  *
- * If src contains a full querystring (e.g. "utm_campaign=NeuroNews&utm_source=facebook")
- * it is parsed and each utm_* is extracted individually.
+ * UTMs are extracted from the webhook payload via deep search —
+ * we do NOT infer them from product names or campaign names.
  */
 
+export type AttributionStatus = 'complete' | 'partial' | 'missing';
+
 export type WebhookSale = {
-  transaction: string;
-  event: string;
-  productName: string;
-  productId: number | string;
-  buyerEmail: string;
-  buyerName: string;
-  amount: number;       // purchase.full_price.value (buyer's currency)
-  amountBrl: number;   // cleared BRL amount (best effort)
-  currency: string;
-  approvedDateMs: number; // Unix ms
-  orderDate: string;
+  // Identifiers
+  sale_id:      string;   // transaction ID
+  event:        string;   // PURCHASE_APPROVED, PURCHASE_COMPLETE, etc.
+  receivedAt:   number;   // unix ms when we received it
 
-  // Raw Hotmart origin fields
-  src: string;
-  sck: string;
-  xcod: string;
+  // Product
+  product_id:   string | number;
+  product_name: string;
 
-  // Parsed / normalised UTM fields
-  utmSource: string;    // utm_source or placement
-  utmMedium: string;    // utm_medium or adset name
-  utmCampaign: string;  // utm_campaign or campaign name
-  utmContent: string;   // utm_content or ad name
-  utmTerm: string;      // utm_term or ad id
+  // Buyer
+  buyer_email:  string;
+  buyer_name:   string;
+
+  // Financial
+  amount:        number;  // full price paid by buyer
+  amountBrl:     number;  // best-effort BRL amount
+  currency:      string;
+
+  // Timestamps
+  approvedDateMs: number;
+  orderDate:      string;
+
+  // Raw Hotmart origin fields (preserved as-is)
+  raw_src:  string;
+  raw_sck:  string;
+  raw_xcod: string;
+
+  // Normalised UTM attribution fields
+  utm_source:   string | null;
+  utm_campaign: string | null;
+  utm_medium:   string | null;
+  utm_content:  string | null;
+  utm_term:     string | null;
+
+  // Attribution quality
+  attribution_status: AttributionStatus;
+
+  // Derived dashboard fields
+  origem:                 string | null; // = utm_source
+  campanha:               string | null; // = utm_campaign
+  conjunto_de_anuncios:   string | null; // = utm_medium
+  anuncio:                string | null; // = utm_content
+
+  // Raw payload (for auditability & reconciliation)
+  raw_payload: any;
 };
 
-/** Module-level singleton — shared across requests in the same process */
+/** Module-level singleton – shared across requests in the same process */
 const STORE = new Map<string, WebhookSale>();
 
 export function storeWebhookSale(sale: WebhookSale): void {
-  STORE.set(sale.transaction, sale);
+  STORE.set(sale.sale_id, sale);
 }
 
 export function getWebhookSales(): WebhookSale[] {
   return Array.from(STORE.values());
 }
 
-export function getWebhookSale(transaction: string): WebhookSale | undefined {
-  return STORE.get(transaction);
+export function getWebhookSale(saleId: string): WebhookSale | undefined {
+  return STORE.get(saleId);
 }
 
 export function getWebhookSalesCount(): number {
@@ -60,57 +86,109 @@ export function clearWebhookStore(): void {
   STORE.clear();
 }
 
+/* ── Attribution status calculator ────────────────────────────────────────── */
+export function calcAttributionStatus(
+  utm_source: string | null,
+  utm_campaign: string | null,
+  utm_medium: string | null,
+  utm_content: string | null,
+  utm_term: string | null,
+): AttributionStatus {
+  const found = [utm_source, utm_campaign, utm_medium, utm_content, utm_term]
+    .filter(v => v !== null && v !== '').length;
+  if (found === 5) return 'complete';
+  if (found > 0)  return 'partial';
+  return 'missing';
+}
+
+/* ── Recursive UTM extractor ───────────────────────────────────────────────── */
 /**
- * Parse Hotmart's purchase.origin object into structured UTM fields.
+ * Searches the entire webhook payload recursively for utm_* fields.
+ * Also inspects purchase.origin.{src, sck, xcod} as Hotmart's native tracking params.
  *
- * Handles three cases:
- *  1. src contains a full querystring  → "utm_campaign=X&utm_source=Y"
- *  2. src is a plain identifier        → treated as utm_campaign
- *  3. fields are empty                 → returns empty strings
+ * Per business rules:
+ *  - Trust webhook payload values exactly as received
+ *  - Never transform, rename, or reinterpret source fields before storing
+ *  - Return null (not empty string) for missing fields
  */
-export function parseHotmartOrigin(origin: any): {
-  src: string; sck: string; xcod: string;
-  utmSource: string; utmMedium: string; utmCampaign: string;
-  utmContent: string; utmTerm: string;
+export function extractUTMsFromPayload(payload: any): {
+  raw_src: string; raw_sck: string; raw_xcod: string;
+  utm_source:   string | null;
+  utm_campaign: string | null;
+  utm_medium:   string | null;
+  utm_content:  string | null;
+  utm_term:     string | null;
 } {
-  const src  = (origin?.src  || '').trim();
-  const sck  = (origin?.sck  || '').trim();
-  const xcod = (origin?.xcod || '').trim();
+  let utm_source:   string | null = null;
+  let utm_campaign: string | null = null;
+  let utm_medium:   string | null = null;
+  let utm_content:  string | null = null;
+  let utm_term:     string | null = null;
 
-  let utmSource   = '';
-  let utmMedium   = '';
-  let utmCampaign = '';
-  let utmContent  = '';
-  let utmTerm     = '';
+  // Store Hotmart native fields as-is
+  const origin = payload?.data?.purchase?.origin || {};
+  const raw_src  = (origin.src  || '').trim();
+  const raw_sck  = (origin.sck  || '').trim();
+  const raw_xcod = (origin.xcod || '').trim();
 
-  // Try to parse src as a query string (some setups encode all UTMs in src)
-  if (src.includes('utm_') || src.includes('&') || src.includes('=')) {
+  /* 1. Deep search the entire payload for utm_* fields (highest priority) */
+  function deepSearch(obj: any, depth = 0): void {
+    if (depth > 8 || !obj || typeof obj !== 'object') return;
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (typeof val === 'string' && val.trim()) {
+        const k = key.toLowerCase();
+        if (k === 'utm_source'   && !utm_source)   utm_source   = val.trim();
+        if (k === 'utm_campaign' && !utm_campaign)  utm_campaign = val.trim();
+        if (k === 'utm_medium'   && !utm_medium)    utm_medium   = val.trim();
+        if (k === 'utm_content'  && !utm_content)   utm_content  = val.trim();
+        if (k === 'utm_term'     && !utm_term)       utm_term     = val.trim();
+      }
+      if (val && typeof val === 'object') deepSearch(val, depth + 1);
+    }
+  }
+  deepSearch(payload);
+
+  /* 2. Parse Hotmart origin fields as query strings if they contain utm_ params */
+  function parseQS(s: string): Record<string, string> {
+    if (!s || !s.includes('utm_')) return {};
     try {
-      const qs = src.startsWith('?') ? src.slice(1) : src;
+      const qs = s.startsWith('?') ? s.slice(1) : s;
       const p = new URLSearchParams(decodeURIComponent(qs));
-      utmSource   = p.get('utm_source')   || '';
-      utmMedium   = p.get('utm_medium')   || '';
-      utmCampaign = p.get('utm_campaign') || '';
-      utmContent  = p.get('utm_content')  || '';
-      utmTerm     = p.get('utm_term')     || '';
+      const result: Record<string, string> = {};
+      p.forEach((v, k) => { result[k.toLowerCase()] = v; });
+      return result;
     } catch {
-      // fall through to plain treatment
+      return {};
     }
   }
 
-  // If no UTMs parsed, use raw fields as campaign/adset/ad indicators
-  if (!utmCampaign) utmCampaign = src;
-  if (!utmMedium)   utmMedium   = sck;
-  if (!utmContent)  utmContent  = xcod;
+  const srcParsed  = parseQS(raw_src);
+  const sckParsed  = parseQS(raw_sck);
+  const xcodParsed = parseQS(raw_xcod);
 
-  // Also check sck for UTM data
-  if (sck.includes('utm_')) {
-    try {
-      const p = new URLSearchParams(decodeURIComponent(sck));
-      if (!utmMedium)   utmMedium   = p.get('utm_medium')   || sck;
-      if (!utmCampaign) utmCampaign = p.get('utm_campaign') || utmCampaign;
-    } catch {}
-  }
+  // Fill in from parsed query strings (only if not already found via deep search)
+  utm_source   = utm_source   || srcParsed.utm_source   || sckParsed.utm_source   || null;
+  utm_campaign = utm_campaign || srcParsed.utm_campaign || sckParsed.utm_campaign || null;
+  utm_medium   = utm_medium   || srcParsed.utm_medium   || sckParsed.utm_medium   || null;
+  utm_content  = utm_content  || srcParsed.utm_content  || sckParsed.utm_content  || xcodParsed.utm_content || null;
+  utm_term     = utm_term     || srcParsed.utm_term     || sckParsed.utm_term     || xcodParsed.utm_term    || null;
 
-  return { src, sck, xcod, utmSource, utmMedium, utmCampaign, utmContent, utmTerm };
+  /* 3. Last resort: use raw Hotmart src/sck/xcod as campaign/medium/content
+     (only if they do NOT contain query string syntax and no UTMs found above)
+     Per rules: do NOT infer. We use these as raw tracking codes, not campaign names.
+     These are stored as raw_src/raw_sck/raw_xcod for auditability.
+     We do NOT auto-assign them to utm_campaign unless they were explicitly in src field. */
+  if (!utm_campaign && raw_src && !raw_src.includes('=')) utm_campaign = raw_src;
+  if (!utm_medium   && raw_sck && !raw_sck.includes('='))  utm_medium   = raw_sck;
+  if (!utm_content  && raw_xcod && !raw_xcod.includes('=')) utm_content  = raw_xcod;
+
+  return {
+    raw_src, raw_sck, raw_xcod,
+    utm_source:   utm_source   || null,
+    utm_campaign: utm_campaign || null,
+    utm_medium:   utm_medium   || null,
+    utm_content:  utm_content  || null,
+    utm_term:     utm_term     || null,
+  };
 }

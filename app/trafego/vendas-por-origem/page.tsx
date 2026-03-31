@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Navbar } from '@/components/dashboard/navbar';
+import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { useDashboard } from '@/app/lib/context';
-import { R } from '@/app/lib/utils';
+import { R }            from '@/app/lib/utils';
 
+/* ── Design tokens ────────────────────────────────────────────────────────── */
 const GOLD   = '#E8B14F';
 const SILVER = '#8899AA';
 const GREEN  = '#4ade80';
@@ -15,86 +16,74 @@ const PURPLE = '#a78bfa';
 const TEAL   = '#2dd4bf';
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
-type Row = {
-  id: string | null; name: string; status: string;
-  objective?: string; dailyBudget?: number; thumbnail?: string | null;
-  spend: number; impressions: number; clicks: number;
-  outboundClicks: number; landingPageViews: number; checkouts: number;
-  connectRate: number; checkoutRate: number; purchaseRate: number; ctr: number;
-  revenue: number; sales: number;
-  cac: number; roas: number;
-  isFromWebhook?: boolean;
+type EntityRow = {
+  id:          string | null;
+  name:        string;
+  thumbnail:   string | null;
+  spend:       number;
+  checkouts:   number;
+  pageviews:   number;
+  compras:     number;
+  revenue:     number;
+  cpa:              number;
+  compraCheckout:   number;
+  checkoutPageview: number;
+  cpCheckout:       number;
+  attributionStatuses: { complete: number; partial: number; missing: number };
 };
+
 type Data = {
-  totalHotmartSales: number; totalHotmartRevenue: number; totalMetaSpend: number;
-  totalWebhookSales: number; totalWebhookRevenue: number; webhookPct: number;
-  campaigns: Row[]; adsets: Row[]; ads: Row[];
+  totalMetaSpend:      number;
+  totalWebhookSales:   number;
+  totalWebhookRevenue: number;
+  attrBreakdown:       { complete: number; partial: number; missing: number };
+  campaigns: EntityRow[];
+  adsets:    EntityRow[];
+  ads:       EntityRow[];
 };
 
-/* ── Helpers ──────────────────────────────────────────────────────────────── */
-const fmtN = (n: number) =>
-  n >= 1000 ? `${(n / 1000).toFixed(1)}k` : n.toLocaleString('pt-BR');
+/* ── Formatters ───────────────────────────────────────────────────────────── */
+const fmt  = (n: number, d = 2) => n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtR = (n: number)        => `R$\u00a0${fmt(n)}`;
+const fmtP = (n: number)        => `${fmt(n, 2)}%`;
+const dash  = () => <span style={{ color: SILVER }}>—</span>;
 
-const RateCell = ({ val, red = 10, green = 50 }: { val: number; red?: number; green?: number }) => {
-  const col = val < red ? RED : val < green ? GOLD : GREEN;
-  return <span style={{ color: col, fontWeight: 900 }}>{val.toFixed(1)}%</span>;
-};
-
-const StatusPill = ({ status }: { status: string }) => {
-  const s = (status || '').toUpperCase();
-  const isActive = s === 'ACTIVE';
-  return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider"
-      style={{
-        background: isActive ? 'rgba(74,222,128,0.12)' : 'rgba(248,113,113,0.1)',
-        color: isActive ? GREEN : s === 'PAUSED' ? GOLD : RED,
-        border: `1px solid ${isActive ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.2)'}`,
-      }}>
-      <span className="w-1.5 h-1.5 rounded-full inline-block"
-        style={{ background: isActive ? GREEN : s === 'PAUSED' ? GOLD : RED,
-          animation: isActive ? 'pulse 2s infinite' : 'none' }} />
-      {isActive ? 'Ativa' : s === 'PAUSED' ? 'Pausada' : s}
-    </span>
+/* ── Totals helper ────────────────────────────────────────────────────────── */
+function sumRows(rows: EntityRow[]) {
+  const r = rows.reduce(
+    (acc, row) => ({
+      spend:     acc.spend     + row.spend,
+      checkouts: acc.checkouts + row.checkouts,
+      pageviews: acc.pageviews + row.pageviews,
+      compras:   acc.compras   + row.compras,
+      revenue:   acc.revenue   + row.revenue,
+    }),
+    { spend: 0, checkouts: 0, pageviews: 0, compras: 0, revenue: 0 },
   );
-};
-
-/* Source badge: shows if revenue came from webhook (UTM) or fallback */
-const SourceBadge = ({ fromWebhook }: { fromWebhook?: boolean }) => {
-  if (fromWebhook === undefined) return null;
-  return fromWebhook
-    ? <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider"
-        style={{ background: 'rgba(45,212,191,0.15)', color: TEAL, border: '1px solid rgba(45,212,191,0.3)' }}>
-        UTM ✓
-      </span>
-    : <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider"
-        style={{ background: 'rgba(136,153,170,0.12)', color: SILVER, border: '1px solid rgba(136,153,170,0.2)' }}>
-        Est.
-      </span>;
-};
-
-function SkelRow({ cols }: { cols: number }) {
-  return (
-    <tr>
-      {[...Array(cols)].map((_, i) => (
-        <td key={i} className="py-4 px-4">
-          <div className="h-3 rounded-full animate-pulse"
-            style={{ background: 'rgba(255,255,255,0.04)', width: i === 0 ? '60%' : '40%' }} />
-        </td>
-      ))}
-    </tr>
-  );
+  const cpa              = r.compras   > 0 ? r.spend     / r.compras   : 0;
+  const compraCheckout   = r.checkouts > 0 ? (r.compras  / r.checkouts) * 100 : 0;
+  const checkoutPageview = r.pageviews > 0 ? (r.checkouts / r.pageviews) * 100 : 0;
+  const cpCheckout       = r.checkouts > 0 ? r.spend     / r.checkouts  : 0;
+  return { ...r, cpa, compraCheckout, checkoutPageview, cpCheckout };
 }
 
+/* ── Table ────────────────────────────────────────────────────────────────── */
 type SortDir = 'asc' | 'desc';
 
-function DataTable({
-  rows, loading, cols, accent, onRowClick, selectedId, showThumb = false,
+function VendasTable({
+  label, rows, loading, accent,
+  showThumb = false,
+  onRowClick, selectedId,
 }: {
-  rows: Row[]; loading: boolean; cols: number; accent: string;
+  label:      string;
+  rows:       EntityRow[];
+  loading:    boolean;
+  accent:     string;
+  showThumb?: boolean;
   onRowClick?: (id: string | null, name: string) => void;
-  selectedId?: string | null; showThumb?: boolean;
+  selectedId?: string | null;
 }) {
-  const [sortCol, setSortCol] = useState('spend');
+  const [sortCol, setSortCol] = useState<string>('spend');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const handleSort = (col: string) => {
@@ -106,289 +95,367 @@ function DataTable({
     return [...rows].sort((a, b) => {
       const av = (a as any)[sortCol] ?? 0;
       const bv = (b as any)[sortCol] ?? 0;
-      const cmp = typeof av === 'string' ? av.localeCompare(bv) : bv - av;
-      return sortDir === 'desc' ? cmp : -cmp;
+      const diff = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+      return sortDir === 'asc' ? diff : -diff;
     });
   }, [rows, sortCol, sortDir]);
 
-  const TH = ({ col, children, right }: { col: string; children: React.ReactNode; right?: boolean }) => {
+  const totals = sumRows(rows);
+
+  const TH = ({
+    col, children, right = false, w,
+  }: { col: string; children: React.ReactNode; right?: boolean; w?: string }) => {
     const active = sortCol === col;
     return (
-      <th onClick={() => handleSort(col)}
-        className={`py-3 px-3 text-[9px] font-black uppercase tracking-widest cursor-pointer select-none whitespace-nowrap${right ? ' text-right' : ''}`}
-        style={{ color: active ? accent : SILVER, borderBottom: '1px solid rgba(255,255,255,0.06)', transition: 'color 0.15s' }}>
-        {children}{active && <span className="ml-1">{sortDir === 'desc' ? '↓' : '↑'}</span>}
+      <th
+        onClick={() => handleSort(col)}
+        style={{
+          padding: '10px 12px',
+          textAlign: right ? 'right' : 'left',
+          fontSize: 11,
+          fontWeight: 800,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: active ? accent : SILVER,
+          borderBottom: `2px solid ${accent}30`,
+          cursor: 'pointer',
+          userSelect: 'none',
+          whiteSpace: 'nowrap',
+          width: w,
+          background: `${accent}08`,
+        }}
+      >
+        {children}
+        {active && <span style={{ marginLeft: 4 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
       </th>
     );
   };
 
+  const skeletonCols = showThumb ? 9 : 8;
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ background: `${accent}08` }}>
-            {showThumb && <th className="py-3 px-3 w-12" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }} />}
-            <TH col="name">Nome</TH>
-            <TH col="status">Status</TH>
-            <TH col="spend" right>Investido</TH>
-            <TH col="impressions" right>Impressões</TH>
-            <TH col="clicks" right>Cliques</TH>
-            <TH col="sales" right>Vendas HM</TH>
-            <TH col="revenue" right>Receita HM</TH>
-            <TH col="cac" right>CAC</TH>
-            <TH col="connectRate" right>Connect</TH>
-            <TH col="checkoutRate" right>Checkout</TH>
-            <TH col="purchaseRate" right>Purchase</TH>
-            <TH col="roas" right>ROAS</TH>
-          </tr>
-        </thead>
-        <tbody>
-          {loading
-            ? [...Array(6)].map((_, i) => <SkelRow key={i} cols={cols} />)
-            : sorted.length === 0
-              ? <tr><td colSpan={cols} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest"
-                  style={{ color: SILVER }}>Nenhum dado no período</td></tr>
+    <div
+      className="rounded-[20px] overflow-hidden"
+      style={{
+        background: 'linear-gradient(160deg, rgba(255,255,255,0.055) 0%, rgba(0,8,24,0.94) 100%)',
+        border: `1px solid ${accent}25`,
+        backdropFilter: 'blur(24px)',
+        boxShadow: `0 0 0 1px rgba(255,255,255,0.04) inset, 0 20px 60px rgba(0,0,0,0.45), 0 0 40px ${accent}06`,
+      }}
+    >
+      {/* Card header */}
+      <div
+        style={{
+          padding: '16px 20px',
+          borderBottom: `1px solid ${accent}20`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: `${accent}05`,
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 15,
+            fontWeight: 900,
+            color: '#fff',
+            letterSpacing: '-0.01em',
+            margin: 0,
+          }}
+        >
+          {label}
+        </h2>
+        {!loading && (
+          <span
+            style={{
+              fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+              letterSpacing: '0.08em', color: accent,
+              background: `${accent}18`, border: `1px solid ${accent}30`,
+              padding: '3px 10px', borderRadius: 99,
+            }}
+          >
+            {rows.length} {label.toLowerCase()}
+          </span>
+        )}
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {showThumb && <th style={{ width: 48, padding: '10px 8px', borderBottom: `2px solid ${accent}30`, background: `${accent}08` }} />}
+              <TH col="name" w="280px">{label.replace('s', '').replace('Anúncios', 'Anúncio').replace('Campanha', 'Campanha').replace('Conjunto', 'Conjunto')}</TH>
+              <TH col="cpa" right>CPA</TH>
+              <TH col="spend" right>Gasto</TH>
+              <TH col="compras" right>Compras</TH>
+              <TH col="compraCheckout" right>Compra/Checkout</TH>
+              <TH col="checkouts" right>Checkouts</TH>
+              <TH col="checkoutPageview" right>Checkout/Pageview</TH>
+              <TH col="cpCheckout" right>CP Checkout</TH>
+            </tr>
+          </thead>
+          <tbody>
+            {loading
+              ? [...Array(5)].map((_, i) => (
+                  <tr key={i}>
+                    {[...Array(skeletonCols)].map((__, j) => (
+                      <td key={j} style={{ padding: '12px 12px' }}>
+                        <div
+                          style={{
+                            height: 11, borderRadius: 6,
+                            background: 'rgba(255,255,255,0.05)',
+                            width: j === 0 ? '65%' : '50%',
+                            animation: 'pulse 1.5s infinite',
+                          }}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              : sorted.length === 0
+              ? (
+                  <tr>
+                    <td colSpan={skeletonCols} style={{ padding: '40px 20px', textAlign: 'center', color: SILVER, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      Nenhum dado no período
+                    </td>
+                  </tr>
+                )
               : sorted.map((row, idx) => {
-                  const isSel = selectedId === row.id || (selectedId === row.name);
-                  const rowBg = isSel ? `${accent}18` : idx % 2 === 0 ? 'transparent' : `${accent}04`;
-                  const roasColor = row.roas >= 3 ? GREEN : row.roas >= 1.5 ? GOLD : row.spend > 0 ? RED : SILVER;
-                  const isClickable = !!onRowClick;
+                  const isSel = selectedId === row.id || selectedId === row.name;
+                  const bg    = isSel
+                    ? `${accent}18`
+                    : idx % 2 === 0
+                    ? 'transparent'
+                    : 'rgba(255,255,255,0.015)';
+
                   return (
-                    <tr key={row.id || row.name}
-                      style={{ background: rowBg, borderBottom: '1px solid rgba(255,255,255,0.04)',
-                        cursor: isClickable ? 'pointer' : 'default',
+                    <tr
+                      key={row.id || row.name}
+                      onClick={() => onRowClick?.(row.id, row.name)}
+                      style={{
+                        background: bg,
+                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        cursor: onRowClick ? 'pointer' : 'default',
                         outline: isSel ? `1px solid ${accent}40` : 'none',
-                        transition: 'background 0.12s' }}
-                      onClick={() => isClickable && onRowClick?.(row.id, row.name)}
-                      onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = `${accent}10`; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = isSel ? `${accent}18` : rowBg; }}>
-                      {/* Thumbnail (ads only) */}
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = `${accent}0E`; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = isSel ? `${accent}18` : bg; }}
+                    >
+                      {/* Thumbnail */}
                       {showThumb && (
-                        <td className="py-2 px-3">
+                        <td style={{ padding: '8px 10px', width: 48 }}>
                           {row.thumbnail
-                            ? <img src={row.thumbnail} alt="" className="w-10 h-10 rounded-lg object-cover"
-                                style={{ border: '1px solid rgba(255,255,255,0.1)' }} />
-                            : <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-                                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <span className="material-symbols-outlined text-[14px]" style={{ color: SILVER }}>image</span>
+                            ? <img src={row.thumbnail} alt="" style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }} />
+                            : <div style={{ width: 38, height: 38, borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 14, color: SILVER }}>image</span>
                               </div>
                           }
                         </td>
                       )}
-                      {/* Nome + source badge */}
-                      <td className="py-3 px-3">
-                        <div className="flex flex-col gap-0.5 max-w-[280px]">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[12px] font-black leading-tight truncate"
-                              style={{ color: isSel ? accent : '#fff' }}>
-                              {row.name}
-                            </span>
-                            <SourceBadge fromWebhook={row.isFromWebhook} />
-                          </div>
-                          {row.dailyBudget && row.dailyBudget > 0 && (
-                            <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-                              Budget diário: {R(row.dailyBudget)}
-                            </span>
-                          )}
-                        </div>
+
+                      {/* Name */}
+                      <td style={{ padding: '10px 12px', maxWidth: 280 }}>
+                        <span style={{
+                          display: 'block',
+                          fontSize: 12, fontWeight: 700, color: isSel ? accent : '#e8ecf0',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {row.name}
+                        </span>
+                        {row.compras > 0 && (
+                          <span style={{ fontSize: 9, color: TEAL, fontWeight: 800, display: 'block', marginTop: 2 }}>
+                            {row.attributionStatuses?.complete > 0 && '✓ UTM completo'}
+                            {row.attributionStatuses?.partial  > 0 && row.attributionStatuses?.complete === 0 && '~ UTM parcial'}
+                          </span>
+                        )}
                       </td>
-                      {/* Status */}
-                      <td className="py-3 px-3"><StatusPill status={row.status} /></td>
-                      {/* Investido */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
-                        <span className="font-black text-[13px]" style={{ color: BLUE }}>{R(row.spend)}</span>
+
+                      {/* CPA */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {row.cpa > 0
+                          ? <span style={{ fontSize: 12, fontWeight: 800, color: '#fff' }}>{fmtR(row.cpa)}</span>
+                          : dash()}
                       </td>
-                      {/* Impressões */}
-                      <td className="py-3 px-3 text-right">
-                        <span className="font-black text-[12px] text-white">{fmtN(row.impressions)}</span>
+
+                      {/* Gasto */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: BLUE }}>{fmtR(row.spend)}</span>
                       </td>
-                      {/* Cliques */}
-                      <td className="py-3 px-3 text-right">
-                        <span className="font-black text-[12px] text-white">{fmtN(row.clicks)}</span>
+
+                      {/* Compras */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        {row.compras > 0
+                          ? <span style={{ fontSize: 13, fontWeight: 900, color: GREEN }}>{row.compras}</span>
+                          : <span style={{ fontSize: 11, color: SILVER }}>0</span>}
                       </td>
-                      {/* Vendas HM */}
-                      <td className="py-3 px-3 text-right">
-                        {row.sales > 0
-                          ? <span className="font-black text-[13px]" style={{ color: GREEN }}>{row.sales}</span>
-                          : <span style={{ color: SILVER, fontSize: 11 }}>—</span>}
-                      </td>
-                      {/* Receita HM */}
-                      <td className="py-3 px-3 text-right whitespace-nowrap">
-                        {row.revenue > 0
-                          ? <span className="font-black text-[13px]" style={{ color: GOLD }}>{R(row.revenue)}</span>
-                          : <span style={{ color: SILVER, fontSize: 11 }}>—</span>}
-                      </td>
-                      {/* CAC */}
-                      <td className="py-3 px-3 text-right">
-                        {row.cac > 0
-                          ? <span className="font-black text-[12px] text-white">{R(row.cac)}</span>
-                          : <span style={{ color: SILVER, fontSize: 11 }}>—</span>}
-                      </td>
-                      {/* Connect Rate */}
-                      <td className="py-3 px-3 text-right">
-                        {row.impressions > 0
-                          ? <RateCell val={row.connectRate} red={5} green={30} />
-                          : <span style={{ color: SILVER, fontSize: 11 }}>—</span>}
-                      </td>
-                      {/* Checkout Rate */}
-                      <td className="py-3 px-3 text-right">
-                        {row.outboundClicks > 0
-                          ? <RateCell val={row.checkoutRate} red={20} green={60} />
-                          : <span style={{ color: SILVER, fontSize: 11 }}>—</span>}
-                      </td>
-                      {/* Purchase Rate */}
-                      <td className="py-3 px-3 text-right">
+
+                      {/* Compra/Checkout */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                         {row.checkouts > 0
-                          ? <RateCell val={row.purchaseRate} red={1} green={5} />
-                          : <span style={{ color: SILVER, fontSize: 11 }}>—</span>}
-                      </td>
-                      {/* ROAS */}
-                      <td className="py-3 px-3 text-right">
-                        {row.spend > 0 && row.revenue > 0
-                          ? <span className="font-black text-[14px]" style={{ color: roasColor }}>
-                              {row.roas.toFixed(2)}×
+                          ? <span style={{ fontSize: 12, fontWeight: 800,
+                              color: row.compraCheckout >= 5 ? GREEN : row.compraCheckout >= 1 ? GOLD : RED }}>
+                              {fmtP(row.compraCheckout)}
                             </span>
-                          : <span style={{ color: SILVER, fontSize: 11 }}>—</span>}
+                          : dash()}
+                      </td>
+
+                      {/* Checkouts */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#e8ecf0' }}>
+                          {row.checkouts > 0 ? row.checkouts.toLocaleString('pt-BR') : '0'}
+                        </span>
+                      </td>
+
+                      {/* Checkout/Pageview */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                        {row.pageviews > 0
+                          ? <span style={{ fontSize: 12, fontWeight: 800,
+                              color: row.checkoutPageview >= 5 ? GREEN : row.checkoutPageview >= 1 ? GOLD : RED }}>
+                              {fmtP(row.checkoutPageview)}
+                            </span>
+                          : dash()}
+                      </td>
+
+                      {/* CP Checkout */}
+                      <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {row.cpCheckout > 0
+                          ? <span style={{ fontSize: 12, fontWeight: 800, color: '#e8ecf0' }}>{fmtR(row.cpCheckout)}</span>
+                          : dash()}
                       </td>
                     </tr>
                   );
                 })
-          }
-        </tbody>
-      </table>
-    </div>
-  );
-}
+            }
 
-/* ── Glossy card ──────────────────────────────────────────────────────────── */
-function Card({ title, subtitle, icon, accent, chipText, children }:
-  { title: string; subtitle: string; icon: string; accent: string;
-    chipText?: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-[24px] overflow-hidden"
-      style={{
-        background: 'linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(0,10,30,0.92) 100%)',
-        border: `1px solid ${accent}22`,
-        backdropFilter: 'blur(24px)',
-        boxShadow: `0 0 0 1px rgba(255,255,255,0.04) inset, 0 24px 64px rgba(0,0,0,0.5), 0 0 40px ${accent}08`,
-      }}>
-      <div className="flex items-center justify-between px-6 py-5"
-        style={{ borderBottom: `1px solid ${accent}18` }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-            style={{ background: `${accent}18`, border: `1px solid ${accent}30` }}>
-            <span className="material-symbols-outlined text-xl" style={{ color: accent }}>{icon}</span>
-          </div>
-          <div>
-            <p className="text-[16px] font-black text-white tracking-tight">{title}</p>
-            <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{subtitle}</p>
-          </div>
-        </div>
-        {chipText && (
-          <span className="text-[11px] font-black px-3 py-1 rounded-full"
-            style={{ background: `${accent}18`, color: accent, border: `1px solid ${accent}30` }}>
-            {chipText}
-          </span>
-        )}
+            {/* Total geral row */}
+            {!loading && sorted.length > 0 && (() => {
+              const t = totals;
+              return (
+                <tr style={{ borderTop: `2px solid ${accent}30`, background: `${accent}0A` }}>
+                  {showThumb && <td style={{ padding: '11px 10px' }} />}
+                  <td style={{ padding: '11px 12px' }}>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: accent }}>Total geral</span>
+                  </td>
+                  <td style={{ padding: '11px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#fff' }}>
+                      {t.cpa > 0 ? fmtR(t.cpa) : '—'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '11px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: BLUE }}>{fmtR(t.spend)}</span>
+                  </td>
+                  <td style={{ padding: '11px 12px', textAlign: 'right' }}>
+                    <span style={{ fontSize: 13, fontWeight: 900, color: GREEN }}>{t.compras}</span>
+                  </td>
+                  <td style={{ padding: '11px 12px', textAlign: 'right' }}>
+                    <span style={{ fontSize: 12, fontWeight: 900,
+                      color: t.compraCheckout >= 5 ? GREEN : t.compraCheckout >= 1 ? GOLD : SILVER }}>
+                      {t.checkouts > 0 ? fmtP(t.compraCheckout) : '—'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '11px 12px', textAlign: 'right' }}>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#fff' }}>{t.checkouts.toLocaleString('pt-BR')}</span>
+                  </td>
+                  <td style={{ padding: '11px 12px', textAlign: 'right' }}>
+                    <span style={{ fontSize: 12, fontWeight: 900,
+                      color: t.checkoutPageview >= 5 ? GREEN : t.checkoutPageview >= 1 ? GOLD : SILVER }}>
+                      {t.pageviews > 0 ? fmtP(t.checkoutPageview) : '—'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '11px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#fff' }}>
+                      {t.cpCheckout > 0 ? fmtR(t.cpCheckout) : '—'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })()}
+          </tbody>
+        </table>
       </div>
-      {children}
     </div>
   );
 }
 
-/* ── Hero stat ────────────────────────────────────────────────────────────── */
-function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
+/* ── Hero stat card ───────────────────────────────────────────────────────── */
+function Stat({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
   return (
-    <div className="flex flex-col p-4 rounded-2xl"
-      style={{ background: `${color}08`, border: `1px solid ${color}20` }}>
-      <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>{label}</span>
-      <span className="text-[24px] font-black mt-0.5" style={{ color }}>{value}</span>
-      {sub && <span className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{sub}</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', padding: '14px 18px', borderRadius: 16, background: `${color}0A`, border: `1px solid ${color}22` }}>
+      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: SILVER }}>{label}</span>
+      <span style={{ fontSize: 22, fontWeight: 900, marginTop: 3, color }}>{value}</span>
+      {sub && <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 2, color: SILVER }}>{sub}</span>}
     </div>
   );
 }
 
-/* ── Parametrization banner ───────────────────────────────────────────────── */
-function WebhookBanner({ webhookSales, totalSales, pct }: {
-  webhookSales: number; totalSales: number; pct: number;
-}) {
-  const hasData = webhookSales > 0;
+/* ── Webhook banner ───────────────────────────────────────────────────────── */
+function WebhookBanner({ data }: { data: Data }) {
+  const { totalWebhookSales, attrBreakdown } = data;
+  const hasData = totalWebhookSales > 0;
+
   return (
-    <div className="flex items-center gap-3 px-5 py-3 rounded-2xl mb-6"
-      style={{
-        background: hasData
-          ? 'linear-gradient(90deg, rgba(45,212,191,0.08) 0%, rgba(45,212,191,0.03) 100%)'
-          : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${hasData ? 'rgba(45,212,191,0.2)' : 'rgba(255,255,255,0.07)'}`,
-      }}>
-      <span className="material-symbols-outlined text-xl flex-shrink-0"
-        style={{ color: hasData ? TEAL : SILVER }}>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      padding: '12px 18px', borderRadius: 16, marginBottom: 24,
+      background: hasData
+        ? 'linear-gradient(90deg, rgba(45,212,191,0.09) 0%, transparent 100%)'
+        : 'rgba(255,255,255,0.025)',
+      border: `1px solid ${hasData ? 'rgba(45,212,191,0.22)' : 'rgba(255,255,255,0.07)'}`,
+    }}>
+      <span className="material-symbols-outlined" style={{ color: hasData ? TEAL : SILVER, fontSize: 20 }}>
         {hasData ? 'track_changes' : 'wifi_tethering_off'}
       </span>
-      <div className="flex-1">
+      <div style={{ flex: 1 }}>
         {hasData ? (
-          <>
-            <span className="text-[13px] font-black" style={{ color: TEAL }}>
-              {webhookSales} venda{webhookSales !== 1 ? 's' : ''} parametrizada{webhookSales !== 1 ? 's' : ''}
-            </span>
-            <span className="text-[12px] font-black text-white"> no período</span>
-            <span className="text-[11px] font-bold mx-2" style={{ color: SILVER }}>·</span>
-            <span className="text-[11px] font-bold" style={{ color: SILVER }}>
-              {pct.toFixed(1)}% do total Hotmart ({totalSales} vendas)
-            </span>
-          </>
+          <span style={{ fontSize: 13, color: '#e8ecf0', fontWeight: 700 }}>
+            <strong style={{ color: TEAL }}>{totalWebhookSales} venda{totalWebhookSales !== 1 ? 's' : ''}</strong>
+            {' '}capturadas via webhook no período ·{' '}
+            <span style={{ color: GREEN }}>{attrBreakdown.complete} completa{attrBreakdown.complete !== 1 ? 's' : ''}</span>
+            {attrBreakdown.partial > 0 && <span style={{ color: GOLD }}> · {attrBreakdown.partial} parcial{attrBreakdown.partial !== 1 ? 's' : ''}</span>}
+            {attrBreakdown.missing > 0 && <span style={{ color: RED }}> · {attrBreakdown.missing} sem UTM</span>}
+          </span>
         ) : (
-          <span className="text-[12px] font-bold" style={{ color: SILVER }}>
-            Nenhuma venda parametrizada via webhook ainda. Configure o webhook da Hotmart apontando para{' '}
-            <code className="text-[11px] px-1 py-0.5 rounded font-mono"
-              style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <span style={{ fontSize: 12, color: SILVER, fontWeight: 600 }}>
+            Nenhuma venda capturada via webhook ainda.{' '}
+            Configure o webhook no painel Hotmart apontando para{' '}
+            <code style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>
               /api/hotmart/webhook
             </code>
+            {' '}e adicione UTMs (<code style={{ fontSize: 11, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>utm_campaign</code>,{' '}
+            <code style={{ fontSize: 11, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>utm_medium</code>,{' '}
+            <code style={{ fontSize: 11, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>utm_content</code>) nos seus links.
           </span>
         )}
       </div>
-      {/* Pill showing % */}
-      {hasData && (
-        <div className="flex-shrink-0 text-center px-3 py-1.5 rounded-xl"
-          style={{ background: 'rgba(45,212,191,0.12)', border: '1px solid rgba(45,212,191,0.25)' }}>
-          <div className="text-[18px] font-black" style={{ color: TEAL }}>{pct.toFixed(0)}%</div>
-          <div className="text-[8px] font-bold uppercase tracking-wider" style={{ color: SILVER }}>UTM</div>
-        </div>
-      )}
     </div>
   );
 }
 
-/* ── Legend ───────────────────────────────────────────────────────────────── */
-function Legend() {
+/* ── Active filter chip ───────────────────────────────────────────────────── */
+function ActiveChip({ label, onClear }: { label: string; onClear: () => void }) {
   return (
-    <div className="flex items-center gap-4 mb-6 flex-wrap">
-      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Legenda:</span>
-      <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: TEAL }}>
-        <span className="text-[8px] px-1.5 py-0.5 rounded-full"
-          style={{ background: 'rgba(45,212,191,0.15)', border: '1px solid rgba(45,212,191,0.3)' }}>
-          UTM ✓
-        </span>
-        Receita via webhook (atribuição real)
-      </span>
-      <span className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: SILVER }}>
-        <span className="text-[8px] px-1.5 py-0.5 rounded-full"
-          style={{ background: 'rgba(136,153,170,0.12)', border: '1px solid rgba(136,153,170,0.2)' }}>
-          Est.
-        </span>
-        Estimado por nome de produto (fallback)
-      </span>
-    </div>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      padding: '4px 10px 4px 12px', borderRadius: 99, fontSize: 10, fontWeight: 800,
+      background: `${GOLD}1E`, border: `1px solid ${GOLD}40`, color: GOLD,
+    }}>
+      {label.length > 50 ? label.slice(0, 50) + '…' : label}
+      <button onClick={onClear} style={{ marginLeft: 2, cursor: 'pointer', color: 'inherit', background: 'none', border: 'none', padding: 0, lineHeight: 1, fontSize: 12 }}>✕</button>
+    </span>
   );
 }
 
-/* ── Page ─────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/*  Page                                                                       */
+/* ═══════════════════════════════════════════════════════════════════════════ */
 export default function VendasPorOrigemPage() {
   const { dateFrom, dateTo } = useDashboard();
   const [data,    setData]    = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
-  const [selCamp, setSelCamp] = useState<string | null>(null);
+  const [selCamp,  setSelCamp]  = useState<string | null>(null);
   const [selAdset, setSelAdset] = useState<string | null>(null);
 
   useEffect(() => {
@@ -411,7 +478,7 @@ export default function VendasPorOrigemPage() {
       });
   }, [dateFrom, dateTo]);
 
-  /* ── Filter adsets by selected campaign name tokens ── */
+  /* ── Filtered adsets: match by campaign name tokens ── */
   const filteredAdsets = useMemo(() => {
     if (!data?.adsets || !selCamp) return data?.adsets || [];
     const tokens = selCamp.toLowerCase().split(/[\s_\-]+/).filter(t => t.length > 3);
@@ -420,22 +487,15 @@ export default function VendasPorOrigemPage() {
     );
   }, [data, selCamp]);
 
-  /* ── Filter ads by selected adset (or campaign) ── */
+  /* ── Filtered ads: match by adset (priority) or campaign ── */
   const filteredAds = useMemo(() => {
     if (!data?.ads) return [];
-    if (selAdset) {
-      const tokens = selAdset.toLowerCase().split(/[\s_\-]+/).filter(t => t.length > 3);
-      return data.ads.filter(a =>
-        tokens.some(tok => a.name.toLowerCase().includes(tok))
-      );
-    }
-    if (selCamp) {
-      const tokens = selCamp.toLowerCase().split(/[\s_\-]+/).filter(t => t.length > 3);
-      return data.ads.filter(a =>
-        tokens.some(tok => a.name.toLowerCase().includes(tok))
-      );
-    }
-    return data.ads;
+    const filterBy = selAdset || selCamp;
+    if (!filterBy) return data.ads;
+    const tokens = filterBy.toLowerCase().split(/[\s_\-]+/).filter(t => t.length > 3);
+    return data.ads.filter(a =>
+      tokens.some(tok => a.name.toLowerCase().includes(tok))
+    );
   }, [data, selCamp, selAdset]);
 
   const handleCampClick  = (_id: string | null, name: string) => {
@@ -446,110 +506,83 @@ export default function VendasPorOrigemPage() {
     setSelAdset(prev => prev === name ? null : name);
   };
 
-  const ActiveChip = ({ label, onClear }: { label: string; onClear: () => void }) => (
-    <span className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1 rounded-full text-[10px] font-black"
-      style={{ background: `${GOLD}22`, border: `1px solid ${GOLD}40`, color: GOLD }}>
-      {label.length > 50 ? label.slice(0, 50) + '…' : label}
-      <button onClick={onClear} className="ml-1 hover:text-white transition-colors">✕</button>
-    </span>
-  );
-
-  const COLS = 13;
-
   return (
     <LoginWrapper>
       <div style={{ minHeight: '100vh' }}>
         <Navbar />
-        <div className="h-[80px]" />
-        <main className="px-4 md:px-8 max-w-[1900px] mx-auto pt-10 pb-24">
+        <div style={{ height: 80 }} />
 
-          {/* Header */}
-          <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
+        <main style={{ padding: '40px 24px 96px', maxWidth: 1900, margin: '0 auto' }}>
+
+          {/* ── Header ── */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>
             <div>
-              <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
-                <span className="material-symbols-outlined text-3xl" style={{ color: GOLD }}>route</span>
+              <h1 style={{ fontSize: 28, fontWeight: 900, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 30, color: GOLD }}>route</span>
                 Vendas por Origem
               </h1>
-              <p className="text-[11px] font-bold uppercase tracking-widest mt-1" style={{ color: SILVER }}>
-                Meta Ads · UTM via Webhook Hotmart · Funil de Conversão
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, margin: '6px 0 0' }}>
+                Meta Ads · Funil de Conversão · Atribuição via Webhook Hotmart (UTM)
               </p>
             </div>
 
-            {/* Stats hero */}
+            {/* Hero stats */}
             {!loading && data && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <StatCard label="Total Investido" value={R(data.totalMetaSpend)} sub="Meta Ads no período" color={BLUE} />
-                <StatCard label="Receita Hotmart" value={R(data.totalHotmartRevenue)}
-                  sub={`${data.totalHotmartSales} vendas no período`} color={GOLD} />
-                <StatCard label="ROAS Geral"
-                  value={data.totalMetaSpend > 0 ? `${(data.totalHotmartRevenue / data.totalMetaSpend).toFixed(2)}×` : '—'}
-                  sub="Receita / Investido"
-                  color={data.totalHotmartRevenue / Math.max(data.totalMetaSpend, 1) >= 1.5 ? GREEN : RED} />
-                {data.totalWebhookSales > 0 && (
-                  <StatCard label="Via UTM (Webhook)"
-                    value={R(data.totalWebhookRevenue)}
-                    sub={`${data.totalWebhookSales} vendas parametrizadas`}
-                    color={TEAL} />
-                )}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <Stat label="Total Investido"    value={fmtR(data.totalMetaSpend)}      sub="Meta Ads no período"         color={BLUE} />
+                <Stat label="Vendas via Webhook" value={String(data.totalWebhookSales)} sub="compras parametrizadas"     color={TEAL} />
+                <Stat label="Receita via UTM"    value={fmtR(data.totalWebhookRevenue)} sub="receita atribuída"           color={GOLD} />
               </div>
             )}
           </div>
 
-          {/* Webhook parametrization banner */}
-          {!loading && data && (
-            <WebhookBanner
-              webhookSales={data.totalWebhookSales}
-              totalSales={data.totalHotmartSales}
-              pct={data.webhookPct}
-            />
-          )}
+          {/* ── Webhook banner ── */}
+          {!loading && data && <WebhookBanner data={data} />}
 
-          {/* Legend */}
-          {!loading && data && <Legend />}
-
-          {/* Active filters */}
+          {/* ── Active filters ── */}
           {(selCamp || selAdset) && (
-            <div className="flex items-center gap-2 mb-6 flex-wrap">
-              <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Filtros:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: SILVER }}>Filtros:</span>
               {selCamp  && <ActiveChip label={selCamp}  onClear={() => { setSelCamp(null); setSelAdset(null); }} />}
               {selAdset && <ActiveChip label={selAdset} onClear={() => setSelAdset(null)} />}
             </div>
           )}
 
+          {/* ── Error ── */}
           {error && (
-            <div className="mb-6 px-5 py-4 rounded-2xl text-sm font-black"
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: RED }}>
+            <div style={{ marginBottom: 20, padding: '14px 18px', borderRadius: 16, fontSize: 13, fontWeight: 700, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: RED }}>
               Erro: {error}
             </div>
           )}
 
-          <div className="flex flex-col gap-8">
+          {/* ── Tables ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-            {/* 1. Campanhas */}
-            <Card title="Campanhas" icon="campaign" accent={GOLD}
-              subtitle="Clique para filtrar conjuntos e anúncios · UTM: utm_campaign"
-              chipText={!loading && data ? `${data.campaigns.length} campanhas` : undefined}>
-              <DataTable rows={data?.campaigns || []} loading={loading} cols={COLS}
-                accent={GOLD} onRowClick={handleCampClick} selectedId={selCamp} />
-            </Card>
+            <VendasTable
+              label="Campanhas"
+              rows={data?.campaigns || []}
+              loading={loading}
+              accent={GOLD}
+              onRowClick={handleCampClick}
+              selectedId={selCamp}
+            />
 
-            {/* 2. Conjuntos */}
-            <Card title="Conjuntos de Anúncios" icon="folder_special" accent={BLUE}
-              subtitle={selCamp
-                ? `Campanha: ${selCamp} · UTM: utm_medium`
-                : 'Clique para filtrar anúncios · UTM: utm_medium'}
-              chipText={!loading ? `${filteredAdsets.length} conjuntos` : undefined}>
-              <DataTable rows={filteredAdsets} loading={loading} cols={COLS}
-                accent={BLUE} onRowClick={handleAdsetClick} selectedId={selAdset} />
-            </Card>
+            <VendasTable
+              label="Conjuntos"
+              rows={filteredAdsets}
+              loading={loading}
+              accent={BLUE}
+              onRowClick={handleAdsetClick}
+              selectedId={selAdset}
+            />
 
-            {/* 3. Anúncios */}
-            <Card title="Anúncios" icon="play_circle" accent={PURPLE}
-              subtitle="UTM: utm_content (ID via utm_term para match exato)"
-              chipText={!loading ? `${filteredAds.length} anúncios` : undefined}>
-              <DataTable rows={filteredAds} loading={loading} cols={COLS + 1}
-                accent={PURPLE} showThumb />
-            </Card>
+            <VendasTable
+              label="Anúncios"
+              rows={filteredAds}
+              loading={loading}
+              accent={PURPLE}
+              showThumb
+            />
 
           </div>
         </main>

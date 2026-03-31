@@ -1,51 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getCachedAllSales } from '@/app/lib/salesCache';
 import { getWebhookSales, type WebhookSale } from '@/app/lib/webhookStore';
 import { parseMetrics, getCache, setCache } from '@/app/lib/metaApi';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const META_BASE = 'https://graph.facebook.com/v19.0';
+const META_BASE      = 'https://graph.facebook.com/v19.0';
 const INSIGHT_FIELDS = [
   'spend', 'impressions', 'clicks', 'outbound_clicks',
-  'ctr', 'cpc', 'actions', 'action_values', 'landing_page_view',
+  'actions', 'action_values', 'landing_page_view',
 ].join(',');
 
-/* ── String helpers ─────────────────────────────────────────────────────────── */
-function cleanStr(s: string) {
-  return (s || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]/g, '');
-}
-
-/**
- * Fuzzy match: does the UTM identifier reference this entity name?
- * Tries exact, contains, and then token overlap.
- */
-function utmMatchesName(utmVal: string, entityName: string): boolean {
-  if (!utmVal || !entityName) return false;
-
-  // 1. Direct / cleaned exact match
-  const cleanUtm    = cleanStr(utmVal);
-  const cleanEntity = cleanStr(entityName);
-  if (cleanUtm === cleanEntity)              return true;
-  if (cleanEntity.includes(cleanUtm))        return true;
-  if (cleanUtm.includes(cleanEntity))        return true;
-
-  // 2. Token overlap (words > 3 chars)
-  const tokensOf = (s: string) =>
-    s.toLowerCase()
-     .replace(/[_\-\[\]\(\)]/g, ' ')
-     .split(/\s+/)
-     .filter(t => t.length > 3);
-  const utmToks    = tokensOf(utmVal);
-  const entityToks = tokensOf(entityName);
-  return utmToks.some(t => entityToks.includes(t)) ||
-         entityToks.some(t => utmToks.includes(t));
-}
-
-/* ── Meta API helpers ────────────────────────────────────────────────────────── */
+/* ── Meta fetch helpers ─────────────────────────────────────────────────────── */
 async function metaFetch(url: string): Promise<any> {
   const r = await fetch(url);
   return r.json();
@@ -63,94 +29,104 @@ async function metaAll(baseUrl: string): Promise<any[]> {
   return items;
 }
 
-/* ── Sale helpers ────────────────────────────────────────────────────────────── */
-function isApproved(status: string) {
-  return ['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED'].includes(
-    (status || '').toUpperCase(),
-  );
+/* ── UTM → Meta entity match ────────────────────────────────────────────────── */
+/**
+ * Determines whether a UTM value (e.g. utm_campaign) references a specific Meta entity.
+ *
+ * Match priority:
+ *  1. Exact string match
+ *  2. Case-insensitive exact match
+ *  3. One string wholly contains the other (cleaned)
+ *
+ * We do NOT guess or infer — if the UTM value doesn't clearly match, return false.
+ */
+function utmMatchesEntity(utmValue: string | null, entityName: string): boolean {
+  if (!utmValue || !entityName) return false;
+  // Exact
+  if (utmValue === entityName) return true;
+  // Case-insensitive exact
+  const u = utmValue.toLowerCase().trim();
+  const e = entityName.toLowerCase().trim();
+  if (u === e) return true;
+  // Contains (both directions, after removing common separators)
+  const clean = (s: string) => s.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  const cu = clean(u);
+  const ce = clean(e);
+  if (cu === ce) return true;
+  if (ce.includes(cu) && cu.length > 4) return true;
+  if (cu.includes(ce) && ce.length > 4) return true;
+  return false;
 }
 
-/* ── Build entity row ────────────────────────────────────────────────────────── */
+/**
+ * Find webhook sales for a given Meta entity based on UTM field matching.
+ * Only uses actual UTM fields — never infers from product name or entity name.
+ */
+function webhookSalesForEntity(
+  sales: WebhookSale[],
+  utmField: 'utm_campaign' | 'utm_medium' | 'utm_content',
+  entityName: string,
+  entityId?: string,
+): WebhookSale[] {
+  return sales.filter(s => {
+    const utmVal = s[utmField];
+    // For ads: utm_term might be exact ad ID → highest confidence match
+    if (utmField === 'utm_content' && entityId && s.utm_term === entityId) return true;
+    return utmMatchesEntity(utmVal, entityName);
+  });
+}
+
+/* ── Row builder ────────────────────────────────────────────────────────────── */
+type EntityRow = {
+  id:          string | null;
+  name:        string;
+  thumbnail:   string | null;
+  // Meta metrics
+  spend:       number;
+  checkouts:   number;
+  pageviews:   number;
+  // Hotmart webhook metrics
+  compras:     number;   // webhook sales count (UTM-matched)
+  revenue:     number;   // webhook sales revenue (BRL)
+  // Calculated
+  cpa:              number;         // spend / compras
+  compraCheckout:   number;         // compras / checkouts (%)
+  checkoutPageview: number;         // checkouts / pageviews (%)
+  cpCheckout:       number;         // spend / checkouts
+  // Attribution
+  attributionStatuses: Record<string, number>; // {complete, partial, missing}
+};
+
 function buildRow(
-  entity: any,
-  insData: any,
-  webhookSales: WebhookSale[],   // UTM-matched
-  fallbackRevenue: number,       // name-matched from history API (fallback)
-  fallbackSales: number,
-) {
-  const m       = insData ? parseMetrics(insData) : null;
-  const spend   = m?.spend   ?? 0;
+  entity:    { id: string; name: string; thumbnail?: string | null },
+  insData:   any,
+  wSales:    WebhookSale[],
+): EntityRow {
+  const m         = insData ? parseMetrics(insData) : null;
+  const spend     = m?.spend        ?? 0;
+  const checkouts = m?.checkouts    ?? 0;
+  const pageviews = m?.landingPageViews ?? 0;
 
-  // Revenue from webhook (preferred) or fallback
-  const revenue = webhookSales.reduce((s, x) => s + (x.amountBrl || x.amount), 0) || fallbackRevenue;
-  const sales   = webhookSales.length || fallbackSales;
-  const isFromWebhook = webhookSales.length > 0;
+  const compras  = wSales.length;
+  const revenue  = wSales.reduce((s, x) => s + (x.amountBrl || x.amount || 0), 0);
 
-  const roas = spend > 0 ? revenue / spend : 0;
-  const cac  = sales > 0 ? spend   / sales : 0;
+  const cpa              = compras  > 0 ? spend     / compras  : 0;
+  const compraCheckout   = checkouts > 0 ? (compras  / checkouts) * 100 : 0;
+  const checkoutPageview = pageviews > 0 ? (checkouts / pageviews) * 100 : 0;
+  const cpCheckout       = checkouts > 0 ? spend     / checkouts  : 0;
+
+  // Attribution quality summary
+  const attrSummary = { complete: 0, partial: 0, missing: 0 };
+  wSales.forEach(s => { attrSummary[s.attribution_status]++; });
 
   return {
-    id:             entity?.id    || null,
-    name:           entity?.name  || '—',
-    status:         entity?.status || 'UNKNOWN',
-    objective:      entity?.objective || '',
-    dailyBudget:    entity?.dailyBudget ?? 0,
-    thumbnail:      entity?.thumbnail  || null,
-    // Meta funnel
-    spend,
-    impressions:     m?.impressions     ?? 0,
-    clicks:          m?.clicks          ?? 0,
-    outboundClicks:  m?.outboundClicks  ?? 0,
-    landingPageViews:m?.landingPageViews ?? 0,
-    checkouts:       m?.checkouts       ?? 0,
-    connectRate:     m?.connectRate     ?? 0,
-    checkoutRate:    m?.checkoutRate    ?? 0,
-    purchaseRate:    m?.purchaseRate    ?? 0,
-    ctr:             m?.ctr             ?? 0,
-    // Hotmart
-    revenue, sales, cac, roas,
-    isFromWebhook,   // flag so UI can show "via UTM" indicator
-    // Extra info
-    webhookSalesList: webhookSales.map(s => ({
-      transaction: s.transaction,
-      product: s.productName,
-      amount: s.amountBrl || s.amount,
-      src: s.src,
-      sck: s.sck,
-      utmCampaign: s.utmCampaign,
-      utmMedium: s.utmMedium,
-      utmContent: s.utmContent,
-    })),
-  };
-}
-
-/* ── Fallback: name-based Hotmart matching ───────────────────────────────────── */
-function buildHotmartFallbackMatcher(cleanSales: any[]) {
-  return function match(name: string): { revenue: number; sales: number } {
-    const cleanCampaign = cleanStr(name);
-    const campTokens = name.toLowerCase()
-      .replace(/[\[\]\-\_\(\)]/g, ' ')
-      .split(/\s+/)
-      .filter(t => t.length > 3)
-      .filter(t => !['vendas','leads','hybrid','paginas','campanha','oficial',
-        'atual','anuncio','geral','2025','2026','hotmart','meta','ads',
-        'auto','venda','frio','quente','v01','v02','v03','cbo','abo'].includes(t));
-
-    let rev = 0, qty = 0;
-    cleanSales.forEach((s: any) => {
-      const prodName  = s.product?.name || '';
-      const cleanProd = cleanStr(prodName);
-      const match = cleanProd.includes(cleanCampaign) ||
-                    cleanCampaign.includes(cleanProd) ||
-                    campTokens.some(tok => cleanProd.includes(cleanStr(tok)));
-      if (match) {
-        const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
-        const g   = s.purchase?.price?.converted_value || 0;
-        rev += net != null ? net : g;
-        qty += 1;
-      }
-    });
-    return { revenue: rev, sales: qty };
+    id:        entity.id   || null,
+    name:      entity.name || '—',
+    thumbnail: entity.thumbnail || null,
+    spend, checkouts, pageviews,
+    compras, revenue,
+    cpa, compraCheckout, checkoutPageview, cpCheckout,
+    attributionStatuses: attrSummary,
   };
 }
 
@@ -168,14 +144,14 @@ export async function GET(request: Request) {
   if (!token || !account)
     return NextResponse.json({ error: 'Missing META credentials' }, { status: 500 });
 
-  const ck = `vpo3|${dateFrom}|${dateTo}`;
+  const ck = `vpo4|${dateFrom}|${dateTo}`;
   if (!force) {
     const cached = getCache(ck);
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
   }
 
   try {
-    /* ── Time ranges ── */
+    /* ── Time range ── */
     const tr = dateFrom && dateTo
       ? `time_range=${encodeURIComponent(JSON.stringify({ since: dateFrom, until: dateTo }))}`
       : 'date_preset=last_30d';
@@ -186,78 +162,33 @@ export async function GET(request: Request) {
     const INS = `${INSIGHT_FIELDS}&limit=500&access_token=${token}`;
     const Q   = `limit=500&access_token=${token}`;
 
-    /* ── Parallel fetch: Meta + Hotmart history ── */
+    /* ── Parallel fetch: Meta insights + entity lists ── */
     const [
-      allSales,
       campIns, adsetIns, adIns,
       campList, adsetList, adList,
     ] = await Promise.all([
-      getCachedAllSales(),
       metaFetch(`${META_BASE}/${account}/insights?level=campaign&fields=campaign_id,campaign_name,${INS}&${tr}`),
       metaFetch(`${META_BASE}/${account}/insights?level=adset&fields=adset_id,adset_name,campaign_id,campaign_name,${INS}&${tr}`),
       metaFetch(`${META_BASE}/${account}/insights?level=ad&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,${INS}&${tr}`),
-      metaAll(`${META_BASE}/${account}/campaigns?fields=id,name,status,effective_status,objective,daily_budget&${Q}`),
-      metaAll(`${META_BASE}/${account}/adsets?fields=id,name,status,effective_status,campaign_id&${Q}`),
-      metaAll(`${META_BASE}/${account}/ads?fields=id,name,status,effective_status,adset_id,campaign_id,creative{thumbnail_url}&${Q}`),
+      metaAll(`${META_BASE}/${account}/campaigns?fields=id,name,status,effective_status,daily_budget&${Q}`),
+      metaAll(`${META_BASE}/${account}/adsets?fields=id,name,status,campaign_id&${Q}`),
+      metaAll(`${META_BASE}/${account}/ads?fields=id,name,adset_id,campaign_id,creative{thumbnail_url}&${Q}`),
     ]);
 
-    /* ── Filter Hotmart history sales to the period (for fallback matching) ── */
-    const uniqueTx = new Set<string>();
-    const historySales = (allSales as any[]).filter(s => {
-      const tx = s.purchase?.transaction;
-      if (!isApproved(s.purchase?.status) || !tx || uniqueTx.has(tx)) return false;
-      const ts = new Date(s.purchase?.approved_date || s.purchase?.order_date || 0).getTime();
-      if (ts < fromMs || ts > toMs) return false;
-      uniqueTx.add(tx);
-      return true;
-    });
-
-    /* ── Filter webhook sales to the period ── */
-    const allWebhookSales = getWebhookSales();
-    const webhookSalesInPeriod = allWebhookSales.filter(s => {
+    /* ── Webhook sales filtered to the period ── */
+    const allWebhook = getWebhookSales();
+    const webhookInPeriod = allWebhook.filter(s => {
       const ts = s.approvedDateMs || Date.parse(s.orderDate);
       return ts >= fromMs && ts <= toMs;
     });
 
-    /* ── Totals ── */
-    const totalHotmartSales   = historySales.length;
-    const totalHotmartRevenue = historySales.reduce((acc, s) => {
-      const net = s.purchase?.producer_net_brl ?? s.purchase?.producer_net;
-      return acc + (net != null ? net : (s.purchase?.price?.converted_value || s.purchase?.price?.value || 0));
-    }, 0);
+    /* ── Webhook stats ── */
+    const totalWebhookSales   = webhookInPeriod.length;
+    const totalWebhookRevenue = webhookInPeriod.reduce((s, x) => s + (x.amountBrl || x.amount || 0), 0);
 
-    const totalWebhookSales   = webhookSalesInPeriod.length;
-    const totalWebhookRevenue = webhookSalesInPeriod.reduce(
-      (acc, s) => acc + (s.amountBrl || s.amount), 0,
-    );
-    const webhookPct = totalHotmartSales > 0
-      ? (totalWebhookSales / totalHotmartSales) * 100
-      : 0;
-
-    /* ── Fallback (name-based) matcher ── */
-    const fallbackMatch = buildHotmartFallbackMatcher(historySales);
-
-    /* ── Index Meta entities ── */
-    const campEntity  = new Map<string, any>();
-    campList.forEach((c: any) => campEntity.set(c.id, {
-      id: c.id, name: c.name,
-      status: (c.effective_status || c.status || 'UNKNOWN').toUpperCase(),
-      objective: c.objective || '',
-      dailyBudget: c.daily_budget ? parseFloat(c.daily_budget) / 100 : 0,
-    }));
-
-    const adsetEntity = new Map<string, any>();
-    adsetList.forEach((a: any) => adsetEntity.set(a.id, {
-      id: a.id, name: a.name, campaignId: a.campaign_id,
-      status: (a.effective_status || a.status || 'UNKNOWN').toUpperCase(),
-    }));
-
-    const adEntity = new Map<string, any>();
-    adList.forEach((a: any) => adEntity.set(a.id, {
-      id: a.id, name: a.name, adsetId: a.adset_id, campaignId: a.campaign_id,
-      status: (a.effective_status || a.status || 'UNKNOWN').toUpperCase(),
-      thumbnail: a.creative?.thumbnail_url || null,
-    }));
+    /* Attribution breakdown */
+    const attrBreakdown = { complete: 0, partial: 0, missing: 0 };
+    webhookInPeriod.forEach(s => { attrBreakdown[s.attribution_status]++; });
 
     /* ── Index insights ── */
     const campInsMap  = new Map<string, any>();
@@ -267,72 +198,46 @@ export async function GET(request: Request) {
     const adInsMap    = new Map<string, any>();
     ((adIns.data    || []) as any[]).forEach((d: any) => adInsMap.set(d.ad_id, d));
 
-    /* ── Match webhook sales to entity ── */
-    function webhookSalesForCampaign(campName: string): WebhookSale[] {
-      return webhookSalesInPeriod.filter(s =>
-        utmMatchesName(s.utmCampaign || s.src, campName),
-      );
-    }
-    function webhookSalesForAdset(adsetName: string, campName?: string | null): WebhookSale[] {
-      return webhookSalesInPeriod.filter(s => {
-        const mediumMatch  = utmMatchesName(s.utmMedium || s.sck, adsetName);
-        const campaignMatch = !campName || utmMatchesName(s.utmCampaign || s.src, campName);
-        return mediumMatch && campaignMatch;
-      });
-    }
-    function webhookSalesForAd(adId: string, adName: string): WebhookSale[] {
-      return webhookSalesInPeriod.filter(s => {
-        // Prefer exact ad ID match (utm_term = {{ad.id}})
-        if (s.utmTerm && s.utmTerm === adId) return true;
-        // Fallback: content / xcod match
-        return utmMatchesName(s.utmContent || s.xcod, adName);
-      });
-    }
-
-    /* ── Build rows ── */
-    const campaigns = campList
+    /* ── Build campaign rows ── */
+    const campaigns: EntityRow[] = campList
       .map((c: any) => {
-        const e      = campEntity.get(c.id)!;
         const ins    = campInsMap.get(c.id);
-        const wSales = webhookSalesForCampaign(c.name || '');
-        const fb     = wSales.length === 0 ? fallbackMatch(c.name || '') : { revenue: 0, sales: 0 };
-        return buildRow(e, ins, wSales, fb.revenue, fb.sales);
+        const wSales = webhookSalesForEntity(webhookInPeriod, 'utm_campaign', c.name, c.id);
+        return buildRow({ id: c.id, name: c.name }, ins, wSales);
       })
-      .filter((r: any) => r.spend > 0 || r.sales > 0)
-      .sort((a: any, b: any) => b.spend - a.spend);
+      .filter((r: EntityRow) => r.spend > 0 || r.compras > 0)
+      .sort((a: EntityRow, b: EntityRow) => b.spend - a.spend);
 
-    const adsets = adsetList
+    /* ── Build adset rows ── */
+    const adsets: EntityRow[] = adsetList
       .map((a: any) => {
-        const e      = adsetEntity.get(a.id)!;
         const ins    = adsetInsMap.get(a.id);
-        const camp   = campEntity.get(a.campaign_id);
-        const wSales = webhookSalesForAdset(a.name || '', camp?.name);
-        const fb     = wSales.length === 0 ? fallbackMatch(a.name || '') : { revenue: 0, sales: 0 };
-        return buildRow(e, ins, wSales, fb.revenue, fb.sales);
+        const wSales = webhookSalesForEntity(webhookInPeriod, 'utm_medium', a.name, a.id);
+        return buildRow({ id: a.id, name: a.name }, ins, wSales);
       })
-      .filter((r: any) => r.spend > 0 || r.sales > 0)
-      .sort((a: any, b: any) => b.spend - a.spend);
+      .filter((r: EntityRow) => r.spend > 0 || r.compras > 0)
+      .sort((a: EntityRow, b: EntityRow) => b.spend - a.spend);
 
-    const ads = adList
+    /* ── Build ad rows ── */
+    const ads: EntityRow[] = adList
       .map((a: any) => {
-        const e      = adEntity.get(a.id)!;
         const ins    = adInsMap.get(a.id);
-        const wSales = webhookSalesForAd(a.id, a.name || '');
-        const fb     = { revenue: 0, sales: 0 }; // no fallback for ads (too risky to name-match)
-        return buildRow(e, ins, wSales, fb.revenue, fb.sales);
+        const thumb  = (a as any).creative?.thumbnail_url || null;
+        const wSales = webhookSalesForEntity(webhookInPeriod, 'utm_content', a.name, a.id);
+        return buildRow({ id: a.id, name: a.name, thumbnail: thumb }, ins, wSales);
       })
-      .filter((r: any) => r.spend > 0 || r.sales > 0)
-      .sort((a: any, b: any) => b.spend - a.spend);
+      .filter((r: EntityRow) => r.spend > 0 || r.compras > 0)
+      .sort((a: EntityRow, b: EntityRow) => b.spend - a.spend);
+
+    /* ── Totals ── */
+    const totalMetaSpend = campaigns.reduce((s: number, c: EntityRow) => s + c.spend, 0);
 
     const result = {
-      // Totals
-      totalHotmartSales,
-      totalHotmartRevenue,
-      totalMetaSpend: campaigns.reduce((s: number, c: any) => s + c.spend, 0),
-      // Webhook-specific metrics
+      // Summary
+      totalMetaSpend,
       totalWebhookSales,
       totalWebhookRevenue,
-      webhookPct,
+      attrBreakdown,
       // Tables
       campaigns, adsets, ads,
     };

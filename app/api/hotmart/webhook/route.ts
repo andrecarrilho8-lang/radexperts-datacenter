@@ -1,18 +1,24 @@
 import { NextResponse } from 'next/server';
-import { storeWebhookSale, parseHotmartOrigin, type WebhookSale } from '@/app/lib/webhookStore';
+import {
+  storeWebhookSale,
+  extractUTMsFromPayload,
+  calcAttributionStatus,
+  getWebhookSales,
+  type WebhookSale,
+} from '@/app/lib/webhookStore';
 import { invalidateSalesCache } from '@/app/lib/salesCache';
 
 export const runtime = 'nodejs';
 
 /**
- * Hotmart Purchase Webhook v2.0.0
- * https://developers.hotmart.com/docs/pt-BR/2.0.0/webhook/purchase-webhook/
+ * POST /api/hotmart/webhook
  *
- * Events stored: PURCHASE_APPROVED, PURCHASE_COMPLETE, PURCHASE_CONFIRMED
- * Events ignored: PURCHASE_CANCELED, PURCHASE_REFUNDED, PURCHASE_CHARGEBACK,
- *                 PURCHASE_BILLET_PRINTED, PURCHASE_EXPIRED, PURCHASE_DELAYED, PURCHASE_PROTEST
+ * Receives Hotmart Purchase Webhook v2.0.0 events.
+ * Docs: https://developers.hotmart.com/docs/pt-BR/2.0.0/webhook/purchase-webhook/
  *
- * Security: X-Hotmart-Hottok header validated against HOTMART_HOTTOK env var.
+ * SECURITY: validates X-Hotmart-Hottok header.
+ * ATTRIBUTION: extracts utm_source, utm_campaign, utm_medium, utm_content, utm_term
+ *              via recursive payload search — trusts values exactly as received.
  */
 
 const APPROVED_EVENTS = new Set([
@@ -23,124 +29,185 @@ const APPROVED_EVENTS = new Set([
 
 export async function POST(request: Request) {
   /* ── Security ── */
-  const hottok = process.env.HOTMART_HOTTOK;
+  const hottok       = process.env.HOTMART_HOTTOK;
   const hottokHeader = request.headers.get('x-hotmart-hottok');
 
   if (hottok && hottokHeader !== hottok) {
-    console.warn('[Hotmart Webhook] Hottok inválido:', hottokHeader);
+    console.warn('[Hotmart Webhook] Hottok inválido recebido:', hottokHeader?.slice(0, 10));
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
+  /* ── Parse payload ── */
+  let rawBody: string;
   let body: any;
   try {
-    body = await request.json();
+    rawBody = await request.text();
+    body    = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
 
-  console.log('[Hotmart Webhook] Evento recebido:', body.event, '| ID:', body.id);
+  const event   = (body.event || '').toUpperCase();
+  const eventId = body.id || `${Date.now()}`;
+
+  console.log(`[Hotmart Webhook] Recebido: event=${event} id=${eventId}`);
 
   /* ── Only process approved purchases ── */
-  const event = (body.event || '').toUpperCase();
   if (!APPROVED_EVENTS.has(event)) {
-    console.log(`[Hotmart Webhook] Evento ignorado: ${event}`);
+    console.log(`[Hotmart Webhook] Ignorado: ${event}`);
     return NextResponse.json({ success: true, ignored: event });
   }
 
-  /* ── Extract data from webhook v2 payload ── */
-  const d = body.data || {};
+  /* ── Extract data from v2 payload ── */
+  const d        = body.data     || {};
+  const product  = d.product     || {};
+  const buyer    = d.buyer       || {};
+  const purchase = d.purchase    || {};
 
-  // Product info
-  const product = d.product || {};
-  const productName = product.name || '';
-  const productId   = product.id   || 0;
+  // Identifiers
+  const sale_id = purchase.transaction || body.id || `${Date.now()}`;
 
-  // Buyer info
-  const buyer     = d.buyer || {};
-  const buyerEmail = buyer.email     || '';
-  const buyerName  = buyer.name      || buyer.first_name || '';
+  // Product
+  const product_id   = product.id   ?? 0;
+  const product_name = product.name || '';
 
-  // Purchase info
-  const purchase = d.purchase || {};
-  const transaction    = purchase.transaction || body.id || `${Date.now()}`;
-  const status         = (purchase.status || '').toUpperCase();
-  const orderDate      = purchase.order_date  || '';
-  const approvedDateMs = purchase.approved_date || Date.now();
+  // Buyer
+  const buyer_email = buyer.email      || '';
+  const buyer_name  = buyer.name       || buyer.first_name || '';
 
-  // Price (purchase.full_price = total paid by buyer incl. fees)
+  // Financial — purchase.full_price = total paid by buyer incl. fees
   const fullPrice = purchase.full_price || purchase.price || {};
   const amount    = typeof fullPrice.value === 'number'
     ? fullPrice.value
-    : parseFloat(String(fullPrice.value || '0'));
+    : parseFloat(String(fullPrice.value || '0')) || 0;
   const currency  = fullPrice.currency_value || 'BRL';
 
-  // BRL amount — use producer net if available, else full price
-  // producer_net_brl is a custom field sometimes added; fallback to raw amount
-  const amountBrl: number = (purchase as any).producer_net_brl
-    ?? (purchase as any).producer_net
-    ?? (currency === 'BRL' ? amount : 0);
+  // Best-effort BRL amount (producer net preferred)
+  const amountBrl: number =
+    (purchase as any).producer_net_brl ??
+    (purchase as any).producer_net ??
+    (currency === 'BRL' ? amount : 0);
 
-  /* ── UTM / Origin data ── */
-  const origin = purchase.origin || {};
-  const utmFields = parseHotmartOrigin(origin);
+  // Timestamps
+  const approvedDateMs = purchase.approved_date
+    ? (typeof purchase.approved_date === 'number' ? purchase.approved_date : Date.parse(purchase.approved_date))
+    : Date.now();
+  const orderDate = purchase.order_date || '';
 
-  /* ── Validate transaction ── */
-  if (!transaction || transaction === 'undefined') {
-    console.warn('[Hotmart Webhook] Transação sem ID, ignorando');
-    return NextResponse.json({ success: true, ignored: 'no_transaction' });
-  }
+  /* ── UTM extraction (trusts payload values exactly as received) ── */
+  const utms = extractUTMsFromPayload(body);
 
-  /* ── Build and store sale record ── */
+  const attribution_status = calcAttributionStatus(
+    utms.utm_source,
+    utms.utm_campaign,
+    utms.utm_medium,
+    utms.utm_content,
+    utms.utm_term,
+  );
+
+  /* ── Build sale record ── */
   const sale: WebhookSale = {
-    transaction,
+    // Identifiers
+    sale_id,
     event,
-    productName,
-    productId,
-    buyerEmail,
-    buyerName,
+    receivedAt: Date.now(),
+
+    // Product
+    product_id,
+    product_name,
+
+    // Buyer
+    buyer_email,
+    buyer_name,
+
+    // Financial
     amount,
     amountBrl,
     currency,
-    approvedDateMs: typeof approvedDateMs === 'number' ? approvedDateMs : Date.parse(approvedDateMs),
+
+    // Timestamps
+    approvedDateMs,
     orderDate,
-    ...utmFields,
+
+    // Raw Hotmart origin fields
+    raw_src:  utms.raw_src,
+    raw_sck:  utms.raw_sck,
+    raw_xcod: utms.raw_xcod,
+
+    // UTM fields (exactly as found in payload, no transformation)
+    utm_source:   utms.utm_source,
+    utm_campaign: utms.utm_campaign,
+    utm_medium:   utms.utm_medium,
+    utm_content:  utms.utm_content,
+    utm_term:     utms.utm_term,
+
+    // Attribution quality
+    attribution_status,
+
+    // Dashboard-facing normalised fields
+    origem:               utms.utm_source,
+    campanha:             utms.utm_campaign,
+    conjunto_de_anuncios: utms.utm_medium,
+    anuncio:              utms.utm_content,
+
+    // Full raw payload for auditability
+    raw_payload: body,
   };
 
   storeWebhookSale(sale);
-
-  // Invalidate sales cache so the dashboard refreshes
   invalidateSalesCache();
 
   console.log(
-    `[Hotmart Webhook] Armazenado: ${transaction} | ${productName} | R$${amountBrl.toFixed(2)}` +
-    ` | src="${utmFields.src}" sck="${utmFields.sck}" xcod="${utmFields.xcod}"` +
-    ` | campaign="${utmFields.utmCampaign}" medium="${utmFields.utmMedium}" content="${utmFields.utmContent}"`,
+    `[Hotmart Webhook] Armazenado: ${sale_id} | ${product_name} | R$${amountBrl.toFixed(2)}` +
+    ` | attribution=${attribution_status}` +
+    ` | utm_campaign="${utms.utm_campaign}" utm_medium="${utms.utm_medium}"` +
+    ` | raw_src="${utms.raw_src}" raw_sck="${utms.raw_sck}"`,
   );
 
   return NextResponse.json({
-    success: true,
-    transaction,
+    success:            true,
+    sale_id,
     event,
-    utmCampaign: utmFields.utmCampaign,
-    utmMedium:   utmFields.utmMedium,
-    utmContent:  utmFields.utmContent,
+    attribution_status,
+    utm_source:         utms.utm_source,
+    utm_campaign:       utms.utm_campaign,
+    utm_medium:         utms.utm_medium,
+    utm_content:        utms.utm_content,
+    utm_term:           utms.utm_term,
   });
 }
 
 /**
- * GET — Debug endpoint: list all stored webhook sales.
- * Only available in development or when ?key=HOTMART_HOTTOK is provided.
+ * GET /api/hotmart/webhook?key=HOTTOK
+ * Debug: list all stored webhook sales (requires hottok as query param).
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const key = searchParams.get('key');
+  const key    = searchParams.get('key');
   const hottok = process.env.HOTMART_HOTTOK;
 
   if (hottok && key !== hottok) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
-  const { getWebhookSales } = await import('@/app/lib/webhookStore');
   const sales = getWebhookSales();
-  return NextResponse.json({ count: sales.length, sales });
+  return NextResponse.json({
+    count: sales.length,
+    sales: sales.map(s => ({
+      sale_id:            s.sale_id,
+      event:              s.event,
+      receivedAt:         new Date(s.receivedAt).toISOString(),
+      product_name:       s.product_name,
+      amountBrl:          s.amountBrl,
+      attribution_status: s.attribution_status,
+      utm_source:         s.utm_source,
+      utm_campaign:       s.utm_campaign,
+      utm_medium:         s.utm_medium,
+      utm_content:        s.utm_content,
+      utm_term:           s.utm_term,
+      raw_src:            s.raw_src,
+      raw_sck:            s.raw_sck,
+      raw_xcod:           s.raw_xcod,
+    })),
+  });
 }
