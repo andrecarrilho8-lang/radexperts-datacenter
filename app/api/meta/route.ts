@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     };
 
     const campaignParams = new URLSearchParams({
-      fields: 'id,name,status,effective_status,created_time,objective',
+      fields: 'id,name,status,effective_status,created_time,objective,daily_budget,lifetime_budget',
       limit: '1000',
       access_token: accessToken!,
     });
@@ -216,6 +216,10 @@ export async function GET(request: Request) {
         status:      c.effective_status || c.status,
         createdTime: c.created_time,
         objective:   mapObjective(c.objective || ''),
+        // daily_budget from Meta API is in account currency minor units (cents)
+        // 0 means not set (campaign uses adset budgets or lifetime budget)
+        dailyBudget: c.daily_budget ? parseFloat(c.daily_budget) / 100 : 0,
+        lifetimeBudget: c.lifetime_budget ? parseFloat(c.lifetime_budget) / 100 : 0,
         ...metrics,
         hotmartRevenue,
         hotmartGrossBRL,

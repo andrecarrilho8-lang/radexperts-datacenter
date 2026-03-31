@@ -54,9 +54,16 @@ function SpendCell({ camp, ctx }: { camp: any, ctx: any }) {
         <span className="text-[10px] uppercase font-bold tracking-widest" style={{ color: SILVER }}>Resumo no Período</span>
       </div>
       <div className="flex flex-col gap-3">
-        <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>INVESTIMENTO DIÁRIO MÉDIO:</span><span className="text-xs font-black text-white">{R(avgSpend)}</span></div>
-        {isVendas && <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>MÉDIA VENDAS DIÁRIAS:</span><span className="text-xs font-black text-white">{N(avgSales)}</span></div>}
-        {isLeads && <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>MÉDIA LEADS DIÁRIOS:</span><span className="text-xs font-black text-white">{N(avgLeads)}</span></div>}
+        {camp.dailyBudget > 0 && (
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>INVESTIMENTO DIÁRIO:</span>
+            <span className="text-xs font-black text-white">{R(camp.dailyBudget)}</span>
+          </div>
+        )}
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: SILVER }}>INVESTIMENTO MÉDIO:</span>
+          <span className="text-xs font-black text-white">{R(avgSpend)}</span>
+        </div>
       </div>
     </div>
   ) : null;
