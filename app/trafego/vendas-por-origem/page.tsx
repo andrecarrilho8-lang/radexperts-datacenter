@@ -29,14 +29,19 @@ type EntityRow = {
   compraCheckout:   number;
   checkoutPageview: number;
   cpCheckout:       number;
-  attributionStatuses: { complete: number; partial: number; missing: number };
+  webhookSales:     number;
+  apiSales:         number;
+  missingSales:     number;
 };
 
 type Data = {
   totalMetaSpend:      number;
   totalWebhookSales:   number;
+  totalApiSales:       number;
   totalWebhookRevenue: number;
+  totalApiRevenue:     number;
   attrBreakdown:       { complete: number; partial: number; missing: number };
+  apiAttributionNote:  string;
   campaigns: EntityRow[];
   adsets:    EntityRow[];
   ads:       EntityRow[];
@@ -255,7 +260,7 @@ function VendasTable({
                         </td>
                       )}
 
-                      {/* Name */}
+                      {/* Name + source badges */}
                       <td style={{ padding: '10px 12px', maxWidth: 280 }}>
                         <span style={{
                           display: 'block',
@@ -264,12 +269,18 @@ function VendasTable({
                         }}>
                           {row.name}
                         </span>
-                        {row.compras > 0 && (
-                          <span style={{ fontSize: 9, color: TEAL, fontWeight: 800, display: 'block', marginTop: 2 }}>
-                            {row.attributionStatuses?.complete > 0 && '✓ UTM completo'}
-                            {row.attributionStatuses?.partial  > 0 && row.attributionStatuses?.complete === 0 && '~ UTM parcial'}
-                          </span>
-                        )}
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
+                          {(row.webhookSales ?? 0) > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 800, background: `${TEAL}22`, border: `1px solid ${TEAL}44`, color: TEAL, borderRadius: 99, padding: '1px 6px' }}>
+                              ⚡ WEBHOOK{(row.webhookSales ?? 0) > 1 ? ` ×${row.webhookSales}` : ''}
+                            </span>
+                          )}
+                          {(row.apiSales ?? 0) > 0 && (
+                            <span style={{ fontSize: 9, fontWeight: 800, background: `${BLUE}22`, border: `1px solid ${BLUE}44`, color: BLUE, borderRadius: 99, padding: '1px 6px' }}>
+                              📡 API{(row.apiSales ?? 0) > 1 ? ` ×${row.apiSales}` : ''}
+                            </span>
+                          )}
+                        </span>
                       </td>
 
                       {/* CPA */}
@@ -392,43 +403,54 @@ function Stat({ label, value, sub, color }: { label: string; value: string; sub?
 
 /* ── Webhook banner ───────────────────────────────────────────────────────── */
 function WebhookBanner({ data }: { data: Data }) {
-  const { totalWebhookSales, attrBreakdown } = data;
-  const hasData = totalWebhookSales > 0;
+  const { totalWebhookSales, totalApiSales, attrBreakdown, apiAttributionNote } = data;
+  const hasData = totalWebhookSales > 0 || totalApiSales > 0;
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 14,
-      padding: '12px 18px', borderRadius: 16, marginBottom: 24,
-      background: hasData
-        ? 'linear-gradient(90deg, rgba(45,212,191,0.09) 0%, transparent 100%)'
-        : 'rgba(255,255,255,0.025)',
-      border: `1px solid ${hasData ? 'rgba(45,212,191,0.22)' : 'rgba(255,255,255,0.07)'}`,
-    }}>
-      <span className="material-symbols-outlined" style={{ color: hasData ? TEAL : SILVER, fontSize: 20 }}>
-        {hasData ? 'track_changes' : 'wifi_tethering_off'}
-      </span>
-      <div style={{ flex: 1 }}>
-        {hasData ? (
-          <span style={{ fontSize: 13, color: '#e8ecf0', fontWeight: 700 }}>
-            <strong style={{ color: TEAL }}>{totalWebhookSales} venda{totalWebhookSales !== 1 ? 's' : ''}</strong>
-            {' '}capturadas via webhook no período ·{' '}
-            <span style={{ color: GREEN }}>{attrBreakdown.complete} completa{attrBreakdown.complete !== 1 ? 's' : ''}</span>
-            {attrBreakdown.partial > 0 && <span style={{ color: GOLD }}> · {attrBreakdown.partial} parcial{attrBreakdown.partial !== 1 ? 's' : ''}</span>}
-            {attrBreakdown.missing > 0 && <span style={{ color: RED }}> · {attrBreakdown.missing} sem UTM</span>}
-          </span>
-        ) : (
-          <span style={{ fontSize: 12, color: SILVER, fontWeight: 600 }}>
-            Nenhuma venda capturada via webhook ainda.{' '}
-            Configure o webhook no painel Hotmart apontando para{' '}
-            <code style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>
-              /api/hotmart/webhook
-            </code>
-            {' '}e adicione UTMs (<code style={{ fontSize: 11, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>utm_campaign</code>,{' '}
-            <code style={{ fontSize: 11, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>utm_medium</code>,{' '}
-            <code style={{ fontSize: 11, padding: '1px 4px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>utm_content</code>) nos seus links.
-          </span>
-        )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+      {/* Main banner */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        padding: '12px 18px', borderRadius: 16,
+        background: hasData
+          ? 'linear-gradient(90deg, rgba(45,212,191,0.09) 0%, transparent 100%)'
+          : 'rgba(255,255,255,0.025)',
+        border: `1px solid ${hasData ? 'rgba(45,212,191,0.22)' : 'rgba(255,255,255,0.07)'}`,
+      }}>
+        <span className="material-symbols-outlined" style={{ color: hasData ? TEAL : SILVER, fontSize: 20 }}>
+          {hasData ? 'track_changes' : 'wifi_tethering_off'}
+        </span>
+        <div style={{ flex: 1 }}>
+          {hasData ? (
+            <span style={{ fontSize: 13, color: '#e8ecf0', fontWeight: 700 }}>
+              {totalWebhookSales > 0 && <><strong style={{ color: TEAL }}>⚡ {totalWebhookSales} webhook</strong>{' (tempo real) '}</>}
+              {totalApiSales     > 0 && <><strong style={{ color: BLUE }}>📡 {totalApiSales} histórico</strong>{' (API) '}</>}
+              {'capturadas no período · '}
+              <span style={{ color: GREEN }}>{attrBreakdown.complete} completa{attrBreakdown.complete !== 1 ? 's' : ''}</span>
+              {attrBreakdown.partial > 0  && <span style={{ color: GOLD }}> · {attrBreakdown.partial} parcial{attrBreakdown.partial !== 1 ? 's' : ''}</span>}
+              {attrBreakdown.missing > 0  && <span style={{ color: RED }}> · {attrBreakdown.missing} sem UTM</span>}
+            </span>
+          ) : (
+            <span style={{ fontSize: 12, color: SILVER, fontWeight: 600 }}>
+              Nenhuma venda capturada ainda. Configure o webhook Hotmart apontando para{' '}
+              <code style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.07)', fontFamily: 'monospace' }}>
+                /api/hotmart/webhook
+              </code>
+            </span>
+          )}
+        </div>
       </div>
+      {/* API note */}
+      {apiAttributionNote && (
+        <div style={{
+          padding: '8px 14px', borderRadius: 12, fontSize: 10, fontWeight: 700,
+          background: `${BLUE}08`, border: `1px solid ${BLUE}18`, color: SILVER,
+          display: 'flex', gap: 8, alignItems: 'center',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 13, color: BLUE }}>info</span>
+          <span>{apiAttributionNote}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -529,9 +551,10 @@ export default function VendasPorOrigemPage() {
             {/* Hero stats */}
             {!loading && data && (
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <Stat label="Total Investido"    value={fmtR(data.totalMetaSpend)}      sub="Meta Ads no período"         color={BLUE} />
-                <Stat label="Vendas via Webhook" value={String(data.totalWebhookSales)} sub="compras parametrizadas"     color={TEAL} />
-                <Stat label="Receita via UTM"    value={fmtR(data.totalWebhookRevenue)} sub="receita atribuída"           color={GOLD} />
+                <Stat label="Total Investido"    value={fmtR(data.totalMetaSpend)}      sub="Meta Ads no período"      color={BLUE} />
+                <Stat label="Webhook (Tempo Real)" value={String(data.totalWebhookSales)} sub={`R$ ${fmt(data.totalWebhookRevenue)} receita`} color={TEAL} />
+                <Stat label="Histórico (API)"    value={String(data.totalApiSales)}     sub={`R$ ${fmt(data.totalApiRevenue)} receita`}   color={BLUE} />
+                <Stat label="Atribuição Completa" value={`${data.attrBreakdown.complete}`} sub="todas 5 UTMs presentes" color={GREEN} />
               </div>
             )}
           </div>

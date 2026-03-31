@@ -111,6 +111,7 @@ export async function POST(request: Request) {
     sale_id,
     event,
     receivedAt: Date.now(),
+    source: 'webhook',
 
     // Product
     product_id,

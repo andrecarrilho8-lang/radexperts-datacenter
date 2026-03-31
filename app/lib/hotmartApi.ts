@@ -272,3 +272,121 @@ export function parseHotmartMonthly(sales: any[]) {
   });
   return monthly;
 }
+
+// ── Historical Attribution Fetch ─────────────────────────────────────────────
+/**
+ * FLOW 2 — HISTORICAL SALES ATTRIBUTION
+ *
+ * Fetches approved Hotmart sales for a period and extracts whatever tracking/UTM
+ * data is available via the History API.
+ *
+ * Hotmart History API exposes: purchase.tracking.{source_sck, source, xcod, ...}
+ * These fields are Hotmart's native tracking codes and may map to UTMs when the
+ * user configures their links with utm_* params.
+ *
+ * EXPLICIT STATEMENT (per business rules):
+ *   The Hotmart public Sales History API does NOT expose full utm_* parameters.
+ *   It exposes a `purchase.tracking` object with partial tracking data only.
+ *   If tracking is absent → attribution_status = "missing".
+ *
+ * Returns structured sales with source = "api" for reconciliation.
+ */
+export async function fetchSalesForAttribution(
+  startDate: string,
+  endDate:   string,
+): Promise<import('./webhookStore').WebhookSale[]> {
+  const CACHE_KEY = `hotmart_attr_v1|${startDate}|${endDate}`;
+  const CACHE_TTL = 30 * 60 * 1000; // 30 min
+
+  const cached = getCache(CACHE_KEY);
+  if (cached && cached.expires_at > Date.now()) return cached.data;
+
+  const APPROVED = new Set(['APPROVED', 'COMPLETE', 'CONFIRMED', 'PRODUCER_CONFIRMED']);
+  const rawSales = await fetchHotmartSales(startDate, endDate);
+
+  // Lazy-import to avoid circular dep
+  const { calcAttributionStatus } = await import('./webhookStore');
+
+  function parseTrackingField(val: string | null | undefined): Record<string, string | null> {
+    if (!val) return {};
+    if (val.includes('utm_')) {
+      try {
+        const p = new URLSearchParams(decodeURIComponent(val));
+        return {
+          utm_source:   p.get('utm_source')   || null,
+          utm_campaign: p.get('utm_campaign') || null,
+          utm_medium:   p.get('utm_medium')   || null,
+          utm_content:  p.get('utm_content')  || null,
+          utm_term:     p.get('utm_term')     || null,
+        };
+      } catch { return {}; }
+    }
+    return {};
+  }
+
+  const result: import('./webhookStore').WebhookSale[] = [];
+
+  for (const item of rawSales) {
+    const purchase = item.purchase || {};
+    if (!APPROVED.has(purchase.status || '')) continue;
+
+    const product = item.product || {};
+    const buyer   = item.buyer   || {};
+
+    // Hotmart History API tracking fields
+    const tracking = purchase.tracking || {};
+    const raw_src  = (tracking.source      || tracking.src   || '').toString().trim();
+    const raw_sck  = (tracking.source_sck  || tracking.sck   || '').toString().trim();
+    const raw_xcod = (tracking.xcod        || tracking.source_xcod || '').toString().trim();
+
+    // Try to parse UTMs from tracking fields
+    const srcParsed  = parseTrackingField(raw_src);
+    const sckParsed  = parseTrackingField(raw_sck);
+
+    let utm_source   = srcParsed.utm_source   || sckParsed.utm_source   || null;
+    let utm_campaign = srcParsed.utm_campaign || sckParsed.utm_campaign || (!raw_src.includes('=')  && raw_src  ? raw_src  : null) || null;
+    let utm_medium   = srcParsed.utm_medium   || sckParsed.utm_medium   || (!raw_sck.includes('=') && raw_sck  ? raw_sck  : null) || null;
+    let utm_content  = srcParsed.utm_content  || sckParsed.utm_content  || (!raw_xcod.includes('=') && raw_xcod ? raw_xcod : null) || null;
+    let utm_term     = srcParsed.utm_term     || sckParsed.utm_term     || null;
+
+    const attribution_status = calcAttributionStatus(utm_source, utm_campaign, utm_medium, utm_content, utm_term);
+
+    const amount   = purchase.price?.actual_value || purchase.price?.value || 0;
+    const currency = purchase.price?.currency_code || 'BRL';
+    const saleId   = purchase.transaction || `API_${Date.now()}`;
+
+    console.log(
+      `[HistAttr] ${saleId} | src="${raw_src}" sck="${raw_sck}" xcod="${raw_xcod}"` +
+      ` | status=${attribution_status}` +
+      ` | utm_campaign="${utm_campaign}" utm_medium="${utm_medium}"`,
+    );
+
+    result.push({
+      sale_id:      saleId,
+      event:        'PURCHASE_APPROVED',
+      receivedAt:   Date.now(),
+      source:       'api',
+      product_id:   product.id   ?? 0,
+      product_name: product.name || '',
+      buyer_email:  buyer.email  || '',
+      buyer_name:   buyer.name   || '',
+      amount,
+      amountBrl:    currency === 'BRL' ? amount : 0,
+      currency,
+      approvedDateMs: purchase.approved_date || purchase.order_date || Date.now(),
+      orderDate:    new Date(purchase.order_date || purchase.approved_date || Date.now()).toISOString(),
+      raw_src, raw_sck, raw_xcod,
+      utm_source,   utm_campaign, utm_medium, utm_content, utm_term,
+      attribution_status,
+      origem:               utm_source,
+      campanha:             utm_campaign,
+      conjunto_de_anuncios: utm_medium,
+      anuncio:              utm_content,
+      raw_payload: item,
+    });
+  }
+
+  setCache(CACHE_KEY, { data: result, expires_at: Date.now() + CACHE_TTL });
+  return result;
+}
+

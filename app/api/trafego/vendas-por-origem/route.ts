@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getWebhookSales, type WebhookSale } from '@/app/lib/webhookStore';
+import { getWebhookSales, storeHistoricalSales, type WebhookSale } from '@/app/lib/webhookStore';
+import { fetchSalesForAttribution } from '@/app/lib/hotmartApi';
 import { parseMetrics, getCache, setCache } from '@/app/lib/metaApi';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,6 @@ async function metaFetch(url: string): Promise<any> {
   const r = await fetch(url);
   return r.json();
 }
-
 async function metaAll(baseUrl: string): Promise<any[]> {
   let items: any[] = [];
   let url = baseUrl;
@@ -30,25 +30,12 @@ async function metaAll(baseUrl: string): Promise<any[]> {
 }
 
 /* ── UTM → Meta entity match ────────────────────────────────────────────────── */
-/**
- * Determines whether a UTM value (e.g. utm_campaign) references a specific Meta entity.
- *
- * Match priority:
- *  1. Exact string match
- *  2. Case-insensitive exact match
- *  3. One string wholly contains the other (cleaned)
- *
- * We do NOT guess or infer — if the UTM value doesn't clearly match, return false.
- */
 function utmMatchesEntity(utmValue: string | null, entityName: string): boolean {
   if (!utmValue || !entityName) return false;
-  // Exact
   if (utmValue === entityName) return true;
-  // Case-insensitive exact
   const u = utmValue.toLowerCase().trim();
   const e = entityName.toLowerCase().trim();
   if (u === e) return true;
-  // Contains (both directions, after removing common separators)
   const clean = (s: string) => s.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
   const cu = clean(u);
   const ce = clean(e);
@@ -58,10 +45,6 @@ function utmMatchesEntity(utmValue: string | null, entityName: string): boolean 
   return false;
 }
 
-/**
- * Find webhook sales for a given Meta entity based on UTM field matching.
- * Only uses actual UTM fields — never infers from product name or entity name.
- */
 function webhookSalesForEntity(
   sales: WebhookSale[],
   utmField: 'utm_campaign' | 'utm_medium' | 'utm_content',
@@ -70,7 +53,6 @@ function webhookSalesForEntity(
 ): WebhookSale[] {
   return sales.filter(s => {
     const utmVal = s[utmField];
-    // For ads: utm_term might be exact ad ID → highest confidence match
     if (utmField === 'utm_content' && entityId && s.utm_term === entityId) return true;
     return utmMatchesEntity(utmVal, entityName);
   });
@@ -81,26 +63,24 @@ type EntityRow = {
   id:          string | null;
   name:        string;
   thumbnail:   string | null;
-  // Meta metrics
   spend:       number;
   checkouts:   number;
   pageviews:   number;
-  // Hotmart webhook metrics
-  compras:     number;   // webhook sales count (UTM-matched)
-  revenue:     number;   // webhook sales revenue (BRL)
-  // Calculated
-  cpa:              number;         // spend / compras
-  compraCheckout:   number;         // compras / checkouts (%)
-  checkoutPageview: number;         // checkouts / pageviews (%)
-  cpCheckout:       number;         // spend / checkouts
-  // Attribution
-  attributionStatuses: Record<string, number>; // {complete, partial, missing}
+  compras:     number;
+  revenue:     number;
+  cpa:              number;
+  compraCheckout:   number;
+  checkoutPageview: number;
+  cpCheckout:       number;
+  webhookSales:     number;
+  apiSales:         number;
+  missingSales:     number;
 };
 
 function buildRow(
-  entity:    { id: string; name: string; thumbnail?: string | null },
-  insData:   any,
-  wSales:    WebhookSale[],
+  entity:  { id: string; name: string; thumbnail?: string | null },
+  insData: any,
+  wSales:  WebhookSale[],
 ): EntityRow {
   const m         = insData ? parseMetrics(insData) : null;
   const spend     = m?.spend        ?? 0;
@@ -110,23 +90,22 @@ function buildRow(
   const compras  = wSales.length;
   const revenue  = wSales.reduce((s, x) => s + (x.amountBrl || x.amount || 0), 0);
 
-  const cpa              = compras  > 0 ? spend     / compras  : 0;
+  by_source: {
+    var webhookSales = wSales.filter(s => s.source === 'webhook').length;
+    var apiSales     = wSales.filter(s => s.source === 'api').length;
+    var missingSales = wSales.filter(s => s.attribution_status === 'missing').length;
+  }
+
+  const cpa              = compras   > 0 ? spend     / compras   : 0;
   const compraCheckout   = checkouts > 0 ? (compras  / checkouts) * 100 : 0;
   const checkoutPageview = pageviews > 0 ? (checkouts / pageviews) * 100 : 0;
   const cpCheckout       = checkouts > 0 ? spend     / checkouts  : 0;
 
-  // Attribution quality summary
-  const attrSummary = { complete: 0, partial: 0, missing: 0 };
-  wSales.forEach(s => { attrSummary[s.attribution_status]++; });
-
   return {
-    id:        entity.id   || null,
-    name:      entity.name || '—',
-    thumbnail: entity.thumbnail || null,
-    spend, checkouts, pageviews,
-    compras, revenue,
+    id: entity.id || null, name: entity.name || '—', thumbnail: entity.thumbnail || null,
+    spend, checkouts, pageviews, compras, revenue,
     cpa, compraCheckout, checkoutPageview, cpCheckout,
-    attributionStatuses: attrSummary,
+    webhookSales, apiSales, missingSales,
   };
 }
 
@@ -135,8 +114,8 @@ function buildRow(
    ══════════════════════════════════════════════════════════════════════════════ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const dateFrom = searchParams.get('dateFrom');
-  const dateTo   = searchParams.get('dateTo');
+  const dateFrom = searchParams.get('dateFrom') || new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const dateTo   = searchParams.get('dateTo')   || new Date().toISOString().slice(0, 10);
   const force    = searchParams.get('force') === '1';
 
   const token   = process.env.META_ACCESS_TOKEN;
@@ -144,28 +123,24 @@ export async function GET(request: Request) {
   if (!token || !account)
     return NextResponse.json({ error: 'Missing META credentials' }, { status: 500 });
 
-  const ck = `vpo4|${dateFrom}|${dateTo}`;
+  const ck = `vpo5|${dateFrom}|${dateTo}`;
   if (!force) {
     const cached = getCache(ck);
     if (cached) return NextResponse.json({ ...cached, fromCache: true });
   }
 
   try {
-    /* ── Time range ── */
-    const tr = dateFrom && dateTo
-      ? `time_range=${encodeURIComponent(JSON.stringify({ since: dateFrom, until: dateTo }))}`
-      : 'date_preset=last_30d';
-
-    const fromMs = dateFrom ? new Date(dateFrom).getTime() : 0;
-    const toMs   = dateTo   ? new Date(`${dateTo}T23:59:59`).getTime() : Infinity;
-
+    const toMs   = new Date(`${dateTo}T23:59:59`).getTime();
+    const fromMs = new Date(dateFrom).getTime();
+    const tr = `time_range=${encodeURIComponent(JSON.stringify({ since: dateFrom, until: dateTo }))}`;
     const INS = `${INSIGHT_FIELDS}&limit=500&access_token=${token}`;
     const Q   = `limit=500&access_token=${token}`;
 
-    /* ── Parallel fetch: Meta insights + entity lists ── */
+    /* ── Parallel: Meta + Hotmart historical attribution ── */
     const [
       campIns, adsetIns, adIns,
       campList, adsetList, adList,
+      historicalSales,
     ] = await Promise.all([
       metaFetch(`${META_BASE}/${account}/insights?level=campaign&fields=campaign_id,campaign_name,${INS}&${tr}`),
       metaFetch(`${META_BASE}/${account}/insights?level=adset&fields=adset_id,adset_name,campaign_id,campaign_name,${INS}&${tr}`),
@@ -173,24 +148,42 @@ export async function GET(request: Request) {
       metaAll(`${META_BASE}/${account}/campaigns?fields=id,name,status,effective_status,daily_budget&${Q}`),
       metaAll(`${META_BASE}/${account}/adsets?fields=id,name,status,campaign_id&${Q}`),
       metaAll(`${META_BASE}/${account}/ads?fields=id,name,adset_id,campaign_id,creative{thumbnail_url}&${Q}`),
+      // FLOW 2: Historical Hotmart sales with tracking data
+      fetchSalesForAttribution(dateFrom, dateTo).catch(e => {
+        console.error('[vendas-por-origem] Historical fetch failed:', e.message);
+        return [] as WebhookSale[];
+      }),
     ]);
 
-    /* ── Webhook sales filtered to the period ── */
-    const allWebhook = getWebhookSales();
-    const webhookInPeriod = allWebhook.filter(s => {
+    /* ── FLOW 1: Webhook store (real-time, highest priority) ── */
+    const webhookSales = getWebhookSales().filter(s => {
       const ts = s.approvedDateMs || Date.parse(s.orderDate);
       return ts >= fromMs && ts <= toMs;
     });
 
-    /* ── Webhook stats ── */
-    const totalWebhookSales   = webhookInPeriod.length;
-    const totalWebhookRevenue = webhookInPeriod.reduce((s, x) => s + (x.amountBrl || x.amount || 0), 0);
+    /* ── RECONCILIATION: Merge historical into store (webhook data takes priority) ── */
+    // Filter historical to the period
+    const historicalInPeriod = historicalSales.filter(s => {
+      const ts = s.approvedDateMs || Date.parse(s.orderDate);
+      return ts >= fromMs && ts <= toMs;
+    });
+    storeHistoricalSales(historicalInPeriod);
 
-    /* Attribution breakdown */
+    /* ── Combined sales (post-reconciliation) ── */
+    const allSales = getWebhookSales().filter(s => {
+      const ts = s.approvedDateMs || Date.parse(s.orderDate);
+      return ts >= fromMs && ts <= toMs;
+    });
+
+    /* ── Stats ── */
+    const totalWebhookSales   = allSales.filter(s => s.source === 'webhook').length;
+    const totalApiSales       = allSales.filter(s => s.source === 'api').length;
+    const totalWebhookRevenue = allSales.filter(s => s.source === 'webhook').reduce((acc, s) => acc + (s.amountBrl || s.amount || 0), 0);
+    const totalApiRevenue     = allSales.filter(s => s.source === 'api').reduce((acc, s) => acc + (s.amountBrl || s.amount || 0), 0);
     const attrBreakdown = { complete: 0, partial: 0, missing: 0 };
-    webhookInPeriod.forEach(s => { attrBreakdown[s.attribution_status]++; });
+    allSales.forEach(s => { attrBreakdown[s.attribution_status]++; });
 
-    /* ── Index insights ── */
+    /* ── Index Meta insights ── */
     const campInsMap  = new Map<string, any>();
     ((campIns.data  || []) as any[]).forEach((d: any) => campInsMap.set(d.campaign_id, d));
     const adsetInsMap = new Map<string, any>();
@@ -198,47 +191,38 @@ export async function GET(request: Request) {
     const adInsMap    = new Map<string, any>();
     ((adIns.data    || []) as any[]).forEach((d: any) => adInsMap.set(d.ad_id, d));
 
-    /* ── Build campaign rows ── */
+    /* ── Build rows ── */
     const campaigns: EntityRow[] = campList
-      .map((c: any) => {
-        const ins    = campInsMap.get(c.id);
-        const wSales = webhookSalesForEntity(webhookInPeriod, 'utm_campaign', c.name, c.id);
-        return buildRow({ id: c.id, name: c.name }, ins, wSales);
-      })
+      .map((c: any) => buildRow({ id: c.id, name: c.name }, campInsMap.get(c.id), webhookSalesForEntity(allSales, 'utm_campaign', c.name, c.id)))
       .filter((r: EntityRow) => r.spend > 0 || r.compras > 0)
       .sort((a: EntityRow, b: EntityRow) => b.spend - a.spend);
 
-    /* ── Build adset rows ── */
     const adsets: EntityRow[] = adsetList
-      .map((a: any) => {
-        const ins    = adsetInsMap.get(a.id);
-        const wSales = webhookSalesForEntity(webhookInPeriod, 'utm_medium', a.name, a.id);
-        return buildRow({ id: a.id, name: a.name }, ins, wSales);
-      })
+      .map((a: any) => buildRow({ id: a.id, name: a.name }, adsetInsMap.get(a.id), webhookSalesForEntity(allSales, 'utm_medium', a.name, a.id)))
       .filter((r: EntityRow) => r.spend > 0 || r.compras > 0)
       .sort((a: EntityRow, b: EntityRow) => b.spend - a.spend);
 
-    /* ── Build ad rows ── */
     const ads: EntityRow[] = adList
       .map((a: any) => {
-        const ins    = adInsMap.get(a.id);
         const thumb  = (a as any).creative?.thumbnail_url || null;
-        const wSales = webhookSalesForEntity(webhookInPeriod, 'utm_content', a.name, a.id);
-        return buildRow({ id: a.id, name: a.name, thumbnail: thumb }, ins, wSales);
+        return buildRow({ id: a.id, name: a.name, thumbnail: thumb }, adInsMap.get(a.id), webhookSalesForEntity(allSales, 'utm_content', a.name, a.id));
       })
       .filter((r: EntityRow) => r.spend > 0 || r.compras > 0)
       .sort((a: EntityRow, b: EntityRow) => b.spend - a.spend);
 
-    /* ── Totals ── */
     const totalMetaSpend = campaigns.reduce((s: number, c: EntityRow) => s + c.spend, 0);
 
     const result = {
-      // Summary
       totalMetaSpend,
       totalWebhookSales,
+      totalApiSales,
       totalWebhookRevenue,
+      totalApiRevenue,
       attrBreakdown,
-      // Tables
+      // Explicit API limitation statement (per business rules)
+      apiAttributionNote: historicalInPeriod.length > 0
+        ? `Hotmart History API retornou ${historicalInPeriod.length} vendas com dados de tracking parciais (purchase.tracking). Campos utm_* completos disponíveis apenas via webhook.`
+        : 'Nenhuma venda histórica com tracking recuperada da API Hotmart no período.',
       campaigns, adsets, ads,
     };
 

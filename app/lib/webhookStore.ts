@@ -1,5 +1,6 @@
 /**
  * Persistent webhook store for Hotmart purchase events.
+ * Handles BOTH real-time webhook sales (flow 1) and historical API sales (flow 2).
  *
  * PERSISTENCE STRATEGY (in order of reliability):
  *  1. `global.__hotmartWebhookSales` — survives module re-imports within the same
@@ -29,6 +30,8 @@ export type WebhookSale = {
   sale_id:      string;
   event:        string;
   receivedAt:   number;
+  /** Where this sale record originated: webhook (real-time), api (historical backfill), report (manual) */
+  source:       'webhook' | 'api' | 'report';
   product_id:   string | number;
   product_name: string;
   buyer_email:  string;
@@ -91,6 +94,35 @@ function persist(): void {
 export function storeWebhookSale(sale: WebhookSale): void {
   STORE.set(sale.sale_id, sale);
   persist();
+}
+
+/**
+ * Store a batch of historical/API-sourced sales.
+ * RECONCILIATION: If a transaction already exists from webhook (more reliable),
+ * keep the webhook version unless the API version has MORE UTM fields.
+ */
+export function storeHistoricalSales(sales: WebhookSale[]): void {
+  let changed = false;
+  for (const sale of sales) {
+    const existing = STORE.get(sale.sale_id);
+    if (!existing) {
+      // New sale not in webhook store
+      STORE.set(sale.sale_id, sale);
+      changed = true;
+    } else if (existing.source === 'webhook') {
+      // Webhook data takes priority — do NOT overwrite
+      continue;
+    } else {
+      // Both are API-sourced: prefer the one with more UTM fields
+      const existingUtms = [existing.utm_source, existing.utm_campaign, existing.utm_medium, existing.utm_content, existing.utm_term].filter(Boolean).length;
+      const newUtms      = [sale.utm_source,     sale.utm_campaign,     sale.utm_medium,     sale.utm_content,     sale.utm_term    ].filter(Boolean).length;
+      if (newUtms > existingUtms) {
+        STORE.set(sale.sale_id, sale);
+        changed = true;
+      }
+    }
+  }
+  if (changed) persist();
 }
 
 export function getWebhookSales(): WebhookSale[] {
