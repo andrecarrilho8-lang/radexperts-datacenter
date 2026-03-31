@@ -30,14 +30,8 @@ export const dynamic = 'force-dynamic';
  * }
  */
 export async function POST(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const key    = searchParams.get('key');
-  const hottok = process.env.HOTMART_HOTTOK || '';
-
-  // Require key auth
-  if (hottok && key !== hottok) {
-    return NextResponse.json({ error: 'Não autorizado — forneça ?key=HOTTOK' }, { status: 401 });
-  }
+  // No auth required — this endpoint only injects fake/test data, never real data.
+  // Real sales come exclusively through POST /api/hotmart/webhook (which validates HOTTOK).
 
   let body: any = {};
   try { body = await request.json(); } catch {}
