@@ -155,7 +155,7 @@ export async function POST(request: Request) {
     raw_payload: body,
   };
 
-  storeWebhookSale(sale);
+  await storeWebhookSale(sale);
   invalidateSalesCache();
 
   console.log(
@@ -188,7 +188,7 @@ export async function GET(request: Request) {
   const key    = searchParams.get('key');
   const hottok = process.env.HOTMART_HOTTOK || '';
 
-  const sales = getWebhookSales();
+  const sales = await getWebhookSales();
 
   // Attribution breakdown (always public — no sensitive data)
   const attrBreakdown = { complete: 0, partial: 0, missing: 0 };
