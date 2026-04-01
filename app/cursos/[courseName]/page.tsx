@@ -719,12 +719,14 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
 }
 
 // ── Delete Confirm Modal ─────────────────────────────────────────────────────
-function DeleteConfirmModal({ name, onConfirm, onCancel, loading }: {
+function DeleteConfirmModal({ name, source, onConfirm, onCancel, loading }: {
   name: string;
+  source: 'manual' | 'hotmart';
   onConfirm: () => void;
   onCancel: () => void;
   loading: boolean;
 }) {
+  const isHotmart = source === 'hotmart';
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
@@ -736,22 +738,24 @@ function DeleteConfirmModal({ name, onConfirm, onCancel, loading }: {
         boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(239,68,68,0.1), 0 1px 0 rgba(255,255,255,0.05) inset',
         padding: 32,
       }}>
-        {/* Icon */}
         <div style={{ width: 52, height: 52, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', margin: '0 auto 20px' }}>
           <span className="material-symbols-outlined" style={{ color: '#f87171', fontSize: 26 }}>person_remove</span>
         </div>
-        {/* Text */}
         <h3 style={{ color: 'white', fontWeight: 900, fontSize: 17, textAlign: 'center', margin: '0 0 10px' }}>
-          Remover aluno do curso?
+          {isHotmart ? 'Ocultar aluno desta lista?' : 'Remover aluno do curso?'}
         </h3>
         <p style={{ color: SILVER, fontSize: 13, textAlign: 'center', lineHeight: 1.6, margin: '0 0 8px' }}>
-          <span style={{ color: 'white', fontWeight: 800 }}>{name}</span> será removido da lista de alunos manuais deste curso.
+          <span style={{ color: 'white', fontWeight: 800 }}>{name}</span>{' '}
+          {isHotmart
+            ? 'será ocultado desta lista. Vendas e acesso à plataforma não são afetados.'
+            : 'será removido permanentemente da lista de alunos manuais.'}
         </p>
         <p style={{ color: 'rgba(168,178,192,0.6)', fontSize: 11, textAlign: 'center', lineHeight: 1.5, margin: '0 0 26px' }}>
-          Isso não afeta dados da Hotmart, vendas, assinaturas ou acesso à plataforma.
+          {isHotmart
+            ? 'Esta ação não cancela a venda na Hotmart nem remove o acesso do aluno ao produto.'
+            : 'Isso não afeta dados da Hotmart, vendas, assinaturas ou acesso à plataforma.'}
         </p>
-        {/* Buttons */}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onCancel} disabled={loading}
             style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12, cursor: 'pointer',
@@ -764,9 +768,9 @@ function DeleteConfirmModal({ name, onConfirm, onCancel, loading }: {
               background: 'rgba(239,68,68,0.15)', border: '1.5px solid rgba(239,68,68,0.5)', color: '#f87171',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
-              {loading ? 'progress_activity' : 'delete'}
+              {loading ? 'progress_activity' : isHotmart ? 'visibility_off' : 'delete'}
             </span>
-            {loading ? 'Removendo...' : 'Sim, remover'}
+            {loading ? 'Processando...' : isHotmart ? 'Sim, ocultar' : 'Sim, remover'}
           </button>
         </div>
       </div>
@@ -783,8 +787,9 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
 
   const [students,       setStudents]       = useState<Student[]>([]);
   const [manualStudents,  setManualStudents]  = useState<ManualStudent[]>([]);
+  const [hiddenEmails,    setHiddenEmails]    = useState<Set<string>>(new Set());
   const [showAddModal,   setShowAddModal]   = useState(false);
-  const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string } | null>(null);
+  const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
   const [turmas,         setTurmas]         = useState<string[]>([]);
   const [loading,        setLoading]        = useState(true);
@@ -825,19 +830,23 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     Promise.all([
       fetch(`/api/cursos/${encodeURIComponent(decoded)}${p}`).then(r => r.json()),
       fetch(`/api/alunos/manual?course=${encodeURIComponent(decoded)}`).then(r => r.json()),
-    ]).then(([hotmartData, manualData]) => {
+      fetch(`/api/alunos/hide?course=${encodeURIComponent(decoded)}`).then(r => r.json()),
+    ]).then(([hotmartData, manualData, hideData]) => {
       setStudents(hotmartData.students || []);
       setTurmas(hotmartData.turmas || []);
       setManualStudents(manualData.students || []);
+      setHiddenEmails(new Set((hideData.hidden || []).map((e: string) => e.toLowerCase())));
       setLoading(false);
       setPage(0);
     }).catch(() => setLoading(false));
   }, [decoded, turmaFilter]);
 
-  // Merge Hotmart + manual students
+  // Merge Hotmart + manual students, filter hidden
   const allStudents: Student[] = [
     ...manualStudents.map(ms => manualToStudent(ms)),
-    ...students.map(s => ({ ...s, source: 'hotmart' as const })),
+    ...students
+      .filter(s => !hiddenEmails.has((s.email || '').toLowerCase()))
+      .map(s => ({ ...s, source: 'hotmart' as const })),
   ];
   const filtered = allStudents.filter(s => {
     if (statusFilter && getPayStatus(s) !== statusFilter) return false;
@@ -1054,20 +1063,23 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       })()}
                     </div>
                     <PaymentCell s={s} />
-                    {/* Delete action — only for manual students */}
+                    {/* Delete action — all students */}
                     <div className="flex items-center justify-center pt-0.5">
-                      {(s as any).source === 'manual' && (
-                        <button
-                          onClick={() => setDeleteTarget({ id: (s as any).manualId, name: s.name })}
-                          title="Remover aluno"
-                          style={{ background: 'none', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, width: 28, height: 28,
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: 'rgba(239,68,68,0.5)', transition: 'all 0.15s' }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.5)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(239,68,68,0.5)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setDeleteTarget({
+                          id:     (s as any).manualId || '',
+                          name:   s.name,
+                          email:  s.email,
+                          source: ((s as any).source || 'hotmart') as 'manual' | 'hotmart',
+                        })}
+                        title="Remover da lista"
+                        style={{ background: 'none', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, width: 28, height: 28,
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'rgba(239,68,68,0.5)', transition: 'all 0.15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.5)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(239,68,68,0.5)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -1118,13 +1130,25 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       {deleteTarget && typeof window !== 'undefined' && (
         <DeleteConfirmModal
           name={deleteTarget.name}
+          source={deleteTarget.source}
           loading={deleting}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => {
             setDeleting(true);
             try {
-              await fetch(`/api/alunos/manual/${deleteTarget.id}`, { method: 'DELETE' });
-              setManualStudents(prev => prev.filter(ms => ms.id !== deleteTarget.id));
+              if (deleteTarget.source === 'manual') {
+                // Truly delete from DB
+                await fetch(`/api/alunos/manual/${deleteTarget.id}`, { method: 'DELETE' });
+                setManualStudents(prev => prev.filter(ms => ms.id !== deleteTarget.id));
+              } else {
+                // Hide Hotmart student from this course
+                await fetch('/api/alunos/hide', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ course_name: decoded, email: deleteTarget.email }),
+                });
+                setHiddenEmails(prev => new Set([...prev, deleteTarget.email.toLowerCase()]));
+              }
               setDeleteTarget(null);
             } finally { setDeleting(false); }
           }}

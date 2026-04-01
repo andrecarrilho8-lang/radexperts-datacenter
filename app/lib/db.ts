@@ -37,4 +37,13 @@ export async function ensureSchema() {
       updated_at  BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint
     )
   `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS hidden_students (
+      id          TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      course_name TEXT    NOT NULL,
+      email       TEXT    NOT NULL,
+      created_at  BIGINT  NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint,
+      UNIQUE (course_name, email)
+    )
+  `;
 }
