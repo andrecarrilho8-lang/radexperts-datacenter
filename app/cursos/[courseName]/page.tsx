@@ -388,7 +388,7 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top}.ftr{margin-t
 }
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
-const GRID = '120px 1fr 1fr 140px 160px 260px 36px';
+const GRID = '120px 1fr 1fr 140px 160px 260px 64px';
 const COLS = [
   { key: 'entryDate', label: 'Entrada',       sortable: true  },
   { key: 'name',      label: 'Nome',           sortable: false },
@@ -718,6 +718,132 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   );
 }
 
+// ── Edit Student Modal ────────────────────────────────────────────────────────
+function EditStudentModal({ student, onClose, onSaved }: {
+  student: { name: string; email: string; phone: string; document: string; manualId?: string };
+  onClose: () => void;
+  onSaved: (updated: { phone: string; name: string; document: string }) => void;
+}) {
+  const [phone,    setPhone]    = React.useState(student.phone    || '');
+  const [name,     setName]     = React.useState(student.name     || '');
+  const [docNum,   setDocNum]   = React.useState(student.document || '');
+  const [saving,   setSaving]   = React.useState(false);
+  const [error,    setError]    = React.useState('');
+
+  const handleSave = async () => {
+    setSaving(true); setError('');
+    try {
+      const res = await fetch('/api/alunos/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:    student.email,
+          phone:    phone.trim()    || null,
+          name:     name.trim()     || null,
+          document: docNum.trim()   || null,
+          manualId: student.manualId || null,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
+      onSaved({ phone: phone.trim(), name: name.trim(), document: docNum.trim() });
+      onClose();
+    } catch (e: any) {
+      setError(e.message);
+    } finally { setSaving(false); }
+  };
+
+  const Field = ({ label, value, onChange, placeholder, icon }: {
+    label: string; value: string; onChange: (v: string) => void;
+    placeholder?: string; icon: string;
+  }) => (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+        textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <span className="material-symbols-outlined" style={{
+          position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 15, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>{icon}</span>
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          placeholder={placeholder || ''}
+          style={{
+            width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, fontSize: 13,
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+            color: 'white', outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.9)', backdropFilter: 'blur(14px)' }} />
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: 440, borderRadius: 24,
+        background: 'linear-gradient(160deg, rgba(8,15,30,0.98) 0%, rgba(4,10,20,0.99) 100%)',
+        border: '1px solid rgba(99,179,237,0.2)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(99,179,237,0.08), 0 1px 0 rgba(255,255,255,0.05) inset',
+        padding: 32,
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', background: 'rgba(99,179,237,0.12)', border: '1px solid rgba(99,179,237,0.25)',
+            flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ color: '#63b3ed', fontSize: 20 }}>edit</span>
+          </div>
+          <div>
+            <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Editar Informações</h3>
+            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>{student.name}</p>
+          </div>
+          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none',
+            color: SILVER, cursor: 'pointer', padding: 4 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+          </button>
+        </div>
+
+        {/* Fields */}
+        <Field label="Telefone" icon="phone" value={phone} onChange={setPhone}
+          placeholder="(11) 99999-9999" />
+        <Field label="Nome" icon="person" value={name} onChange={setName}
+          placeholder="Nome completo" />
+        <Field label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum}
+          placeholder="000.000.000-00" />
+
+        {error && (
+          <p style={{ color: '#f87171', fontSize: 11, marginBottom: 12, textAlign: 'center' }}>{error}</p>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          <button onClick={onClose} disabled={saving}
+            style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
+              cursor: 'pointer', background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
+              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+              background: 'rgba(99,179,237,0.15)', border: '1.5px solid rgba(99,179,237,0.4)', color: '#63b3ed',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+              {saving ? 'progress_activity' : 'save'}
+            </span>
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Delete Confirm Modal ─────────────────────────────────────────────────────
 function DeleteConfirmModal({ name, source, onConfirm, onCancel, loading }: {
   name: string;
@@ -793,6 +919,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [showAddModal,   setShowAddModal]   = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
+  const [editTarget,     setEditTarget]     = useState<{ name: string; email: string; phone: string; document: string; manualId?: string } | null>(null);
   const [turmas,         setTurmas]         = useState<string[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [turmaFilter,  setTurmaFilter]  = useState('');
@@ -1109,7 +1236,27 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     </div>
                     <PaymentCell s={s} />
                     {/* Delete action — all students */}
-                    <div className="flex items-center justify-center pt-0.5">
+                    <div className="flex items-center justify-center gap-1 pt-0.5">
+                      {/* Edit button */}
+                      <button
+                        onClick={() => setEditTarget({
+                          name:     s.name,
+                          email:    s.email,
+                          phone:    (s as any).source === 'manual'
+                                      ? ((s as any).phone || '')
+                                      : (phoneCache[(s.email || '').toLowerCase()] || ''),
+                          document: (s as any).document || '',
+                          manualId: (s as any).source === 'manual' ? (s as any).manualId : undefined,
+                        })}
+                        title="Editar informações"
+                        style={{ background: 'none', border: '1px solid rgba(99,179,237,0.2)', borderRadius: 8,
+                          width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', color: 'rgba(99,179,237,0.5)', transition: 'all 0.15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,179,237,0.12)'; e.currentTarget.style.color = '#63b3ed'; e.currentTarget.style.borderColor = 'rgba(99,179,237,0.5)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(99,179,237,0.5)'; e.currentTarget.style.borderColor = 'rgba(99,179,237,0.2)'; }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>edit</span>
+                      </button>
+                      {/* Delete button */}
                       <button
                         onClick={() => setDeleteTarget({
                           id:     (s as any).manualId || '',
@@ -1167,6 +1314,26 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           onClose={() => setShowAddModal(false)}
           onSaved={(ms) => {
             setManualStudents(prev => [ms, ...prev]);
+          }}
+        />
+      )}
+
+      {/* Edit modal */}
+      {editTarget && typeof window !== 'undefined' && (
+        <EditStudentModal
+          student={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={({ phone, document }) => {
+            const emailKey = (editTarget.email || '').toLowerCase();
+            // Update phoneCache for Hotmart students
+            if (phone) setPhoneCache(prev => ({ ...prev, [emailKey]: phone }));
+            // Update manual_students phone for manual students
+            if (editTarget.manualId) {
+              setManualStudents(prev => prev.map(ms =>
+                ms.id === editTarget.manualId ? { ...ms, phone } : ms
+              ));
+            }
+            setEditTarget(null);
           }}
         />
       )}
