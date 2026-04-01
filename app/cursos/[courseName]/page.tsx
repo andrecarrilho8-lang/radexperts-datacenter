@@ -204,12 +204,12 @@ function PaymentCell({ s }: { s: Student }) {
         Adimplente
       </span>
       {showProgress ? (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1" style={{ maxWidth: 200, overflow: 'hidden' }}>
           <div className="flex items-center gap-2">
             <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
               <div className="h-full rounded-full" style={{ width: `${(paidSoFar / inst) * 100}%`, background: `linear-gradient(90deg, ${GOLD}, #f59e0b)` }} />
             </div>
-            <span className="text-[10px] font-black" style={{ color: GOLD }}>{paidSoFar}/{inst}</span>
+            <span className="text-[10px] font-black flex-shrink-0" style={{ color: GOLD }}>{paidSoFar}/{inst}</span>
           </div>
           <span className="text-[9px]" style={{ color: SILVER }}>{leftover} parcela{leftover !== 1 ? 's' : ''} restante{leftover !== 1 ? 's' : ''}</span>
         </div>
