@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
+import * as XLSX from 'xlsx';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
@@ -385,6 +386,137 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top}.ftr{margin-t
 <div class="ftr">RadExperts Data Center · Dados vitalícios</div>
 <script>window.onload=()=>window.print()</script></body></html>`);
   win.document.close();
+}
+
+// ── CSV Export ───────────────────────────────────────────────────────
+function generateCSV(courseName: string, students: Student[], phoneCacheArg: Record<string, string>) {
+  const headers = ['#','Nome','Email','Telefone','Data Entrada','Status','Forma Pagamento','Valor Parcela (R$)','Total Pago (R$)','Parcelas','Pagas','Restantes'];
+  const rows = students.map((s, i) => {
+    const status  = getPayStatus(s);
+    const inst    = s.paymentInstallments;
+    const paid    = s.paymentHistory.length;
+    const phone   = (s as any).source === 'manual'
+      ? ((s as any).phone || '')
+      : (phoneCacheArg[(s.email || '').toLowerCase()] || '');
+    const vParc   = s.valor && inst > 1 ? (s.valor / inst) : s.valor;
+    const vTotal  = s.paymentHistory.reduce((a, p) => a + p.valor, 0);
+    const stLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
+    return [
+      i + 1,
+      s.name,
+      s.email,
+      phone,
+      s.entryDate ? new Date(s.entryDate).toLocaleDateString('pt-BR') : '',
+      stLabel,
+      s.paymentLabel || s.paymentType || '',
+      vParc.toFixed(2),
+      vTotal.toFixed(2),
+      inst,
+      paid,
+      Math.max(0, inst - paid),
+    ];
+  });
+  const csv = [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `${courseName.replace(/[^a-z0-9]/gi, '_')}_alunos.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── XLS Export (SheetJS) ───────────────────────────────────────────────
+function generateXLS(courseName: string, students: Student[], phoneCacheArg: Record<string, string>) {
+  const wb = XLSX.utils.book_new();
+
+  /* ── Sheet 1: Alunos ──────────────────── */
+  const headers = [
+    '#', 'NOME', 'EMAIL', 'TELEFONE',
+    'DATA ENTRADA', 'STATUS', 'FORMA PAGAMENTO',
+    'VALOR PARCELA (R$)', 'TOTAL PAGO (R$)',
+    'Nº PARCELAS', 'PAGAS', 'RESTANTES',
+    'TURMA', 'MOEDA'
+  ];
+
+  const data = students.map((s, i) => {
+    const status  = getPayStatus(s);
+    const inst    = s.paymentInstallments;
+    const paid    = s.paymentHistory.length;
+    const phone   = (s as any).source === 'manual'
+      ? ((s as any).phone || '')
+      : (phoneCacheArg[(s.email || '').toLowerCase()] || '');
+    const vParc   = s.valor && inst > 1 ? (s.valor / inst) : s.valor;
+    const vTotal  = s.paymentHistory.reduce((a, p) => a + p.valor, 0);
+    const stLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
+    const entryDate = s.entryDate ? new Date(s.entryDate) : null;
+    return [
+      i + 1,
+      s.name,
+      s.email,
+      phone,
+      entryDate ? entryDate.toLocaleDateString('pt-BR') : '',
+      stLabel,
+      s.paymentIsSub ? `Assinatura (· ciclo ${s.paymentRecurrency})` :
+        s.paymentIsSmartInstall ? `Parcelamento Inteligente` :
+        s.paymentIsCardInstall  ? `Cartão (${inst}x banco)` :
+        (s.paymentLabel || s.paymentType || ''),
+      +vParc.toFixed(2),
+      +vTotal.toFixed(2),
+      inst > 1 ? inst : (s.paymentIsSub ? 'Assinatura' : '1'),
+      paid,
+      inst > 1 ? Math.max(0, inst - paid) : '',
+      (s as any).turma || '',
+      s.currency || 'BRL',
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+
+  // Column widths
+  ws['!cols'] = [
+    { wch: 4  }, { wch: 35 }, { wch: 36 }, { wch: 18 },
+    { wch: 14 }, { wch: 14 }, { wch: 26 },
+    { wch: 18 }, { wch: 14 },
+    { wch: 12 }, { wch: 8  }, { wch: 10 },
+    { wch: 20 }, { wch: 8  },
+  ];
+  // Freeze header row
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
+
+  /* ── Sheet 2: Resumo ─────────────────── */
+  const adim  = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
+  const inadim = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
+  const quit  = students.filter(s => getPayStatus(s) === 'QUITADO').length;
+  const totalPago = students.reduce((acc, s) => acc + s.paymentHistory.reduce((a, p) => a + p.valor, 0), 0);
+  const comPhone  = students.filter(s => {
+    const ph = (s as any).source === 'manual' ? (s as any).phone : phoneCacheArg[(s.email || '').toLowerCase()];
+    return !!ph;
+  }).length;
+
+  const resData: any[][] = [
+    ['RESUMO', courseName],
+    ['Gerado em', new Date().toLocaleString('pt-BR')],
+    [],
+    ['INDICADOR', 'VALOR'],
+    ['Total de Alunos', students.length],
+    ['Adimplentes', adim],
+    ['Inadimplentes', inadim],
+    ['Quitados / Encerrados', quit],
+    [],
+    ['Total Pago (histórico)', +totalPago.toFixed(2)],
+    ['Alunos com Telefone', comPhone],
+    ['Alunos sem Telefone', students.length - comPhone],
+  ];
+
+  const wsRes = XLSX.utils.aoa_to_sheet(resData);
+  wsRes['!cols'] = [{ wch: 26 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(wb, wsRes, 'Resumo');
+
+  /* ── Download ── */
+  XLSX.writeFile(wb, `${courseName.replace(/[^a-z0-9]/gi, '_')}_alunos.xlsx`);
 }
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
@@ -916,6 +1048,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [hiddenEmails,    setHiddenEmails]    = useState<Set<string>>(new Set());
   const [phoneCache,      setPhoneCache]      = useState<Record<string, string>>({});
   const [phonesLoading,   setPhonesLoading]   = useState(false);
+  const [showExportMenu,  setShowExportMenu]  = useState(false);
   const [showAddModal,   setShowAddModal]   = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
@@ -1077,14 +1210,66 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                 </div>
               </div>
             </div>
-            <button onClick={() => generatePDF(decoded, sorted)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-              style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.2)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.1)')}>
-              <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-              Exportar PDF
-            </button>
+            {/* Export buttons group */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* PDF */}
+              <button onClick={() => generatePDF(decoded, sorted)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+                style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.2)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.1)')}>
+                <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                PDF
+              </button>
+              {/* Planilha dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowExportMenu(v => !v)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+                  style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', color: GREEN }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.16)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.08)')}>
+                  <span className="material-symbols-outlined text-[16px]">table_chart</span>
+                  Planilha
+                  <span className="material-symbols-outlined text-[14px]">{showExportMenu ? 'expand_less' : 'expand_more'}</span>
+                </button>
+                {showExportMenu && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 500,
+                    background: 'linear-gradient(160deg, rgba(8,18,38,0.99) 0%, rgba(4,12,26,0.99) 100%)',
+                    border: '1px solid rgba(74,222,128,0.25)',
+                    borderRadius: 14, padding: '6px', minWidth: 160,
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+                    backdropFilter: 'blur(20px)',
+                  }}>
+                    {[{
+                      label: 'CSV',
+                      icon: 'csv',
+                      desc: 'Simples, universal',
+                      action: () => { generateCSV(decoded, sorted, phoneCache); setShowExportMenu(false); },
+                    }, {
+                      label: 'XLS (Excel)',
+                      icon: 'grid_on',
+                      desc: 'Planilha completa',
+                      action: () => { generateXLS(decoded, sorted, phoneCache); setShowExportMenu(false); },
+                    }].map(opt => (
+                      <button key={opt.label} onClick={opt.action}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                          borderRadius: 10, background: 'none', border: 'none', cursor: 'pointer',
+                          color: 'white', textAlign: 'left', transition: 'background 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.12)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: GREEN }}>{opt.icon}</span>
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 900, color: 'white', margin: 0 }}>{opt.label}</p>
+                          <p style={{ fontSize: 9, color: SILVER, margin: 0, marginTop: 1 }}>{opt.desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <button onClick={() => setShowAddModal(true)}
               className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
               style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', color: GREEN }}
