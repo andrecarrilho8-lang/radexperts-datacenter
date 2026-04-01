@@ -388,7 +388,7 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top}.ftr{margin-t
 }
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
-const GRID = '120px 1fr 1fr 140px 160px 260px';
+const GRID = '120px 1fr 1fr 140px 160px 260px 36px';
 const COLS = [
   { key: 'entryDate', label: 'Entrada',       sortable: true  },
   { key: 'name',      label: 'Nome',           sortable: false },
@@ -396,6 +396,7 @@ const COLS = [
   { key: 'parcela',   label: 'Valor Parcela',  sortable: false },
   { key: 'total',     label: 'Total Pago',     sortable: false },
   { key: 'payment',   label: 'Status',         sortable: false },
+  { key: 'actions',   label: '',               sortable: false },
 ];
 
 // ── Convert ManualStudent → Student shape ────────────────────────────────────
@@ -717,17 +718,76 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   );
 }
 
+// ── Delete Confirm Modal ─────────────────────────────────────────────────────
+function DeleteConfirmModal({ name, onConfirm, onCancel, loading }: {
+  name: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.9)', backdropFilter: 'blur(14px)' }} />
+      <div style={{
+        position: 'relative', width: '100%', maxWidth: 420, borderRadius: 24,
+        background: 'linear-gradient(160deg, rgba(30,8,8,0.98) 0%, rgba(20,4,4,0.99) 100%)',
+        border: '1px solid rgba(239,68,68,0.25)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(239,68,68,0.1), 0 1px 0 rgba(255,255,255,0.05) inset',
+        padding: 32,
+      }}>
+        {/* Icon */}
+        <div style={{ width: 52, height: 52, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', margin: '0 auto 20px' }}>
+          <span className="material-symbols-outlined" style={{ color: '#f87171', fontSize: 26 }}>person_remove</span>
+        </div>
+        {/* Text */}
+        <h3 style={{ color: 'white', fontWeight: 900, fontSize: 17, textAlign: 'center', margin: '0 0 10px' }}>
+          Remover aluno do curso?
+        </h3>
+        <p style={{ color: SILVER, fontSize: 13, textAlign: 'center', lineHeight: 1.6, margin: '0 0 8px' }}>
+          <span style={{ color: 'white', fontWeight: 800 }}>{name}</span> será removido da lista de alunos manuais deste curso.
+        </p>
+        <p style={{ color: 'rgba(168,178,192,0.6)', fontSize: 11, textAlign: 'center', lineHeight: 1.5, margin: '0 0 26px' }}>
+          Isso não afeta dados da Hotmart, vendas, assinaturas ou acesso à plataforma.
+        </p>
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onCancel} disabled={loading}
+            style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12, cursor: 'pointer',
+              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+            Cancelar
+          </button>
+          <button onClick={onConfirm} disabled={loading}
+            style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
+              cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1,
+              background: 'rgba(239,68,68,0.15)', border: '1.5px solid rgba(239,68,68,0.5)', color: '#f87171',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+              {loading ? 'progress_activity' : 'delete'}
+            </span>
+            {loading ? 'Removendo...' : 'Sim, remover'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CursoDetailPage({ params }: { params: Promise<{ courseName: string }> }) {
   const { courseName } = use(params);
   const decoded = decodeURIComponent(courseName);
   const router  = useRouter();
 
-  const [students,      setStudents]      = useState<Student[]>([]);
-  const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
-  const [showAddModal,  setShowAddModal]  = useState(false);
-  const [turmas,        setTurmas]        = useState<string[]>([]);
-  const [loading,       setLoading]       = useState(true);
+  const [students,       setStudents]       = useState<Student[]>([]);
+  const [manualStudents,  setManualStudents]  = useState<ManualStudent[]>([]);
+  const [showAddModal,   setShowAddModal]   = useState(false);
+  const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string } | null>(null);
+  const [deleting,       setDeleting]       = useState(false);
+  const [turmas,         setTurmas]         = useState<string[]>([]);
+  const [loading,        setLoading]        = useState(true);
   const [turmaFilter,  setTurmaFilter]  = useState('');
   const [search,       setSearch]       = useState('');
   const [page,         setPage]         = useState(0);
@@ -994,6 +1054,21 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       })()}
                     </div>
                     <PaymentCell s={s} />
+                    {/* Delete action — only for manual students */}
+                    <div className="flex items-center justify-center pt-0.5">
+                      {(s as any).source === 'manual' && (
+                        <button
+                          onClick={() => setDeleteTarget({ id: (s as any).manualId, name: s.name })}
+                          title="Remover aluno"
+                          style={{ background: 'none', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, width: 28, height: 28,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: 'rgba(239,68,68,0.5)', transition: 'all 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#f87171'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.5)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(239,68,68,0.5)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'; }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })
@@ -1035,6 +1110,23 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           onClose={() => setShowAddModal(false)}
           onSaved={(ms) => {
             setManualStudents(prev => [ms, ...prev]);
+          }}
+        />
+      )}
+
+      {/* Delete confirm modal */}
+      {deleteTarget && typeof window !== 'undefined' && (
+        <DeleteConfirmModal
+          name={deleteTarget.name}
+          loading={deleting}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={async () => {
+            setDeleting(true);
+            try {
+              await fetch(`/api/alunos/manual/${deleteTarget.id}`, { method: 'DELETE' });
+              setManualStudents(prev => prev.filter(ms => ms.id !== deleteTarget.id));
+              setDeleteTarget(null);
+            } finally { setDeleting(false); }
           }}
         />
       )}
