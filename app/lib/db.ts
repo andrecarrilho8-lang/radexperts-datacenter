@@ -47,3 +47,60 @@ export async function ensureSchema() {
     )
   `;
 }
+
+/** Ensure webhook tables exist. Called automatically from the webhook endpoint. */
+export async function ensureWebhookSchema() {
+  const sql = getDb();
+
+  // Raw event log — full payload preserved for audit/replay
+  await sql`
+    CREATE TABLE IF NOT EXISTS webhook_events (
+      id           TEXT   PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      event_type   TEXT   NOT NULL,
+      transaction  TEXT,
+      email        TEXT,
+      product_name TEXT,
+      payload      JSONB  NOT NULL,
+      received_at  BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS webhook_events_email_idx ON webhook_events(email)`;
+  await sql`CREATE INDEX IF NOT EXISTS webhook_events_tx_idx    ON webhook_events(transaction)`;
+
+  // Enriched buyer profiles — upserted on every purchase event
+  await sql`
+    CREATE TABLE IF NOT EXISTS buyer_profiles (
+      email              TEXT   PRIMARY KEY,
+      name               TEXT,
+      phone              TEXT,
+      document           TEXT,
+      country            TEXT,
+      -- tracking from most recent purchase
+      src                TEXT,
+      sck                TEXT,
+      utm_source         TEXT,
+      utm_medium         TEXT,
+      utm_campaign       TEXT,
+      utm_content        TEXT,
+      utm_term           TEXT,
+      -- tracking from FIRST purchase (preserved for attribution)
+      first_src          TEXT,
+      first_sck          TEXT,
+      first_utm_source   TEXT,
+      first_utm_medium   TEXT,
+      first_utm_campaign TEXT,
+      first_utm_content  TEXT,
+      first_utm_term     TEXT,
+      -- purchase stats
+      last_transaction   TEXT,
+      last_product       TEXT,
+      last_purchase_at   BIGINT,
+      first_purchase_at  BIGINT,
+      purchase_count     INTEGER NOT NULL DEFAULT 0,
+      -- timestamps
+      created_at         BIGINT NOT NULL,
+      updated_at         BIGINT NOT NULL
+    )
+  `;
+}
+
