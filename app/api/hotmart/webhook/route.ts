@@ -7,8 +7,17 @@ import {
   type WebhookSale,
 } from '@/app/lib/webhookStore';
 import { invalidateSalesCache } from '@/app/lib/salesCache';
+import { getDb, ensureWebhookSchema } from '@/app/lib/db';
 
 export const runtime = 'nodejs';
+
+// ── One-time schema boot ──────────────────────────────────────────────────────
+let _schemaBoot = false;
+async function bootSchema() {
+  if (_schemaBoot) return;
+  await ensureWebhookSchema();
+  _schemaBoot = true;
+}
 
 /**
  * POST /api/hotmart/webhook
@@ -52,28 +61,121 @@ export async function POST(request: Request) {
 
   console.log(`[Hotmart Webhook] Recebido: event=${event} id=${eventId}`);
 
-  /* ── Only process approved purchases ── */
-  if (!APPROVED_EVENTS.has(event)) {
-    console.log(`[Hotmart Webhook] Ignorado: ${event}`);
-    return NextResponse.json({ success: true, ignored: event });
-  }
-
-  /* ── Extract data from v2 payload ── */
+  /* ── Extract buyer/tracking data (needed for DB regardless of event type) ── */
   const d        = body.data     || {};
   const product  = d.product     || {};
   const buyer    = d.buyer       || {};
   const purchase = d.purchase    || {};
+  const tracking = purchase.tracking || {};
 
+  const buyerEmail    = (buyer.email || '').toLowerCase().trim();
+  const buyerName     = buyer.name || buyer.first_name || '';
+  const buyerPhone    = buyer.phone || buyer.checkout_phone || (buyer as any).cellphone || '';
+  const buyerDocument = buyer.document || buyer.cpf || '';
+  const buyerCountry  = buyer.address?.country || '';
+  const productName   = product.name || '';
+  const transaction   = purchase.transaction || body.id || '';
+  const purchaseAt    = purchase.approved_date || purchase.order_date || Date.now();
+
+  const src         = tracking.source       || '';
+  const sck         = tracking.source_sck   || '';
+  const utmSource   = tracking.utm_source   || '';
+  const utmMedium   = tracking.utm_medium   || '';
+  const utmCampaign = tracking.utm_campaign || '';
+  const utmContent  = tracking.utm_content  || '';
+  const utmTerm     = tracking.utm_term     || '';
+
+  /* ── Persist to Neon (non-blocking — webhook response never delayed) ── */
+  const now = Date.now();
+  void (async () => {
+    try {
+      await bootSchema();
+      const sql = getDb();
+
+      // 1. Raw event log
+      await sql`
+        INSERT INTO webhook_events
+          (id, event_type, transaction, email, product_name, payload, received_at)
+        VALUES
+          (gen_random_uuid()::text, ${event}, ${transaction || null},
+           ${buyerEmail || null}, ${productName || null},
+           ${JSON.stringify(body)}::jsonb, ${now})
+      `;
+
+      // 2. Buyer profile upsert (only if we have an email)
+      if (buyerEmail) {
+        await sql`
+          INSERT INTO buyer_profiles (
+            email, name, phone, document, country,
+            src, sck, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+            first_src, first_sck, first_utm_source, first_utm_medium,
+            first_utm_campaign, first_utm_content, first_utm_term,
+            last_transaction, last_product, last_purchase_at,
+            first_purchase_at, purchase_count,
+            created_at, updated_at
+          ) VALUES (
+            ${buyerEmail},
+            ${buyerName || null}, ${buyerPhone || null},
+            ${buyerDocument || null}, ${buyerCountry || null},
+            ${src || null}, ${sck || null},
+            ${utmSource || null}, ${utmMedium || null}, ${utmCampaign || null},
+            ${utmContent || null}, ${utmTerm || null},
+            ${src || null}, ${sck || null},
+            ${utmSource || null}, ${utmMedium || null}, ${utmCampaign || null},
+            ${utmContent || null}, ${utmTerm || null},
+            ${transaction || null}, ${productName || null}, ${purchaseAt},
+            ${purchaseAt}, 1,
+            ${now}, ${now}
+          )
+          ON CONFLICT (email) DO UPDATE SET
+            name               = COALESCE(NULLIF(EXCLUDED.name, ''),     buyer_profiles.name),
+            phone              = COALESCE(NULLIF(EXCLUDED.phone, ''),    buyer_profiles.phone),
+            document           = COALESCE(NULLIF(EXCLUDED.document, ''), buyer_profiles.document),
+            country            = COALESCE(NULLIF(EXCLUDED.country, ''),  buyer_profiles.country),
+            src                = COALESCE(NULLIF(EXCLUDED.src, ''),      buyer_profiles.src),
+            sck                = COALESCE(NULLIF(EXCLUDED.sck, ''),      buyer_profiles.sck),
+            utm_source         = COALESCE(NULLIF(EXCLUDED.utm_source, ''),   buyer_profiles.utm_source),
+            utm_medium         = COALESCE(NULLIF(EXCLUDED.utm_medium, ''),   buyer_profiles.utm_medium),
+            utm_campaign       = COALESCE(NULLIF(EXCLUDED.utm_campaign, ''), buyer_profiles.utm_campaign),
+            utm_content        = COALESCE(NULLIF(EXCLUDED.utm_content, ''),  buyer_profiles.utm_content),
+            utm_term           = COALESCE(NULLIF(EXCLUDED.utm_term, ''),     buyer_profiles.utm_term),
+            first_src          = COALESCE(buyer_profiles.first_src,          NULLIF(EXCLUDED.first_src, '')),
+            first_sck          = COALESCE(buyer_profiles.first_sck,          NULLIF(EXCLUDED.first_sck, '')),
+            first_utm_source   = COALESCE(buyer_profiles.first_utm_source,   NULLIF(EXCLUDED.first_utm_source, '')),
+            first_utm_medium   = COALESCE(buyer_profiles.first_utm_medium,   NULLIF(EXCLUDED.first_utm_medium, '')),
+            first_utm_campaign = COALESCE(buyer_profiles.first_utm_campaign, NULLIF(EXCLUDED.first_utm_campaign, '')),
+            first_utm_content  = COALESCE(buyer_profiles.first_utm_content,  NULLIF(EXCLUDED.first_utm_content, '')),
+            first_utm_term     = COALESCE(buyer_profiles.first_utm_term,     NULLIF(EXCLUDED.first_utm_term, '')),
+            last_transaction   = EXCLUDED.last_transaction,
+            last_product       = EXCLUDED.last_product,
+            last_purchase_at   = GREATEST(buyer_profiles.last_purchase_at, EXCLUDED.last_purchase_at),
+            first_purchase_at  = LEAST(buyer_profiles.first_purchase_at, EXCLUDED.first_purchase_at),
+            purchase_count     = buyer_profiles.purchase_count + 1,
+            updated_at         = ${now}
+        `;
+      }
+    } catch (err: any) {
+      console.error('[Webhook] Neon persist error:', err.message);
+    }
+  })();
+
+  /* ── Only process approved purchases for sales dashboard ── */
+  if (!APPROVED_EVENTS.has(event)) {
+    console.log(`[Hotmart Webhook] Ignorado pelo sales store: ${event}`);
+    return NextResponse.json({ success: true, ignored: event });
+  }
+
+  /* ── Extract remaining data from v2 payload (vars already extracted above) ── */
   // Identifiers
-  const sale_id = purchase.transaction || body.id || `${Date.now()}`;
+  const sale_id = transaction || body.id || `${Date.now()}`;
 
   // Product
   const product_id   = product.id   ?? 0;
-  const product_name = product.name || '';
+  const product_name = productName;
 
   // Buyer
-  const buyer_email = buyer.email      || '';
-  const buyer_name  = buyer.name       || buyer.first_name || '';
+  const buyer_email = buyerEmail;
+  const buyer_name  = buyerName;
 
   // Financial — purchase.full_price = total paid by buyer incl. fees
   const fullPrice = purchase.full_price || purchase.price || {};
