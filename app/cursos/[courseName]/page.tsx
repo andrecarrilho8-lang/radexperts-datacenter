@@ -788,6 +788,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [students,       setStudents]       = useState<Student[]>([]);
   const [manualStudents,  setManualStudents]  = useState<ManualStudent[]>([]);
   const [hiddenEmails,    setHiddenEmails]    = useState<Set<string>>(new Set());
+  const [phoneCache,      setPhoneCache]      = useState<Record<string, string>>({});
+  const [phonesLoading,   setPhonesLoading]   = useState(false);
   const [showAddModal,   setShowAddModal]   = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
@@ -857,6 +859,32 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const sorted     = [...filtered].sort((a, b) => sortDir === 'desc' ? (b.entryDate||0)-(a.entryDate||0) : (a.entryDate||0)-(b.entryDate||0));
   const paginated  = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(sorted.length / pageSize);
+
+  // ── Background phone fetch for current page ────────────────────────────────
+  // Run whenever paginated changes. Fetch only emails not yet cached.
+  useEffect(() => {
+    const uncached = paginated
+      .map(s => (s.email || '').toLowerCase())
+      .filter(e => e && !(e in phoneCache));
+    if (uncached.length === 0) return;
+    let cancelled = false;
+    setPhonesLoading(true);
+    fetch('/api/alunos/phones', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emails: uncached }),
+    })
+      .then(r => r.json())
+      .then(({ phones }) => {
+        if (!cancelled) {
+          setPhoneCache(prev => ({ ...prev, ...(phones || {}) }));
+          setPhonesLoading(false);
+        }
+      })
+      .catch(() => { if (!cancelled) setPhonesLoading(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paginated.map(s => s.email).join('|')]);
 
   const adimN   = allStudents.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
   const inadimN  = allStudents.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
@@ -1044,7 +1072,24 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       )}
                     </div>
 
-                    <span className="text-[11px] font-bold truncate pr-3 pt-1" style={{ color: SILVER }}>{s.email}</span>
+                    {/* Email + phone */}
+                    <div className="flex flex-col gap-0.5 pr-3 pt-1">
+                      <span className="text-[11px] font-bold truncate" style={{ color: SILVER }}>{s.email}</span>
+                      {(() => {
+                        // Manual students use stored phone; Hotmart students use AC cache
+                        const ph = (s as any).source === 'manual'
+                          ? ((s as any).phone || '')
+                          : (phoneCache[(s.email || '').toLowerCase()] || '');
+                        return ph ? (
+                          <span className="flex items-center gap-1" style={{ color: 'rgba(74,222,128,0.8)', fontSize: 10, fontWeight: 700 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>phone</span>
+                            {ph}
+                          </span>
+                        ) : phonesLoading && !((s.email || '').toLowerCase() in phoneCache) ? (
+                          <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 9, fontWeight: 600 }}>buscando...</span>
+                        ) : null;
+                      })()}
+                    </div>
                     {/* Valor Parcela */}
                     <div className="flex flex-col gap-0.5 pt-1">
                       <span className="text-[12px] font-bold" style={{ color: GOLD }}>{fmtMoneyByCurrency(vParcela(s), s.currency)}</span>
