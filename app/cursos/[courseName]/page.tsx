@@ -400,31 +400,36 @@ const COLS = [
 
 // ── Convert ManualStudent → Student shape ────────────────────────────────────
 function manualToStudent(ms: ManualStudent): Student {
-  const dates   = ms.installment_dates || [];
-  const paid    = dates.filter(d => d.paid);
+  // IMPORTANT: Postgres returns bigint/numeric as strings in JSON. Always Number() cast.
+  const dates   = (ms.installment_dates || []).map(d => ({
+    ...d,
+    due_ms:  Number(d.due_ms),
+    paid_ms: d.paid_ms != null ? Number(d.paid_ms) : null,
+  }));
+  const paid     = dates.filter(d => d.paid);
   const lastPaid = paid.length > 0 ? Math.max(...paid.map(d => d.paid_ms ?? 0)) : null;
   const overdue  = dates.some(d => !d.paid && d.due_ms < Date.now());
 
   const subStatus: SubStatus =
     ms.payment_type === 'PIX' ? 'CANCELLED' :
-    paid.length >= ms.installments ? 'CANCELLED' :
+    paid.length >= Number(ms.installments) ? 'CANCELLED' :
     overdue ? 'OVERDUE' : 'ACTIVE';
 
-  const instAmt = ms.installment_amount || ms.total_amount;
+  const instAmt = Number(ms.installment_amount) || Number(ms.total_amount);
   return {
     name: ms.name, email: ms.email,
-    entryDate: ms.entry_date, lastPayDate: lastPaid,
-    turma: 'Manual', valor: instAmt, valorBRL: ms.total_amount,
+    entryDate:   Number(ms.entry_date), lastPayDate: lastPaid,
+    turma: 'Manual', valor: instAmt, valorBRL: Number(ms.total_amount),
     currency: 'BRL', flag: 'br', transaction: `MANUAL_${ms.id}`,
     phone: ms.phone, source: 'manual', manualId: ms.id,
-    manualInstallments: ms.installment_dates,
+    manualInstallments: dates,
     paymentType: ms.payment_type,
     paymentMethod: ms.payment_type === 'PIX' ? 'PIX' : 'Cartão',
-    paymentLabel: ms.payment_type === 'PIX' ? 'PIX Avulso' : `Cartão ${ms.installments}×`,
+    paymentLabel: ms.payment_type === 'PIX' ? 'PIX Avulso' : `Cartão ${Number(ms.installments)}×`,
     offerCode: '', paymentMode: ms.payment_type === 'PIX' ? 'single' : 'installment',
-    paymentInstallments: ms.installments,
+    paymentInstallments: Number(ms.installments),
     paymentIsSub: false,
-    paymentIsSmartInstall: ms.payment_type === 'CREDIT_CARD' && ms.installments > 1,
+    paymentIsSmartInstall: ms.payment_type === 'CREDIT_CARD' && Number(ms.installments) > 1,
     paymentIsCardInstall: false,
     paymentRecurrency: paid.length,
     subStatus,
@@ -442,31 +447,32 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   onSaved: (s: ManualStudent) => void;
 }) {
   const [form, setForm] = useState({
-    name:         '',
-    email:        '',
-    phone:        '',
-    entry_date:   new Date().toISOString().slice(0, 10),
-    payment_type: 'PIX' as 'PIX' | 'CREDIT_CARD',
-    total_amount: '',
-    installments: 1,
-    notes:        '',
+    name:                '',
+    email:               '',
+    phone:               '',
+    entry_date:          new Date().toISOString().slice(0, 10),
+    first_payment_date:  new Date().toISOString().slice(0, 10),
+    payment_type:        'PIX' as 'PIX' | 'CREDIT_CARD',
+    total_amount:        '',
+    installments:        1,
+    notes:               '',
   });
   const [instDates, setInstDates] = useState<InstallmentDate[]>([]);
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState('');
 
-  // Auto-generate installment dates when config changes
+  // Auto-generate installment dates from first_payment_date (1 per month)
   useEffect(() => {
     if (form.payment_type !== 'CREDIT_CARD' || form.installments < 1) {
       setInstDates([]); return;
     }
-    const base = new Date(form.entry_date).getTime();
+    // Use first_payment_date as base; parse as local noon to avoid timezone shift
+    const [py, pm, pd] = form.first_payment_date.split('-').map(Number);
     setInstDates(Array.from({ length: form.installments }, (_, i) => {
-      const d = new Date(base);
-      d.setMonth(d.getMonth() + i);
+      const d = new Date(py, pm - 1 + i, pd, 12, 0, 0);
       return { due_ms: d.getTime(), paid: false, paid_ms: null };
     }));
-  }, [form.installments, form.entry_date, form.payment_type]);
+  }, [form.installments, form.first_payment_date, form.payment_type]);
 
   const togglePaid = (idx: number) => {
     setInstDates(prev => prev.map((d, i) =>
@@ -483,18 +489,20 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
     }
     setSaving(true); setError('');
     try {
+      const [ey, em, ed] = form.entry_date.split('-').map(Number);
+      const entryTs = new Date(ey, em - 1, ed, 12, 0, 0).getTime();
       const body = {
         course_name:        courseName,
         name:               form.name,
         email:              form.email.toLowerCase().trim(),
         phone:              form.phone,
-        entry_date:         new Date(form.entry_date).getTime(),
+        entry_date:         entryTs,
         payment_type:       form.payment_type,
         total_amount:       parseFloat(form.total_amount),
         installments:       form.payment_type === 'PIX' ? 1 : form.installments,
         installment_amount: instAmt,
         installment_dates:  form.payment_type === 'PIX'
-          ? [{ due_ms: new Date(form.entry_date).getTime(), paid: true, paid_ms: new Date(form.entry_date).getTime() }]
+          ? [{ due_ms: entryTs, paid: true, paid_ms: entryTs }]
           : instDates,
         notes: form.notes,
       };
@@ -603,7 +611,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           </div>
 
           {/* Valor + Parcelas */}
-          <div style={{ display: 'grid', gridTemplateColumns: form.payment_type === 'CREDIT_CARD' ? '1fr 1fr 1fr' : '1fr', gap: 14, marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: form.payment_type === 'CREDIT_CARD' ? '1fr 1fr 1fr' : '1fr', gap: 14, marginBottom: form.payment_type === 'CREDIT_CARD' ? 14 : 18 }}>
             <div>
               <label style={LABEL}>Valor Total (R$) *</label>
               <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00" value={form.total_amount}
@@ -622,11 +630,23 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
               <div>
                 <label style={LABEL}>Valor por Parcela</label>
                 <div style={{ ...INPUT, color: GOLD, fontWeight: 900, display: 'flex', alignItems: 'center' }}>
-                  {form.total_amount ? `R$ ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                  {form.total_amount ? `R$ ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
                 </div>
               </div>
             </>)}
           </div>
+
+          {/* Data do 1º pagamento (cartão) */}
+          {form.payment_type === 'CREDIT_CARD' && (
+            <div style={{ marginBottom: 18 }}>
+              <label style={LABEL}>Data do 1º Pagamento *</label>
+              <input style={{ ...INPUT, maxWidth: 220 }} type="date" value={form.first_payment_date}
+                onChange={e => setForm(f => ({ ...f, first_payment_date: e.target.value }))} required />
+              <p style={{ fontSize: 10, color: SILVER, marginTop: 6, fontWeight: 600 }}>
+                As demais parcelas serão calculadas mensalmente a partir desta data.
+              </p>
+            </div>
+          )}
 
           {/* Installment tracker */}
           {form.payment_type === 'CREDIT_CARD' && instDates.length > 0 && (
