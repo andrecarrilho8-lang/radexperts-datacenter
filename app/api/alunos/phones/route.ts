@@ -42,36 +42,37 @@ export async function POST(request: Request) {
     .filter((e: string) => e.includes('@'))
     .slice(0, 100);
 
-  if (emails.length === 0) return NextResponse.json({ phones: {} });
+  if (emails.length === 0) return NextResponse.json({ phones: {}, documents: {} });
 
-  const result: Record<string, string> = {};
+  const phones:    Record<string, string> = {};
+  const documents: Record<string, string> = {};
 
-  // ── 1. Check our DB (webhook-enriched buyer_profiles) ───────────────────────
+  // ── 1. Check our DB (buyer_profiles) ────────────────────────────────────────
   let needAC: string[] = [...emails];
   try {
     const sql = getDb();
     const rows = (await sql`
-      SELECT email, phone FROM buyer_profiles
-      WHERE email = ANY(${emails}::text[]) AND phone IS NOT NULL AND phone <> ''
+      SELECT email, phone, document FROM buyer_profiles
+      WHERE email = ANY(${emails}::text[])
     `) as any[];
     for (const row of rows) {
-      result[row.email] = row.phone;
+      if (row.phone)    phones[row.email]    = row.phone;
+      if (row.document) documents[row.email] = row.document;
     }
-    needAC = emails.filter(e => !(e in result));
+    // Only need AC for emails with no phone in DB
+    needAC = emails.filter(e => !(e in phones));
   } catch {
-    // DB unavailable — fall through to AC for all
     needAC = [...emails];
   }
 
-  // ── 2. Fetch remaining from ActiveCampaign in batches of 10 ─────────────────
+  // ── 2. Fetch remaining phones from ActiveCampaign ─────────────────────────
   const BATCH = 10;
   for (let i = 0; i < needAC.length; i += BATCH) {
     const batch = needAC.slice(i, i + BATCH);
-    const phones = await Promise.all(batch.map(fetchPhoneFromAC));
-    batch.forEach((email, idx) => { result[email] = phones[idx]; });
+    const acPhones = await Promise.all(batch.map(fetchPhoneFromAC));
+    batch.forEach((email, idx) => { if (acPhones[idx]) phones[email] = acPhones[idx]; });
     if (i + BATCH < needAC.length) await new Promise(r => setTimeout(r, 150));
   }
 
-  return NextResponse.json({ phones: result });
+  return NextResponse.json({ phones, documents });
 }
-

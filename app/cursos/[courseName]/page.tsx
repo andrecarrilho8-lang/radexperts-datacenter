@@ -389,31 +389,26 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top}.ftr{margin-t
 }
 
 // ── CSV Export ───────────────────────────────────────────────────────
-function generateCSV(courseName: string, students: Student[], phoneCacheArg: Record<string, string>) {
-  const headers = ['#','Nome','Email','Telefone','Data Entrada','Status','Forma Pagamento','Valor Parcela (R$)','Total Pago (R$)','Parcelas','Pagas','Restantes'];
+function generateCSV(courseName: string, students: Student[], phoneCacheArg: Record<string, string>, docCacheArg: Record<string, string>) {
+  const headers = ['#','Nome','Email','Telefone','CPF','Data Entrada','Status','Forma Pagamento','Valor Parcela (R$)','Total Pago (R$)','Parcelas','Pagas','Restantes'];
   const rows = students.map((s, i) => {
     const status  = getPayStatus(s);
     const inst    = s.paymentInstallments;
     const paid    = s.paymentHistory.length;
+    const emailKey = (s.email || '').toLowerCase();
     const phone   = (s as any).source === 'manual'
       ? ((s as any).phone || '')
-      : (phoneCacheArg[(s.email || '').toLowerCase()] || '');
+      : (phoneCacheArg[emailKey] || '');
+    const cpf     = docCacheArg[emailKey] || (s as any).document || '';
     const vParc   = s.valor && inst > 1 ? (s.valor / inst) : s.valor;
     const vTotal  = s.paymentHistory.reduce((a, p) => a + p.valor, 0);
     const stLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
     return [
-      i + 1,
-      s.name,
-      s.email,
-      phone,
+      i + 1, s.name, s.email, phone, cpf,
       s.entryDate ? new Date(s.entryDate).toLocaleDateString('pt-BR') : '',
-      stLabel,
-      s.paymentLabel || s.paymentType || '',
-      vParc.toFixed(2),
-      vTotal.toFixed(2),
-      inst,
-      paid,
-      Math.max(0, inst - paid),
+      stLabel, s.paymentLabel || s.paymentType || '',
+      vParc.toFixed(2), vTotal.toFixed(2),
+      inst, paid, Math.max(0, inst - paid),
     ];
   });
   const csv = [headers, ...rows]
@@ -427,12 +422,12 @@ function generateCSV(courseName: string, students: Student[], phoneCacheArg: Rec
 }
 
 // ── XLS Export (SheetJS) ───────────────────────────────────────────────
-function generateXLS(courseName: string, students: Student[], phoneCacheArg: Record<string, string>) {
+function generateXLS(courseName: string, students: Student[], phoneCacheArg: Record<string, string>, docCacheArg: Record<string, string>) {
   const wb = XLSX.utils.book_new();
 
   /* ── Sheet 1: Alunos ──────────────────── */
   const headers = [
-    '#', 'NOME', 'EMAIL', 'TELEFONE',
+    '#', 'NOME', 'EMAIL', 'TELEFONE', 'CPF',
     'DATA ENTRADA', 'STATUS', 'FORMA PAGAMENTO',
     'VALOR PARCELA (R$)', 'TOTAL PAGO (R$)',
     'Nº PARCELAS', 'PAGAS', 'RESTANTES',
@@ -443,47 +438,40 @@ function generateXLS(courseName: string, students: Student[], phoneCacheArg: Rec
     const status  = getPayStatus(s);
     const inst    = s.paymentInstallments;
     const paid    = s.paymentHistory.length;
+    const emailKey = (s.email || '').toLowerCase();
     const phone   = (s as any).source === 'manual'
       ? ((s as any).phone || '')
-      : (phoneCacheArg[(s.email || '').toLowerCase()] || '');
+      : (phoneCacheArg[emailKey] || '');
+    const cpf     = docCacheArg[emailKey] || (s as any).document || '';
     const vParc   = s.valor && inst > 1 ? (s.valor / inst) : s.valor;
     const vTotal  = s.paymentHistory.reduce((a, p) => a + p.valor, 0);
     const stLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
     const entryDate = s.entryDate ? new Date(s.entryDate) : null;
     return [
-      i + 1,
-      s.name,
-      s.email,
-      phone,
+      i + 1, s.name, s.email, phone, cpf,
       entryDate ? entryDate.toLocaleDateString('pt-BR') : '',
       stLabel,
       s.paymentIsSub ? `Assinatura (· ciclo ${s.paymentRecurrency})` :
         s.paymentIsSmartInstall ? `Parcelamento Inteligente` :
         s.paymentIsCardInstall  ? `Cartão (${inst}x banco)` :
         (s.paymentLabel || s.paymentType || ''),
-      +vParc.toFixed(2),
-      +vTotal.toFixed(2),
+      +vParc.toFixed(2), +vTotal.toFixed(2),
       inst > 1 ? inst : (s.paymentIsSub ? 'Assinatura' : '1'),
       paid,
       inst > 1 ? Math.max(0, inst - paid) : '',
-      (s as any).turma || '',
-      s.currency || 'BRL',
+      (s as any).turma || '', s.currency || 'BRL',
     ];
   });
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
-
-  // Column widths
   ws['!cols'] = [
-    { wch: 4  }, { wch: 35 }, { wch: 36 }, { wch: 18 },
+    { wch: 4  }, { wch: 35 }, { wch: 36 }, { wch: 18 }, { wch: 16 },
     { wch: 14 }, { wch: 14 }, { wch: 26 },
     { wch: 18 }, { wch: 14 },
     { wch: 12 }, { wch: 8  }, { wch: 10 },
     { wch: 20 }, { wch: 8  },
   ];
-  // Freeze header row
   ws['!freeze'] = { xSplit: 0, ySplit: 1 };
-
   XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
 
   /* ── Sheet 2: Resumo ─────────────────── */
@@ -1048,6 +1036,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [hiddenEmails,    setHiddenEmails]    = useState<Set<string>>(new Set());
   const [phoneCache,      setPhoneCache]      = useState<Record<string, string>>({});
   const [phonesLoading,   setPhonesLoading]   = useState(false);
+  const [documentCache,   setDocumentCache]   = useState<Record<string, string>>({});
   const [showExportMenu,  setShowExportMenu]  = useState(false);
   const [showAddModal,   setShowAddModal]   = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
@@ -1120,8 +1109,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const paginated  = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(sorted.length / pageSize);
 
-  // ── Background phone fetch for current page ────────────────────────────────
-  // Run whenever paginated changes. Fetch only emails not yet cached.
+  // ── Background contact fetch (phone + CPF) for current page ──────────────────
   useEffect(() => {
     const uncached = paginated
       .map(s => (s.email || '').toLowerCase())
@@ -1135,9 +1123,10 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       body: JSON.stringify({ emails: uncached }),
     })
       .then(r => r.json())
-      .then(({ phones }) => {
+      .then(({ phones, documents }) => {
         if (!cancelled) {
-          setPhoneCache(prev => ({ ...prev, ...(phones || {}) }));
+          setPhoneCache(prev    => ({ ...prev, ...(phones    || {}) }));
+          setDocumentCache(prev => ({ ...prev, ...(documents || {}) }));
           setPhonesLoading(false);
         }
       })
@@ -1246,12 +1235,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       label: 'CSV',
                       icon: 'csv',
                       desc: 'Simples, universal',
-                      action: () => { generateCSV(decoded, sorted, phoneCache); setShowExportMenu(false); },
+                      action: () => { generateCSV(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
                     }, {
                       label: 'XLS (Excel)',
                       icon: 'grid_on',
                       desc: 'Planilha completa',
-                      action: () => { generateXLS(decoded, sorted, phoneCache); setShowExportMenu(false); },
+                      action: () => { generateXLS(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
                     }].map(opt => (
                       <button key={opt.label} onClick={opt.action}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
