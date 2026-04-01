@@ -9,6 +9,7 @@
     "lint": "exit 0"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "facebook-nodejs-business-sdk": "^24.0.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

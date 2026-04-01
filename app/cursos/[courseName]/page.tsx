@@ -9,6 +9,8 @@ import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
 const NAVY   = '#001a35';
+const GREEN  = '#4ade80';
+const TEAL   = '#38bdf8';
 
 function emailToId(email: string): string {
   return btoa((email || '').toLowerCase().trim())
@@ -40,6 +42,24 @@ function getStudentFlag(flag: string, size = 18) {
   return getFlagImg(flag, size);
 }
 
+// ── Manual student type (from DB) ───────────────────────────────────────────
+type InstallmentDate = { due_ms: number; paid: boolean; paid_ms: number | null };
+type ManualStudent = {
+  id: string;
+  course_name: string;
+  name: string;
+  email: string;
+  phone: string;
+  entry_date: number;
+  payment_type: 'PIX' | 'CREDIT_CARD';
+  total_amount: number;
+  installments: number;
+  installment_amount: number;
+  installment_dates: InstallmentDate[];
+  notes: string;
+  created_at: number;
+};
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 type SubStatus = 'ACTIVE' | 'OVERDUE' | 'CANCELLED';
 type PayHist   = { date: number; valor: number; recurrencyNumber: number; index: number };
@@ -47,6 +67,10 @@ type Student   = {
   name: string; email: string;
   entryDate: number | null; lastPayDate: number | null;
   turma: string; valor: number; valorBRL: number | null; currency: string; flag: string; transaction: string;
+  phone?: string;
+  source?: 'hotmart' | 'manual';
+  manualId?: string;
+  manualInstallments?: InstallmentDate[];
   // Payment fields
   paymentType: string;
   paymentMethod: string;
@@ -374,15 +398,316 @@ const COLS = [
   { key: 'payment',   label: 'Status',         sortable: false },
 ];
 
+// ── Convert ManualStudent → Student shape ────────────────────────────────────
+function manualToStudent(ms: ManualStudent): Student {
+  const dates   = ms.installment_dates || [];
+  const paid    = dates.filter(d => d.paid);
+  const lastPaid = paid.length > 0 ? Math.max(...paid.map(d => d.paid_ms ?? 0)) : null;
+  const overdue  = dates.some(d => !d.paid && d.due_ms < Date.now());
+
+  const subStatus: SubStatus =
+    ms.payment_type === 'PIX' ? 'CANCELLED' :
+    paid.length >= ms.installments ? 'CANCELLED' :
+    overdue ? 'OVERDUE' : 'ACTIVE';
+
+  const instAmt = ms.installment_amount || ms.total_amount;
+  return {
+    name: ms.name, email: ms.email,
+    entryDate: ms.entry_date, lastPayDate: lastPaid,
+    turma: 'Manual', valor: instAmt, valorBRL: ms.total_amount,
+    currency: 'BRL', flag: 'br', transaction: `MANUAL_${ms.id}`,
+    phone: ms.phone, source: 'manual', manualId: ms.id,
+    manualInstallments: ms.installment_dates,
+    paymentType: ms.payment_type,
+    paymentMethod: ms.payment_type === 'PIX' ? 'PIX' : 'Cartão',
+    paymentLabel: ms.payment_type === 'PIX' ? 'PIX Avulso' : `Cartão ${ms.installments}×`,
+    offerCode: '', paymentMode: ms.payment_type === 'PIX' ? 'single' : 'installment',
+    paymentInstallments: ms.installments,
+    paymentIsSub: false,
+    paymentIsSmartInstall: ms.payment_type === 'CREDIT_CARD' && ms.installments > 1,
+    paymentIsCardInstall: false,
+    paymentRecurrency: paid.length,
+    subStatus,
+    paymentHistory: paid.map((d, i) => ({
+      date: d.paid_ms ?? d.due_ms, valor: instAmt,
+      recurrencyNumber: i + 1, index: i,
+    })),
+  };
+}
+
+// ── Add Student Modal ─────────────────────────────────────────────────────────
+function AddStudentModal({ courseName, onClose, onSaved }: {
+  courseName: string;
+  onClose: () => void;
+  onSaved: (s: ManualStudent) => void;
+}) {
+  const [form, setForm] = useState({
+    name:         '',
+    email:        '',
+    phone:        '',
+    entry_date:   new Date().toISOString().slice(0, 10),
+    payment_type: 'PIX' as 'PIX' | 'CREDIT_CARD',
+    total_amount: '',
+    installments: 1,
+    notes:        '',
+  });
+  const [instDates, setInstDates] = useState<InstallmentDate[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  // Auto-generate installment dates when config changes
+  useEffect(() => {
+    if (form.payment_type !== 'CREDIT_CARD' || form.installments < 1) {
+      setInstDates([]); return;
+    }
+    const base = new Date(form.entry_date).getTime();
+    setInstDates(Array.from({ length: form.installments }, (_, i) => {
+      const d = new Date(base);
+      d.setMonth(d.getMonth() + i);
+      return { due_ms: d.getTime(), paid: false, paid_ms: null };
+    }));
+  }, [form.installments, form.entry_date, form.payment_type]);
+
+  const togglePaid = (idx: number) => {
+    setInstDates(prev => prev.map((d, i) =>
+      i !== idx ? d : { ...d, paid: !d.paid, paid_ms: !d.paid ? Date.now() : null }
+    ));
+  };
+
+  const instAmt = parseFloat(form.total_amount || '0') / (form.installments || 1);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.email || !form.total_amount) {
+      setError('Preencha Nome, Email e Valor.'); return;
+    }
+    setSaving(true); setError('');
+    try {
+      const body = {
+        course_name:        courseName,
+        name:               form.name,
+        email:              form.email.toLowerCase().trim(),
+        phone:              form.phone,
+        entry_date:         new Date(form.entry_date).getTime(),
+        payment_type:       form.payment_type,
+        total_amount:       parseFloat(form.total_amount),
+        installments:       form.payment_type === 'PIX' ? 1 : form.installments,
+        installment_amount: instAmt,
+        installment_dates:  form.payment_type === 'PIX'
+          ? [{ due_ms: new Date(form.entry_date).getTime(), paid: true, paid_ms: new Date(form.entry_date).getTime() }]
+          : instDates,
+        notes: form.notes,
+      };
+      const r = await fetch('/api/alunos/manual', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok) { setError(j.error || 'Erro ao salvar'); return; }
+      onSaved(j.student as ManualStudent);
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally { setSaving(false); }
+  };
+
+  const GLASS: React.CSSProperties = {
+    background: 'linear-gradient(160deg, rgba(0,22,55,0.97) 0%, rgba(0,12,35,0.98) 100%)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.08) inset',
+    borderRadius: 28,
+  };
+  const INPUT: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 12, color: 'white', padding: '10px 14px', width: '100%', outline: 'none',
+    fontSize: 13, fontWeight: 600,
+  };
+  const LABEL: React.CSSProperties = {
+    fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.15em', color: SILVER,
+    display: 'block', marginBottom: 6,
+  };
+
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.85)', backdropFilter: 'blur(12px)' }} />
+      <div style={{ ...GLASS, position: 'relative', width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto', padding: 32 }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)' }}>
+              <span className="material-symbols-outlined" style={{ color: GREEN, fontSize: 22 }}>person_add</span>
+            </div>
+            <div>
+              <h2 style={{ color: 'white', fontWeight: 900, fontSize: 18, margin: 0 }}>Adicionar Aluno</h2>
+              <p style={{ color: SILVER, fontSize: 11, margin: '3px 0 0', fontWeight: 700 }}>{courseName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10, width: 32, height: 32, cursor: 'pointer', color: SILVER, fontSize: 20,
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {/* Row 1: nome + email */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+            <div>
+              <label style={LABEL}>Nome *</label>
+              <input style={INPUT} placeholder="Nome completo" value={form.name}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <div>
+              <label style={LABEL}>Email *</label>
+              <input style={INPUT} type="email" placeholder="email@exemplo.com" value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+            </div>
+          </div>
+
+          {/* Row 2: telefone + data */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+            <div>
+              <label style={LABEL}>Telefone</label>
+              <input style={INPUT} placeholder="(11) 99999-9999" value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div>
+              <label style={LABEL}>Data de Entrada *</label>
+              <input style={INPUT} type="date" value={form.entry_date}
+                onChange={e => setForm(f => ({ ...f, entry_date: e.target.value }))} required />
+            </div>
+          </div>
+
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 20 }} />
+
+          {/* Forma de Pagamento */}
+          <label style={{ ...LABEL, marginBottom: 12 }}>Forma de Pagamento *</label>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+            {(['PIX', 'CREDIT_CARD'] as const).map(t => (
+              <button key={t} type="button"
+                onClick={() => setForm(f => ({ ...f, payment_type: t, installments: 1 }))}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
+                  cursor: 'pointer', transition: 'all 0.2s',
+                  background: form.payment_type === t ? (t === 'PIX' ? 'rgba(74,222,128,0.15)' : 'rgba(232,177,79,0.15)') : 'rgba(255,255,255,0.05)',
+                  border: `1.5px solid ${form.payment_type === t ? (t === 'PIX' ? GREEN : GOLD) : 'rgba(255,255,255,0.1)'}`,
+                  color: form.payment_type === t ? (t === 'PIX' ? GREEN : GOLD) : SILVER,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                  {t === 'PIX' ? 'pix' : 'credit_card'}
+                </span>
+                {t === 'PIX' ? 'PIX' : 'Cartão de Crédito'}
+              </button>
+            ))}
+          </div>
+
+          {/* Valor + Parcelas */}
+          <div style={{ display: 'grid', gridTemplateColumns: form.payment_type === 'CREDIT_CARD' ? '1fr 1fr 1fr' : '1fr', gap: 14, marginBottom: 18 }}>
+            <div>
+              <label style={LABEL}>Valor Total (R$) *</label>
+              <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00" value={form.total_amount}
+                onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} required />
+            </div>
+            {form.payment_type === 'CREDIT_CARD' && (<>
+              <div>
+                <label style={LABEL}>Parcelas</label>
+                <select style={{ ...INPUT, cursor: 'pointer' }} value={form.installments}
+                  onChange={e => setForm(f => ({ ...f, installments: parseInt(e.target.value) }))}>
+                  {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
+                    <option key={n} value={n} style={{ background: NAVY, color: 'white' }}>{n}×</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={LABEL}>Valor por Parcela</label>
+                <div style={{ ...INPUT, color: GOLD, fontWeight: 900, display: 'flex', alignItems: 'center' }}>
+                  {form.total_amount ? `R$ ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                </div>
+              </div>
+            </>)}
+          </div>
+
+          {/* Installment tracker */}
+          {form.payment_type === 'CREDIT_CARD' && instDates.length > 0 && (
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
+              <p style={{ ...LABEL, marginBottom: 12 }}>Marque as parcelas já pagas</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {instDates.map((d, i) => (
+                  <div key={i} onClick={() => togglePaid(i)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                      background: d.paid ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${d.paid ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)'}` }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 6, border: `2px solid ${d.paid ? GREEN : 'rgba(255,255,255,0.2)'}`,
+                      background: d.paid ? GREEN : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.15s', flexShrink: 0 }}>
+                      {d.paid && <span className="material-symbols-outlined" style={{ fontSize: 12, color: NAVY }}>check</span>}
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: d.paid ? GREEN : SILVER }}>Parcela {i + 1}</span>
+                    <span style={{ fontSize: 11, color: SILVER, marginLeft: 4 }}>
+                      {new Date(d.due_ms).toLocaleDateString('pt-BR')}
+                    </span>
+                    <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: d.paid ? GREEN : GOLD }}>
+                      {form.total_amount ? `R$ ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          <div style={{ marginBottom: 24 }}>
+            <label style={LABEL}>Observações</label>
+            <textarea style={{ ...INPUT, minHeight: 60, resize: 'vertical' }} placeholder="Anotações extras..."
+              value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10,
+              padding: '10px 14px', marginBottom: 16, color: '#f87171', fontSize: 12, fontWeight: 700 }}>
+              {error}
+            </div>
+          )}
+
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose}
+              style={{ flex: 1, padding: '12px 0', borderRadius: 14, fontWeight: 800, fontSize: 12, cursor: 'pointer',
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving}
+              style={{ flex: 2, padding: '12px 0', borderRadius: 14, fontWeight: 900, fontSize: 13,
+                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+                background: 'rgba(74,222,128,0.12)', border: `1.5px solid ${GREEN}`, color: GREEN,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                {saving ? 'progress_activity' : 'person_add'}
+              </span>
+              {saving ? 'Salvando...' : 'Adicionar Aluno'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CursoDetailPage({ params }: { params: Promise<{ courseName: string }> }) {
   const { courseName } = use(params);
   const decoded = decodeURIComponent(courseName);
   const router  = useRouter();
 
-  const [students,     setStudents]     = useState<Student[]>([]);
-  const [turmas,       setTurmas]       = useState<string[]>([]);
-  const [loading,      setLoading]      = useState(true);
+  const [students,      setStudents]      = useState<Student[]>([]);
+  const [manualStudents, setManualStudents] = useState<ManualStudent[]>([]);
+  const [showAddModal,  setShowAddModal]  = useState(false);
+  const [turmas,        setTurmas]        = useState<string[]>([]);
+  const [loading,       setLoading]       = useState(true);
   const [turmaFilter,  setTurmaFilter]  = useState('');
   const [search,       setSearch]       = useState('');
   const [page,         setPage]         = useState(0);
@@ -417,13 +742,24 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   useEffect(() => {
     setLoading(true);
     const p = turmaFilter ? `?turma=${encodeURIComponent(turmaFilter)}` : '';
-    fetch(`/api/cursos/${encodeURIComponent(decoded)}${p}`)
-      .then(r => r.json())
-      .then(d => { setStudents(d.students || []); setTurmas(d.turmas || []); setLoading(false); setPage(0); })
-      .catch(() => setLoading(false));
+    Promise.all([
+      fetch(`/api/cursos/${encodeURIComponent(decoded)}${p}`).then(r => r.json()),
+      fetch(`/api/alunos/manual?course=${encodeURIComponent(decoded)}`).then(r => r.json()),
+    ]).then(([hotmartData, manualData]) => {
+      setStudents(hotmartData.students || []);
+      setTurmas(hotmartData.turmas || []);
+      setManualStudents(manualData.students || []);
+      setLoading(false);
+      setPage(0);
+    }).catch(() => setLoading(false));
   }, [decoded, turmaFilter]);
 
-  const filtered = students.filter(s => {
+  // Merge Hotmart + manual students
+  const allStudents: Student[] = [
+    ...manualStudents.map(ms => manualToStudent(ms)),
+    ...students.map(s => ({ ...s, source: 'hotmart' as const })),
+  ];
+  const filtered = allStudents.filter(s => {
     if (statusFilter && getPayStatus(s) !== statusFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
@@ -433,9 +769,9 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const paginated  = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(sorted.length / pageSize);
 
-  const adimN  = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
-  const inadimN = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
-  const quitN  = students.filter(s => getPayStatus(s) === 'QUITADO').length;
+  const adimN   = allStudents.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
+  const inadimN  = allStudents.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
+  const quitN   = allStudents.filter(s => getPayStatus(s) === 'QUITADO').length;
 
   // vParcela: for BRL = price.value; for LATAM = price.value in original currency
   // We use paymentHistory to get the avg per-payment amount
@@ -504,6 +840,14 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               onMouseLeave={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.1)')}>
               <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
               Exportar PDF
+            </button>
+            <button onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+              style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', color: GREEN }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.18)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.08)')}>
+              <span className="material-symbols-outlined text-[16px]">person_add</span>
+              Adicionar Aluno
             </button>
           </div>
 
@@ -597,6 +941,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           onMouseLeave={e => (e.currentTarget.style.color = '#fff')}
                           title={s.name}
                         >{s.name}</button>
+                        {(s as any).source === 'manual' && (
+                          <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
+                            color: GREEN, borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                            MANUAL
+                          </span>
+                        )}
                       </div>
                       {status === 'INADIMPLENTE' && (
                         <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#f87171' }}>
@@ -657,6 +1007,17 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           </div>
         </main>
       </div>
+
+      {/* Add student modal */}
+      {showAddModal && typeof window !== 'undefined' && (
+        <AddStudentModal
+          courseName={decoded}
+          onClose={() => setShowAddModal(false)}
+          onSaved={(ms) => {
+            setManualStudents(prev => [ms, ...prev]);
+          }}
+        />
+      )}
 
       {tooltipSt && typeof window !== 'undefined' && createPortal(
         <NameTooltip
