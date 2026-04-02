@@ -110,6 +110,7 @@ export async function POST(request: Request) {
         results.enriched++;
       } catch (e: any) {
         results.failed++;
+        console.error('[batch enrich]', email, e.message);
         results.errors.push(`${email} (enrich): ${e.message}`);
       }
       continue;
@@ -175,21 +176,23 @@ export async function POST(request: Request) {
             phone    = COALESCE(NULLIF(EXCLUDED.phone,    ''), buyer_profiles.phone),
             document = COALESCE(NULLIF(EXCLUDED.document, ''), buyer_profiles.document),
             name     = COALESCE(NULLIF(EXCLUDED.name,     ''), buyer_profiles.name),
-            vendedor           = COALESCE(EXCLUDED.vendedor,           buyer_profiles.vendedor),
-            bp_valor           = COALESCE(EXCLUDED.bp_valor,           buyer_profiles.bp_valor),
-            bp_pagamento       = COALESCE(EXCLUDED.bp_pagamento,       buyer_profiles.bp_pagamento),
-            bp_modelo          = COALESCE(EXCLUDED.bp_modelo,          buyer_profiles.bp_modelo),
-            bp_parcela         = COALESCE(EXCLUDED.bp_parcela,         buyer_profiles.bp_parcela),
+            -- buyer_persona: ALWAYS overwrite with new data from spreadsheet
+            vendedor             = COALESCE(EXCLUDED.vendedor,             buyer_profiles.vendedor),
+            bp_valor             = COALESCE(EXCLUDED.bp_valor,             buyer_profiles.bp_valor),
+            bp_pagamento         = COALESCE(EXCLUDED.bp_pagamento,         buyer_profiles.bp_pagamento),
+            bp_modelo            = COALESCE(EXCLUDED.bp_modelo,            buyer_profiles.bp_modelo),
+            bp_parcela           = COALESCE(EXCLUDED.bp_parcela,           buyer_profiles.bp_parcela),
             bp_primeira_parcela  = COALESCE(EXCLUDED.bp_primeira_parcela,  buyer_profiles.bp_primeira_parcela),
             bp_ultimo_pagamento  = COALESCE(EXCLUDED.bp_ultimo_pagamento,  buyer_profiles.bp_ultimo_pagamento),
             bp_proximo_pagamento = COALESCE(EXCLUDED.bp_proximo_pagamento, buyer_profiles.bp_proximo_pagamento),
-            bp_em_dia          = COALESCE(EXCLUDED.bp_em_dia,          buyer_profiles.bp_em_dia),
+            bp_em_dia            = COALESCE(EXCLUDED.bp_em_dia,            buyer_profiles.bp_em_dia),
             updated_at = ${now}
         `;
       }
       results.saved++;
     } catch (e: any) {
       results.failed++;
+      console.error('[batch new]', email, e.message);
       results.errors.push(`${email}: ${e.message}`);
     }
   }
