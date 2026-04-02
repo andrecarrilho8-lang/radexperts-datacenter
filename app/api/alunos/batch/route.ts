@@ -9,11 +9,11 @@ export const runtime  = 'nodejs';
    Body: {
      courseName: string,
      students: Array<{
-       name, email, phone, cpf, paymentMethod, totalAmount, entryDate
+       name, email, phone, cpf, paymentMethod, totalAmount, entryDate,
+       isExisting?: boolean   ← if true, only enrich buyer_profiles (no insert)
      }>
    }
-   Saves all to manual_students in a single round-trip.
-   Returns: { saved, failed, errors }
+   Returns: { saved, enriched, failed, errors }
    ══════════════════════════════════════════════════════════════════════════ */
 export async function POST(request: Request) {
   let body: any;
@@ -29,27 +29,78 @@ export async function POST(request: Request) {
 
   const sql = getDb();
   const now = Date.now();
-  const results: { saved: number; failed: number; errors: string[] } = { saved: 0, failed: 0, errors: [] };
+  const results: { saved: number; enriched: number; failed: number; errors: string[] } = {
+    saved: 0, enriched: 0, failed: 0, errors: [],
+  };
 
   for (const s of students) {
     const name  = (s.name  || '').trim();
     const email = (s.email || '').toLowerCase().trim();
     if (!name || !email) { results.failed++; results.errors.push(`Linha sem nome ou email: ${email || name}`); continue; }
 
+    const phone  = (s.phone || '').trim();
+    const cpf    = (s.cpf   || '').trim();
+
+    // ── Belt-and-suspenders dedup: check server-side even if client sent isExisting ──
+    // 1. Did client already flag this as existing?
+    const clientFlagged = s.isExisting === true;
+
+    // 2. Check if email already in manual_students for this course
+    let isInManual = false;
+    try {
+      const existing = await sql`
+        SELECT id FROM manual_students
+        WHERE email = ${email} AND course_name = ${courseName}
+        LIMIT 1
+      ` as any[];
+      isInManual = existing.length > 0;
+    } catch { /* ignore check error, will try insert */ }
+
+    // 3. Check if email in buyer_profiles (Hotmart student)
+    let isInProfiles = false;
+    if (!isInManual) {
+      try {
+        const bp = await sql`SELECT email FROM buyer_profiles WHERE email = ${email} LIMIT 1` as any[];
+        isInProfiles = bp.length > 0;
+      } catch { /* ignore */ }
+    }
+
+    const shouldEnrichOnly = clientFlagged || isInManual || isInProfiles;
+
+    if (shouldEnrichOnly) {
+      // Only update buyer_profiles with missing fields — never create a duplicate
+      try {
+        if (phone || cpf) {
+          await sql`
+            INSERT INTO buyer_profiles
+              (email, name, phone, document, purchase_count, created_at, updated_at)
+            VALUES (${email}, ${name}, ${phone || null}, ${cpf || null}, 0, ${now}, ${now})
+            ON CONFLICT (email) DO UPDATE SET
+              phone    = COALESCE(NULLIF(buyer_profiles.phone,    ''), NULLIF(EXCLUDED.phone,    '')),
+              document = COALESCE(NULLIF(buyer_profiles.document, ''), NULLIF(EXCLUDED.document, '')),
+              name     = COALESCE(NULLIF(buyer_profiles.name,     ''), NULLIF(EXCLUDED.name,     '')),
+              updated_at = ${now}
+          `;
+        }
+        results.enriched++;
+      } catch (e: any) {
+        results.failed++;
+        results.errors.push(`${email}: ${e.message}`);
+      }
+      continue;
+    }
+
+    // ── New student — full insert ─────────────────────────────────────────
     const entryDate     = s.entryDate ? Number(s.entryDate) : now;
     const paymentType   = s.paymentMethod || 'PIX';
     const totalAmount   = parseFloat((s.totalAmount  || '0').toString().replace(',', '.'))  || 0;
     const instCount     = parseInt(s.installments    || '1', 10) || 1;
     const instAmtIn     = parseFloat((s.installmentAmount || '0').toString().replace(',', '.'));
     const instPaid      = parseInt(s.installmentsPaid || '0', 10) || 0;
-    const phone         = (s.phone || '').trim();
-    const cpf           = (s.cpf   || '').trim();
 
-    // installment_amount: explicit value wins, else total / count
     const instAmount = instAmtIn > 0 ? instAmtIn : (instCount > 1 ? totalAmount / instCount : totalAmount);
     const realTotal  = totalAmount > 0 ? totalAmount : instAmount * instCount;
 
-    // Build installment_dates array (monthly from entry, first `instPaid` marked paid)
     const MONTH = 30 * 24 * 60 * 60 * 1000;
     const installmentDates = paymentType === 'CARTAO_CREDITO' && instCount > 1
       ? Array.from({ length: instCount }, (_, i) => {

@@ -578,6 +578,7 @@ interface ParsedRow {
   paymentMethod: string; totalAmount: string;
   installments: string; installmentAmount: string; installmentsPaid: string;
   entryDate: string; // YYYY-MM-DD
+  dupStatus: 'new' | 'enrich'; // 'enrich' = already exists, only update missing fields
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -642,6 +643,7 @@ function parseSingleLine(raw: string): ParsedRow {
   return { name, email, phone, cpf, paymentMethod: payment,
     totalAmount: '', installments, installmentAmount: '', installmentsPaid: '0',
     entryDate: new Date().toISOString().slice(0, 10),
+    dupStatus: 'new' as const,
     confidence };
 }
 
@@ -692,6 +694,15 @@ function ConfBadge({ level }: { level: 'high' | 'medium' | 'low' }) {
             :                      { c: '#f87171', bg: 'rgba(248,113,113,0.1)', label: '✕ Erro' };
   return <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
     background: cfg.bg, color: cfg.c, whiteSpace: 'nowrap' }}>{cfg.label}</span>;
+}
+
+// ── Dup status badge ─────────────────────────────────────────────────────────
+function DupBadge({ status }: { status: 'new' | 'enrich' }) {
+  return status === 'new'
+    ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
+        background: 'rgba(74,222,128,0.1)', color: '#4ade80', whiteSpace: 'nowrap' }}>🆕 Novo</span>
+    : <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
+        background: 'rgba(99,179,237,0.1)', color: '#63b3ed', whiteSpace: 'nowrap' }}>🔄 Atualizar</span>;
 }
 
 // ── CSV / XLS Import Modal ────────────────────────────────────────────────────
@@ -757,8 +768,9 @@ function parseDateCell(val: any): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function CSVImportModal({ courseName, onClose, onSaved }: {
+function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   courseName: string;
+  existingEmails: Set<string>;
   onClose: () => void;
   onSaved: (count: number) => void;
 }) {
@@ -833,6 +845,7 @@ function CSVImportModal({ courseName, onClose, onSaved }: {
         installments:     pick('installments') || '1',
         installmentAmount:'',
         installmentsPaid: pick('installmentsPaid') || '0',
+        dupStatus:        existingEmails.has(email.toLowerCase()) ? 'enrich' as const : 'new' as const,
         confidence:       conf,
       };
     }).filter(r => r.name || r.email);
@@ -856,13 +869,14 @@ function CSVImportModal({ courseName, onClose, onSaved }: {
             installmentAmount: '0',
             installmentsPaid: r.installmentsPaid || '0',
             entryDate: r.entryDate ? new Date(r.entryDate).getTime() : Date.now(),
+            isExisting: r.dupStatus === 'enrich',
           })),
         }),
       });
       const data = await res.json();
       setResult(data);
       setStep('done');
-      if (data.saved > 0) onSaved(data.saved);
+      if (data.saved > 0) onSaved(data.saved + (data.enriched || 0));
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -1063,7 +1077,7 @@ function CSVImportModal({ courseName, onClose, onSaved }: {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','OK'].map(h => (
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','Status','OK'].map(h => (
                     <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
                       fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
@@ -1083,6 +1097,7 @@ function CSVImportModal({ courseName, onClose, onSaved }: {
                     <td style={{ padding: '5px 8px', color: SILVER }}>{r.totalAmount || '—'}</td>
                     <td style={{ padding: '5px 8px', color: SILVER }}>{r.installments}×</td>
                     <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.entryDate || '—'}</td>
+                    <td style={{ padding: '5px 8px' }}><DupBadge status={r.dupStatus} /></td>
                     <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
                   </tr>
                 ))}
@@ -1090,7 +1105,12 @@ function CSVImportModal({ courseName, onClose, onSaved }: {
             </table>
           </div>
           <p style={{ fontSize: 11, color: SILVER, marginBottom: 14 }}>
-            <strong style={{ color: 'white' }}>{totalValid}</strong> aluno{totalValid !== 1 ? 's' : ''} válidos de {allRaw.length} linhas na planilha.
+            <strong style={{ color: 'white' }}>{totalValid}</strong> aluno{totalValid !== 1 ? 's' : ''} válidos de {allRaw.length} linhas
+            {' '}({buildRows().filter(r => r.dupStatus === 'enrich').length > 0 && (
+              <span style={{ color: '#63b3ed' }}>
+                {buildRows().filter(r => r.dupStatus === 'enrich').length} 🔄 serão enriquecidos
+              </span>
+            )})
           </p>
           {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 10 }}>
@@ -1140,8 +1160,9 @@ function CSVImportModal({ courseName, onClose, onSaved }: {
 }
 
 // ── Batch Add Modal ───────────────────────────────────────────────────────────
-function BatchAddModal({ courseName, onClose, onSaved }: {
+function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
   courseName: string;
+  existingEmails: Set<string>;
   onClose: () => void;
   onSaved: (count: number) => void;
 }) {
@@ -1149,11 +1170,14 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
   const [rawText,  setRawText]  = React.useState('');
   const [rows,     setRows]     = React.useState<ParsedRow[]>([]);
   const [saving,   setSaving]   = React.useState(false);
-  const [result,   setResult]   = React.useState<{ saved: number; failed: number; errors: string[] } | null>(null);
+  const [result,   setResult]   = React.useState<{ saved: number; enriched: number; failed: number; errors: string[] } | null>(null);
   const [error,    setError]    = React.useState('');
 
   const handleParse = () => {
-    const parsed = parseBatchText(rawText);
+    const parsed = parseBatchText(rawText).map(r => ({
+      ...r,
+      dupStatus: existingEmails.has(r.email.toLowerCase()) ? 'enrich' as const : 'new' as const,
+    }));
     if (parsed.length === 0) { setError('Nenhum aluno identificado. Verifique o formato.'); return; }
     setRows(parsed); setError(''); setStep('preview');
   };
@@ -1181,13 +1205,14 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
             installmentAmount: r.installmentAmount || '0',
             installmentsPaid:  r.installmentsPaid  || '0',
             entryDate: r.entryDate ? new Date(r.entryDate).getTime() : Date.now(),
+            isExisting: r.dupStatus === 'enrich',
           })),
         }),
       });
       const data = await res.json();
       setResult(data);
       setStep('done');
-      if (data.saved > 0) onSaved(data.saved);
+      if (data.saved > 0) onSaved(data.saved + (data.enriched || 0));
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -1288,7 +1313,7 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Data Entrada','OK',''].map(h => (
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Data Entrada','Status','OK',''].map(h => (
                     <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
                       fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER,
                       whiteSpace: 'nowrap' }}>{h}</th>
@@ -1329,6 +1354,7 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
                           <input type="date" value={r.entryDate} onChange={e => updateRow(i, 'entryDate', e.target.value)}
                             style={{ ...IN, width: 120, colorScheme: 'dark' }} />
                         </td>
+                        <td style={{ padding: '5px 8px' }}><DupBadge status={r.dupStatus} /></td>
                         <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
                         <td style={{ padding: '5px 4px' }}>
                           <button onClick={() => removeRow(i)}
@@ -1405,14 +1431,19 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
         {/* ─── STEP 3: DONE ──────────────────────────────────────────────── */}
         {step === 'done' && result && (<>
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 56, color: result.saved > 0 ? GREEN : '#f87171' }}>
-              {result.saved > 0 ? 'task_alt' : 'error'}
+            <span className="material-symbols-outlined" style={{ fontSize: 56, color: (result as any).saved > 0 ? GREEN : '#63b3ed' }}>
+              {(result as any).saved > 0 || (result as any).enriched > 0 ? 'task_alt' : 'error'}
             </span>
             <p style={{ color: 'white', fontWeight: 900, fontSize: 18, margin: '12px 0 4px' }}>
-              {result.saved} aluno{result.saved !== 1 ? 's' : ''} importado{result.saved !== 1 ? 's' : ''}!
+              {(result as any).saved} novo{(result as any).saved !== 1 ? 's' : ''} importado{(result as any).saved !== 1 ? 's' : ''}!
             </p>
-            {result.failed > 0 && (
-              <p style={{ color: '#fbbf24', fontSize: 12 }}>{result.failed} falha{result.failed !== 1 ? 's' : ''}</p>
+            {(result as any).enriched > 0 && (
+              <p style={{ color: '#63b3ed', fontSize: 13, margin: '4px 0' }}>
+                🔄 {(result as any).enriched} cadastro{(result as any).enriched !== 1 ? 's' : ''} enriquecido{(result as any).enriched !== 1 ? 's' : ''} com dados faltantes
+              </p>
+            )}
+            {(result as any).failed > 0 && (
+              <p style={{ color: '#fbbf24', fontSize: 12 }}>{(result as any).failed} falha{(result as any).failed !== 1 ? 's' : ''}</p>
             )}
             {result.errors.length > 0 && (
               <div style={{ maxHeight: 100, overflowY: 'auto', marginTop: 12, textAlign: 'left',
@@ -2411,6 +2442,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       {showCSVModal && typeof window !== 'undefined' && (
         <CSVImportModal
           courseName={decoded}
+          existingEmails={new Set(allStudents.map(s => (s.email || '').toLowerCase()))}
           onClose={() => setShowCSVModal(false)}
           onSaved={() => {
             setShowCSVModal(false);
@@ -2425,10 +2457,10 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       {showBatchModal && typeof window !== 'undefined' && (
         <BatchAddModal
           courseName={decoded}
+          existingEmails={new Set(allStudents.map(s => (s.email || '').toLowerCase()))}
           onClose={() => setShowBatchModal(false)}
           onSaved={() => {
             setShowBatchModal(false);
-            // Reload manual students to show new batch
             fetch(`/api/alunos/manual?course=${encodeURIComponent(decoded)}`)
               .then(r => r.json())
               .then(d => setManualStudents(d.students || []));
