@@ -2503,7 +2503,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         {getStudentFlag(s.flag, 18)}
                         <button
                           onClick={() => router.push(`/alunos/${emailToId(s.email)}`)}
-                          className="text-[12px] font-black text-white truncate text-left transition-colors max-w-[380px]"
+                          className="text-[12px] font-black text-white truncate text-left transition-colors max-w-[520px]"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
                           onMouseLeave={e => (e.currentTarget.style.color = '#fff')}
