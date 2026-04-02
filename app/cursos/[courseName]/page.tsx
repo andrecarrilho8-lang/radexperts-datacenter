@@ -343,7 +343,7 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
-function generatePDF(courseName: string, students: Student[]) {
+function generatePDF(courseName: string, students: Student[], phoneCache: Record<string, string> = {}, documentCache: Record<string, string> = {}) {
   const rows = students.map((s, i) => {
     const status = getPayStatus(s);
     const stLabel = status === 'INADIMPLENTE' ? '⚠ INADIMPLENTE' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : '✓ QUITADO') : '● ADIMPLENTE';
@@ -356,7 +356,15 @@ function generatePDF(courseName: string, students: Student[]) {
     const vTotal   = s.paymentIsSub ? s.valor * paid : s.valor;
     const method   = s.paymentIsSub ? `Assinatura · ${paid} pgtos` : inst > 1 ? `Cartão ${inst}× · ${paidCard}/${inst}` : 'Pago';
     const rowBg = status === 'INADIMPLENTE' ? '#fff0f0' : i % 2 === 0 ? '#f8faff' : '#fff';
-    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name}</strong></td><td>${s.email}</td><td>${fmtDate(s.entryDate)}</td><td>${fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#555">${method}</td></tr>`;
+    const emailKey = (s.email || '').toLowerCase();
+    const phone = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCache[emailKey] || '');
+    const cpf = documentCache[emailKey] || (s as any).document || '';
+    const dadosPessoais = [
+      `<b>${s.email}</b>`,
+      phone ? `<span style="color:#16a34a">📞 ${phone}</span>` : '',
+      cpf   ? `<span style="color:#0369a1">🪪 ${cpf}</span>`  : '',
+    ].filter(Boolean).join('<br/>');
+    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td>${fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#555">${method}</td></tr>`;
   }).join('');
 
   const active    = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
@@ -373,7 +381,7 @@ function generatePDF(courseName: string, students: Student[]) {
 .stats{display:flex;gap:12px;margin-bottom:20px}.stat{padding:10px 16px;border-radius:8px;flex:1}
 .num{font-size:22px;font-weight:900}.lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#888;margin-top:2px}
 table{width:100%;border-collapse:collapse}th{background:#001a35;color:#E8B14F;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:1px;padding:8px 6px;text-align:left}
-td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top}.ftr{margin-top:18px;font-size:9px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:8px}
+td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top;line-height:1.7}.ftr{margin-top:18px;font-size:9px;color:#bbb;text-align:right;border-top:1px solid #eee;padding-top:8px}
 @media print{body{padding:16px}}</style></head><body>
 <div class="hdr"><div><div class="cn">${courseName}</div><div class="meta">${new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})}</div></div><div class="logo">RadExperts<br/>Data Center</div></div>
 <div class="stats">
@@ -382,7 +390,7 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top}.ftr{margin-t
 <div class="stat" style="background:#fff0f0;border:1px solid #fca5a5"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">Inadimplentes</div></div>
 <div class="stat" style="background:#f0fff4;border:1px solid #86efac"><div class="num" style="color:#16a34a">${quitado}</div><div class="lbl">Quitados</div></div>
 </div>
-<table><thead><tr><th>#</th><th>Nome</th><th>Email</th><th>Entrada</th><th>Valor Parcela</th><th>Total Pago</th><th>Status</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th>#</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Valor Parcela</th><th>Total Pago</th><th>Status</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="ftr">RadExperts Data Center · Dados vitalícios</div>
 <script>window.onload=()=>window.print()</script></body></html>`);
   win.document.close();
@@ -1615,7 +1623,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             {/* Export buttons group */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {/* PDF */}
-              <button onClick={() => generatePDF(decoded, sorted)}
+              <button onClick={() => generatePDF(decoded, sorted, phoneCache, documentCache)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
                 style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.2)')}
