@@ -578,7 +578,11 @@ interface ParsedRow {
   paymentMethod: string; totalAmount: string;
   installments: string; installmentAmount: string; installmentsPaid: string;
   entryDate: string; // YYYY-MM-DD
-  dupStatus: 'new' | 'enrich'; // 'enrich' = already exists, only update missing fields
+  // buyer_persona fields
+  vendedor: string; bp_valor: string; bp_pagamento: string; bp_modelo: string;
+  bp_parcela: string; bp_primeira_parcela: string;
+  bp_ultimo_pagamento: string; bp_proximo_pagamento: string; bp_em_dia: string;
+  dupStatus: 'new' | 'enrich';
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -643,6 +647,9 @@ function parseSingleLine(raw: string): ParsedRow {
   return { name, email, phone, cpf, paymentMethod: payment,
     totalAmount: '', installments, installmentAmount: '', installmentsPaid: '0',
     entryDate: new Date().toISOString().slice(0, 10),
+    vendedor: '', bp_valor: '', bp_pagamento: '', bp_modelo: '',
+    bp_parcela: '', bp_primeira_parcela: '', bp_ultimo_pagamento: '',
+    bp_proximo_pagamento: '', bp_em_dia: '',
     dupStatus: 'new' as const,
     confidence };
 }
@@ -706,33 +713,56 @@ function DupBadge({ status }: { status: 'new' | 'enrich' }) {
 }
 
 // ── CSV / XLS Import Modal ────────────────────────────────────────────────────
-type CsvField = 'name'|'email'|'phone'|'cpf'|'entryDate'|'paymentMethod'|'totalAmount'|'installments'|'installmentsPaid'|'_ignore';
+type CsvField =
+  'name'|'email'|'phone'|'cpf'|'entryDate'|
+  'paymentMethod'|'totalAmount'|'installments'|'installmentsPaid'|
+  'vendedor'|'bp_valor'|'bp_pagamento'|'bp_modelo'|'bp_parcela'|
+  'bp_primeira_parcela'|'bp_ultimo_pagamento'|'bp_proximo_pagamento'|'bp_em_dia'|
+  '_ignore';
 
 const CSV_FIELD_LABELS: Record<CsvField, string> = {
-  name:            'Nome',
-  email:           'Email',
-  phone:           'Telefone',
-  cpf:             'CPF',
-  entryDate:       'Data de Entrada',
-  paymentMethod:   'Tipo de Pagamento',
-  totalAmount:     'Valor Parcela (R$)',
-  installments:    'Nº de Parcelas',
-  installmentsPaid:'Parcelas Pagas',
-  _ignore:         '— Ignorar —',
+  name:                 'Nome',
+  email:                'Email',
+  phone:                'Telefone',
+  cpf:                  'CPF',
+  entryDate:            'Data de Entrada',
+  paymentMethod:        'Tipo de Pagamento',
+  totalAmount:          'Valor Parcela (R$)',
+  installments:         'Nº de Parcelas',
+  installmentsPaid:     'Parcelas Pagas',
+  vendedor:             'Vendedor',
+  bp_valor:             'Valor',
+  bp_pagamento:         'Pagamento',
+  bp_modelo:            'Modelo',
+  bp_parcela:           'Parcela (R$)',
+  bp_primeira_parcela:  'Primeira Parcela',
+  bp_ultimo_pagamento:  'Último Pagamento',
+  bp_proximo_pagamento: 'Próximo Pagamento',
+  bp_em_dia:            'Em Dia',
+  _ignore:              '— Ignorar —',
 };
 
 // Auto-detect column mapping from header name
 function guessField(header: string): CsvField {
   const h = header.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  if (/nome|name/.test(h))                                    return 'name';
-  if (/e.*mail/.test(h))                                      return 'email';
-  if (/tel|fone|phone|celular|whatsapp|contato/.test(h))      return 'phone';
-  if (/cpf|documento|document|doc/.test(h))                    return 'cpf';
-  if (/data|entrada|ingresso|date|inicio/.test(h))             return 'entryDate';
-  if (/pag|payment|forma|tipo|metodo|method/.test(h))          return 'paymentMethod';
-  if (/valor|value|amount|parcela|mensalidade/.test(h))        return 'totalAmount';
-  if (/parcelas|installments|n.*parc|num/.test(h))             return 'installments';
-  if (/pag.*parc|pagas?|paid/.test(h))                         return 'installmentsPaid';
+  if (/^nome$|^name$/.test(h))                                      return 'name';
+  if (/e.*mail/.test(h))                                            return 'email';
+  if (/tel|fone|phone|celular|whatsapp|contato/.test(h))            return 'phone';
+  if (/cpf|documento|document|doc/.test(h))                         return 'cpf';
+  if (/vendedor|seller|corretor/.test(h))                           return 'vendedor';
+  if (/^valor$|^value$|^amount$/.test(h))                           return 'bp_valor';
+  if (/^pagamento$|^payment$|^forma/.test(h))                       return 'bp_pagamento';
+  if (/^modelo$/.test(h))                                           return 'bp_modelo';
+  if (/^parcela$|^installment$/.test(h))                            return 'bp_parcela';
+  if (/1.*parc|primeir|first.*parc|parc.*1/.test(h))               return 'bp_primeira_parcela';
+  if (/ultim|last.*parc|parc.*ult/.test(h))                         return 'bp_ultimo_pagamento';
+  if (/prox|next.*parc|parc.*prox/.test(h))                         return 'bp_proximo_pagamento';
+  if (/em.dia|adimpl|day|current/.test(h))                          return 'bp_em_dia';
+  if (/data|entrada|ingresso|date|inicio/.test(h))                  return 'entryDate';
+  if (/pag|tipo.*pag|metodo/.test(h))                               return 'paymentMethod';
+  if (/valor.*parc|parc.*valor|mensalidade/.test(h))                return 'totalAmount';
+  if (/n.*parc|num.*parc|installments/.test(h))                     return 'installments';
+  if (/pag.*parc|pagas?|paid/.test(h))                              return 'installmentsPaid';
   return '_ignore';
 }
 
@@ -827,28 +857,42 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   // Build ParsedRows from allRaw + mapping
   const buildRows = (): ParsedRow[] => {
     const fieldFor = (col: string): CsvField => mapping[col] || '_ignore';
+    const pickRaw  = (field: CsvField, row: any[]) => {
+      const idx = headers.findIndex(h => fieldFor(h) === field);
+      return idx >= 0 ? String(row[idx] ?? '').trim() : '';
+    };
     return allRaw.map(row => {
-      const pick = (field: CsvField) => {
-        const idx = headers.findIndex(h => fieldFor(h) === field);
-        return idx >= 0 ? String(row[idx] ?? '').trim() : '';
-      };
-      const name  = pick('name');
-      const email = pick('email');
+      const name  = pickRaw('name', row);
+      const email = pickRaw('email', row);
       const conf: ParsedRow['confidence'] = name && email ? 'high' : email ? 'medium' : 'low';
+      const entryIdx = headers.findIndex(h => fieldFor(h) === 'entryDate');
       return {
         name, email,
-        phone:            pick('phone'),
-        cpf:              pick('cpf'),
-        entryDate:        parseDateCell(headers.findIndex(h => fieldFor(h) === 'entryDate') >= 0
-                            ? allRaw[allRaw.indexOf(row)][headers.findIndex(h => fieldFor(h) === 'entryDate')]
-                            : ''),
-        paymentMethod:    normalisePayment(pick('paymentMethod')),
-        totalAmount:      pick('totalAmount').replace(/[^\d.,]/g, ''),
-        installments:     pick('installments') || '1',
-        installmentAmount:'',
-        installmentsPaid: pick('installmentsPaid') || '0',
-        dupStatus:        existingEmails.has(email.toLowerCase()) ? 'enrich' as const : 'new' as const,
-        confidence:       conf,
+        phone:                pickRaw('phone', row),
+        cpf:                  pickRaw('cpf', row),
+        entryDate:            parseDateCell(entryIdx >= 0 ? row[entryIdx] : ''),
+        paymentMethod:        normalisePayment(pickRaw('paymentMethod', row)),
+        totalAmount:          pickRaw('totalAmount', row).replace(/[^\d.,]/g, ''),
+        installments:         pickRaw('installments', row) || '1',
+        installmentAmount:    '',
+        installmentsPaid:     pickRaw('installmentsPaid', row) || '0',
+        // buyer_persona fields — raw strings, API will parse
+        vendedor:             pickRaw('vendedor', row),
+        bp_valor:             pickRaw('bp_valor', row).replace(/[^\d.,]/g, ''),
+        bp_pagamento:         pickRaw('bp_pagamento', row),
+        bp_modelo:            pickRaw('bp_modelo', row),
+        bp_parcela:           pickRaw('bp_parcela', row).replace(/[^\d.,]/g, ''),
+        bp_primeira_parcela:  parseDateCell(headers.findIndex(h => fieldFor(h) === 'bp_primeira_parcela') >= 0
+                                ? row[headers.findIndex(h => fieldFor(h) === 'bp_primeira_parcela')] : ''),
+        bp_ultimo_pagamento:  parseDateCell(headers.findIndex(h => fieldFor(h) === 'bp_ultimo_pagamento') >= 0
+                                ? row[headers.findIndex(h => fieldFor(h) === 'bp_ultimo_pagamento')] : ''),
+        bp_proximo_pagamento: parseDateCell(headers.findIndex(h => fieldFor(h) === 'bp_proximo_pagamento') >= 0
+                                ? row[headers.findIndex(h => fieldFor(h) === 'bp_proximo_pagamento')] : ''),
+        bp_em_dia:            pickRaw('bp_em_dia', row).toUpperCase() === 'SIM' ? 'SIM'
+                                : pickRaw('bp_em_dia', row).toUpperCase() === 'NAO' || pickRaw('bp_em_dia', row).toUpperCase() === 'NÃO' ? 'NÃO'
+                                : pickRaw('bp_em_dia', row),
+        dupStatus:            existingEmails.has(email.toLowerCase()) ? 'enrich' as const : 'new' as const,
+        confidence:           conf,
       };
     }).filter(r => r.name || r.email);
   };
@@ -881,6 +925,16 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             installmentsPaid: r.installmentsPaid || '0',
             entryDate: r.entryDate ? new Date(r.entryDate).getTime() : Date.now(),
             isExisting: r.dupStatus === 'enrich',
+            // buyer_persona
+            vendedor:             r.vendedor    || null,
+            bp_valor:             r.bp_valor    || null,
+            bp_pagamento:         r.bp_pagamento || null,
+            bp_modelo:            r.bp_modelo   || null,
+            bp_parcela:           r.bp_parcela  || null,
+            bp_primeira_parcela:  r.bp_primeira_parcela  ? new Date(r.bp_primeira_parcela).getTime()  : null,
+            bp_ultimo_pagamento:  r.bp_ultimo_pagamento  ? new Date(r.bp_ultimo_pagamento).getTime()  : null,
+            bp_proximo_pagamento: r.bp_proximo_pagamento ? new Date(r.bp_proximo_pagamento).getTime() : null,
+            bp_em_dia:            r.bp_em_dia   || null,
           })),
         }),
       });
