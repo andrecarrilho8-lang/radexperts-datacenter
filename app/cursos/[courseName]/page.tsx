@@ -2416,15 +2416,46 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             </div>
           )}
 
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-3 mb-5">
-            <div className="relative min-w-[240px] max-w-[380px] flex-1">
-              <span className="material-symbols-outlined text-[16px] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
-              <input type="text" placeholder="Buscar aluno por nome ou email..."
+          {/* Search + Status filter pills — same row */}
+          <div className="flex flex-wrap items-center gap-2 mb-5">
+            {/* Search box */}
+            <div className="relative min-w-[200px] max-w-[300px] flex-1">
+              <span className="material-symbols-outlined text-[14px] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
+              <input type="text" placeholder="Buscar por nome ou email..."
                 value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm font-bold outline-none"
+                className="w-full pl-9 pr-3 py-1.5 rounded-xl text-[12px] font-bold outline-none"
                 style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.11)', color: 'white' }} />
             </div>
+
+            {/* Status filter pills */}
+            {([
+              { f: '' as const,            label: 'Todos',         icon: 'group',        color: '#60a5fa', count: allStudents.length },
+              { f: 'ADIMPLENTE' as const,  label: 'Adimplentes',   icon: 'check_circle', color: '#38bdf8', count: adimN   },
+              { f: 'INADIMPLENTE' as const,label: 'Inadimplentes', icon: 'warning',      color: '#f87171', count: inadimN },
+              { f: 'QUITADO' as const,     label: 'Quitados',      icon: 'verified',     color: '#4ade80', count: quitN   },
+            ] as const).map(pill => {
+              const active = statusFilter === pill.f;
+              return (
+                <button key={pill.f}
+                  onClick={() => { setStatusFilter(active ? '' : pill.f); setPage(0); }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all"
+                  style={{
+                    background: active ? `${pill.color}18` : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${active ? pill.color + '55' : 'rgba(255,255,255,0.1)'}`,
+                    color: active ? pill.color : SILVER,
+                    fontWeight: 900, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 12, color: active ? pill.color : SILVER }}>{pill.icon}</span>
+                  {pill.label}
+                  <span style={{
+                    background: active ? pill.color : 'rgba(255,255,255,0.12)',
+                    color: active ? '#000e1f' : SILVER,
+                    borderRadius: 99, padding: '0px 5px', fontSize: 9, fontWeight: 900,
+                  }}>{pill.count}</span>
+                </button>
+              );
+            })}
           </div>
 
 
@@ -2503,7 +2534,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         {getStudentFlag(s.flag, 18)}
                         <button
                           onClick={() => router.push(`/alunos/${emailToId(s.email)}`)}
-                          className="text-[12px] font-black text-white truncate text-left transition-colors max-w-[520px]"
+                          className="text-[12px] font-black text-white truncate text-left transition-colors max-w-[400px]"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
                           onMouseLeave={e => (e.currentTarget.style.color = '#fff')}
