@@ -576,18 +576,17 @@ const RE_EMAIL   = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
 const RE_CPF_FMT = /\d{3}\.\d{3}\.\d{3}[\-.\s]\d{2}/;          // formatted CPF
 const RE_CPF_RAW = /\b\d{11}\b(?![\w.\-])/;                     // 11-digit raw (low priority)
 const RE_PHONE   = /(?:\+?55\s?)?(?:\(?\d{2}\)?[\s.\-]?)?(?:9[\s.\-]?)?\d{4}[\s.\-]?\d{4}/;
-const PAYMENT_KW: Record<string, string> = {
-  pix: 'PIX', boleto: 'BOLETO', 'cartão': 'CARTAO_CREDITO', cartao: 'CARTAO_CREDITO',
-  crédito: 'CARTAO_CREDITO', credito: 'CARTAO_CREDITO', débito: 'CARTAO_DEBITO',
-  debito: 'CARTAO_DEBITO', picpay: 'PIX', transferência: 'PIX', transferencia: 'PIX',
-};
-
+// Payment detection — ORDER MATTERS: most specific first
 function detectPayment(text: string): string {
-  const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  for (const [kw, val] of Object.entries(PAYMENT_KW)) {
-    const normalizedKw = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (lower.includes(normalizedKw)) return val;
-  }
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Specific combos first
+  if (t.includes('debito') || t.includes('debit'))  return 'CARTAO_DEBITO';
+  if (t.includes('credito') || t.includes('credit')) return 'CARTAO_CREDITO';
+  if (t.includes('cartao') || t.includes('card'))    return 'CARTAO_CREDITO'; // bare "cartao" = crédito
+  if (t.includes('boleto') || t.includes('billet'))  return 'BOLETO';
+  if (t.includes('pix'))                             return 'PIX';
+  if (t.includes('picpay'))                          return 'PIX';
+  if (t.includes('transfer'))                        return 'PIX';
   return 'PIX';
 }
 
@@ -636,13 +635,33 @@ function parseSingleLine(raw: string): ParsedRow {
 }
 
 function parseBatchText(text: string): ParsedRow[] {
-  // Split by newline; if a line has no email try combining with next line
-  const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const rows: ParsedRow[] = [];
+
+  // ─ Strategy A: blank-line-separated blocks (each block = one student) ─────
+  if (/\n[ \t]*\n/.test(text)) {
+    const blocks = text.split(/\n[ \t]*\n/).map(b => b.trim()).filter(Boolean);
+    for (const block of blocks) {
+      // Combine all lines in the block; strip leading commas/semicolons from each line
+      const combined = block
+        .split(/\r?\n/)
+        .map(l => l.trim().replace(/^[,;\s]+/, ''))
+        .filter(Boolean)
+        .join(' ');
+      const parsed = parseSingleLine(combined);
+      if (parsed.email || parsed.name) rows.push(parsed);
+    }
+    return rows;
+  }
+
+  // ─ Strategy B: one student per line (strip leading commas) ────────────
+  const rawLines = text
+    .split(/\r?\n/)
+    .map(l => l.trim().replace(/^[,;\s]+/, ''))
+    .filter(Boolean);
   let i = 0;
   while (i < rawLines.length) {
     let line = rawLines[i];
-    // If no email found, peek at next line and combine (multi-line student blocks)
+    // If this line has no email, try merging with next line (which might have the email)
     if (!RE_EMAIL.test(line) && i + 1 < rawLines.length && RE_EMAIL.test(rawLines[i + 1])) {
       line = line + ' ' + rawLines[i + 1];
       i += 2;
@@ -650,7 +669,7 @@ function parseBatchText(text: string): ParsedRow[] {
       i++;
     }
     const parsed = parseSingleLine(line);
-    if (parsed.email || parsed.name) rows.push(parsed); // skip fully empty
+    if (parsed.email || parsed.name) rows.push(parsed);
   }
   return rows;
 }
