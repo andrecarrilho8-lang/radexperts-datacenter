@@ -2172,11 +2172,13 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     }).catch(() => setLoading(false));
   }, [decoded, turmaFilter]);
 
-  // Merge Hotmart + manual students, filter hidden
+  // Merge Hotmart + manual students — manual has priority (dedup by email)
+  const manualEmailSet = new Set(manualStudents.map(ms => ms.email.toLowerCase()));
   const allStudents: Student[] = [
     ...manualStudents.map(ms => manualToStudent(ms)),
     ...students
       .filter(s => !hiddenEmails.has((s.email || '').toLowerCase()))
+      .filter(s => !manualEmailSet.has((s.email || '').toLowerCase())) // skip if already in manual
       .map(s => ({ ...s, source: 'hotmart' as const })),
   ];
   const filtered = allStudents.filter(s => {

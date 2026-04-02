@@ -73,13 +73,14 @@ export async function POST(request: Request) {
     const hasBP    = !!(vendedor || bpValor || bpPag || bpModelo || bpParc || bpPrim || bpUlt || bpProx || bpEmDia);
 
     // ── Determine what to do ────────────────────────────────────────────────
-    // - inManual: already enrolled in THIS course → only enrich BP data, no duplicate enrollment
-    // - inProfiles only (Hotmart student, not yet in this course) → add enrollment + save BP
-    // - new: add enrollment + save BP
-    const alreadyEnrolled = inManual.has(email);
+    // - inManual: already enrolled in THIS course → only enrich BP
+    // - inProfiles: known Hotmart student (appears via Hotmart API) → only enrich BP, NOT manual_students
+    //   (adding them to manual_students would create duplicates since Hotmart API already shows them)
+    // - brand new: not in Hotmart, not in manual → insert into manual_students + buyer_profiles
+    const alreadyEnrolled = inManual.has(email) || inProfiles.has(email);
 
     if (alreadyEnrolled) {
-      // Already in this course — just upsert buyer_persona enrichment
+      // Already known — just upsert buyer_persona enrichment, never duplicate
       try {
         if (phone || cpf || hasBP) {
           await sql`
