@@ -2188,8 +2188,24 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       .filter(s => !manualEmailSet.has((s.email || '').toLowerCase())) // skip if already in manual
       .map(s => ({ ...s, source: 'hotmart' as const })),
   ];
+    // Effective status: for manual students, bp_em_dia from cache overrides PIX→QUITADO default
+  function getEffectiveStatus(s: Student): 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO' {
+    const base = getPayStatus(s);
+    // Only override for manual students whose base status is QUITADO (PIX default)
+    // but have bp_em_dia = NÃO → they are actually INADIMPLENTE
+    if (s.source === 'manual') {
+      const bp = buyerPersonaCache[s.email.toLowerCase()];
+      if (bp) {
+        const emDia = (bp.em_dia || '').toUpperCase();
+        if (emDia === 'NÃO' || emDia === 'NAO') return 'INADIMPLENTE';
+        if (emDia === 'SIM') return base === 'INADIMPLENTE' ? 'ADIMPLENTE' : base;
+      }
+    }
+    return base;
+  }
+
   const filtered = allStudents.filter(s => {
-    if (statusFilter && getPayStatus(s) !== statusFilter) return false;
+    if (statusFilter && getEffectiveStatus(s) !== statusFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return s.name.toLowerCase().includes(q) || s.email.includes(q);
@@ -2225,9 +2241,9 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paginated.map(s => s.email).join('|')]);
 
-  const adimN   = allStudents.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
-  const inadimN  = allStudents.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
-  const quitN   = allStudents.filter(s => getPayStatus(s) === 'QUITADO').length;
+  const adimN   = allStudents.filter(s => getEffectiveStatus(s) === 'ADIMPLENTE').length;
+  const inadimN  = allStudents.filter(s => getEffectiveStatus(s) === 'INADIMPLENTE').length;
+  const quitN   = allStudents.filter(s => getEffectiveStatus(s) === 'QUITADO').length;
 
   // vParcela: for BRL = price.value; for LATAM = price.value in original currency
   // We use paymentHistory to get the avg per-payment amount
@@ -2393,29 +2409,6 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             </div>
 
           </div>
-
-          {/* Summary cards */}
-          {!loading && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              {SUMMARY_CARDS.map(card => (
-                <button key={card.label}
-                  onClick={() => { setStatusFilter(statusFilter === card.f ? '' : card.f); setPage(0); }}
-                  className="rounded-2xl p-4 text-left transition-all"
-                  style={{
-                    ...TABLE_STYLE, borderRadius: 18,
-                    border: `1px solid ${statusFilter === card.f ? card.color + '55' : 'rgba(255,255,255,0.1)'}`,
-                    boxShadow: statusFilter === card.f ? `0 0 0 1px ${card.color}33, 0 1px 0 rgba(255,255,255,0.08) inset` : '0 1px 0 rgba(255,255,255,0.08) inset',
-                  }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="material-symbols-outlined text-[16px]" style={{ color: card.color }}>{card.icon}</span>
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em]" style={{ color: SILVER }}>{card.label}</p>
-                  </div>
-                  <p className="text-3xl font-black" style={{ color: card.color }}>{card.val.toLocaleString('pt-BR')}</p>
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* Search + Status filter pills — same row */}
           <div className="flex flex-wrap items-center gap-2 mb-5">
             {/* Search box */}
@@ -2429,8 +2422,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
 
             {/* Status filter pills */}
             {([
-              { f: '' as const,            label: 'Todos',         icon: 'group',        color: '#60a5fa', count: allStudents.length },
-              { f: 'ADIMPLENTE' as const,  label: 'Adimplentes',   icon: 'check_circle', color: '#38bdf8', count: adimN   },
+              { f: '' as const,            label: 'Todos',         icon: 'group',        color: '#E8B14F', count: allStudents.length },
+              { f: 'ADIMPLENTE' as const,  label: 'Adimplentes',   icon: 'check_circle', color: '#7dd3fc', count: adimN   },
               { f: 'INADIMPLENTE' as const,label: 'Inadimplentes', icon: 'warning',      color: '#f87171', count: inadimN },
               { f: 'QUITADO' as const,     label: 'Quitados',      icon: 'verified',     color: '#4ade80', count: quitN   },
             ] as const).map(pill => {
