@@ -36,11 +36,35 @@ export async function POST(request: Request) {
     const email = (s.email || '').toLowerCase().trim();
     if (!name || !email) { results.failed++; results.errors.push(`Linha sem nome ou email: ${email || name}`); continue; }
 
-    const entryDate    = s.entryDate    ? Number(s.entryDate) : now;
-    const paymentType  = s.paymentMethod || 'PIX';
-    const totalAmount  = parseFloat(s.totalAmount || '0') || 0;
-    const phone        = (s.phone || '').trim();
-    const cpf          = (s.cpf   || '').trim();
+    const entryDate     = s.entryDate ? Number(s.entryDate) : now;
+    const paymentType   = s.paymentMethod || 'PIX';
+    const totalAmount   = parseFloat((s.totalAmount  || '0').toString().replace(',', '.'))  || 0;
+    const instCount     = parseInt(s.installments    || '1', 10) || 1;
+    const instAmtIn     = parseFloat((s.installmentAmount || '0').toString().replace(',', '.'));
+    const instPaid      = parseInt(s.installmentsPaid || '0', 10) || 0;
+    const phone         = (s.phone || '').trim();
+    const cpf           = (s.cpf   || '').trim();
+
+    // installment_amount: explicit value wins, else total / count
+    const instAmount = instAmtIn > 0 ? instAmtIn : (instCount > 1 ? totalAmount / instCount : totalAmount);
+    const realTotal  = totalAmount > 0 ? totalAmount : instAmount * instCount;
+
+    // Build installment_dates array (monthly from entry, first `instPaid` marked paid)
+    const MONTH = 30 * 24 * 60 * 60 * 1000;
+    const installmentDates = paymentType === 'CARTAO_CREDITO' && instCount > 1
+      ? Array.from({ length: instCount }, (_, i) => {
+          const due_ms  = entryDate + i * MONTH;
+          const isPaid  = i < instPaid;
+          return { due_ms, paid_ms: isPaid ? due_ms : null, paid: isPaid, index: i };
+        })
+      : [];
+
+    const notes = [
+      cpf ? `CPF: ${cpf}` : '',
+      paymentType === 'CARTAO_CREDITO' && instCount > 1
+        ? `Cartão ${instCount}x de R$ ${instAmount.toFixed(2)} · ${instPaid} pagas`
+        : '',
+    ].filter(Boolean).join(' | ');
 
     try {
       await sql`
@@ -51,12 +75,12 @@ export async function POST(request: Request) {
         VALUES (
           gen_random_uuid()::text,
           ${courseName}, ${name}, ${email}, ${phone}, ${entryDate}, ${paymentType},
-          ${totalAmount}, 1, ${totalAmount},
-          '[]'::jsonb, ${cpf ? `CPF: ${cpf}` : ''},
+          ${realTotal}, ${instCount}, ${instAmount},
+          ${JSON.stringify(installmentDates)}::jsonb,
+          ${notes},
           ${now}, ${now}
         )
       `;
-      // Also upsert buyer_profiles so phone/CPF appear via the phones endpoint
       if (phone || cpf) {
         await sql`
           INSERT INTO buyer_profiles

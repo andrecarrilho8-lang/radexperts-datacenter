@@ -568,6 +568,7 @@ function manualToStudent(ms: ManualStudent): Student {
 interface ParsedRow {
   name: string; email: string; phone: string; cpf: string;
   paymentMethod: string; totalAmount: string;
+  installments: string; installmentAmount: string; installmentsPaid: string;
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -622,12 +623,16 @@ function parseSingleLine(raw: string): ParsedRow {
     .replace(/^[\W_]+|[\W_]+$/g, '')
     .trim();
 
-  const fields = [email, cpf, phone, name].filter(Boolean);
+  // Detect installments pattern: '12x', '12 vezes', 'x12'
+  const instMatch = raw.match(/\b(\d{1,2})\s*[xX×]\b|\b[xX]\s*(\d{1,2})\b|\b(\d{1,2})\s+vez(?:es)?\b/i);
+  const installments = instMatch ? String(parseInt(instMatch[1] || instMatch[2] || instMatch[3] || '1', 10)) : '1';
+
   const confidence: ParsedRow['confidence'] =
     email && name ? 'high' :
     email         ? 'medium' : 'low';
 
-  return { name, email, phone, cpf, paymentMethod: payment, totalAmount: '', confidence };
+  return { name, email, phone, cpf, paymentMethod: payment,
+    totalAmount: '', installments, installmentAmount: '', installmentsPaid: '0', confidence };
 }
 
 function parseBatchText(text: string): ParsedRow[] {
@@ -696,7 +701,10 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
           students: valid.map(r => ({
             name: r.name, email: r.email, phone: r.phone,
             cpf: r.cpf, paymentMethod: r.paymentMethod,
-            totalAmount: r.totalAmount || '0',
+            totalAmount:       r.totalAmount       || '0',
+            installments:      r.installments      || '1',
+            installmentAmount: r.installmentAmount || '0',
+            installmentsPaid:  r.installmentsPaid  || '0',
             entryDate: Date.now(),
           })),
         }),
@@ -813,39 +821,85 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    <td style={{ padding: '5px 8px', color: SILVER, fontSize: 10 }}>{i + 1}</td>
-                    <td style={{ padding: '5px 4px' }}>
-                      <input value={r.name} onChange={e => updateRow(i, 'name', e.target.value)} style={IN} />
-                    </td>
-                    <td style={{ padding: '5px 4px' }}>
-                      <input value={r.email} onChange={e => updateRow(i, 'email', e.target.value)} style={IN} />
-                    </td>
-                    <td style={{ padding: '5px 4px' }}>
-                      <input value={r.phone} onChange={e => updateRow(i, 'phone', e.target.value)} style={{ ...IN, width: 130 }} />
-                    </td>
-                    <td style={{ padding: '5px 4px' }}>
-                      <input value={r.cpf} onChange={e => updateRow(i, 'cpf', e.target.value)} style={{ ...IN, width: 118 }} />
-                    </td>
-                    <td style={{ padding: '5px 4px' }}>
-                      <select value={r.paymentMethod} onChange={e => updateRow(i, 'paymentMethod', e.target.value)} style={SEL}>
-                        {PAYMENT_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-                      </select>
-                    </td>
-                    <td style={{ padding: '5px 4px' }}>
-                      <input value={r.totalAmount} onChange={e => updateRow(i, 'totalAmount', e.target.value)}
-                        placeholder="0,00" style={{ ...IN, width: 80 }} />
-                    </td>
-                    <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
-                    <td style={{ padding: '5px 4px' }}>
-                      <button onClick={() => removeRow(i)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 14, padding: 2 }}>
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((r, i) => {
+                  const isCard = r.paymentMethod === 'CARTAO_CREDITO' || r.paymentMethod === 'CREDIT_CARD';
+                  const numCols = 9; // total columns in thead
+                  return (
+                    <React.Fragment key={i}>
+                      {/* Main row */}
+                      <tr style={{ borderBottom: isCard ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '5px 8px', color: SILVER, fontSize: 10 }}>{i + 1}</td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <input value={r.name} onChange={e => updateRow(i, 'name', e.target.value)} style={IN} />
+                        </td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <input value={r.email} onChange={e => updateRow(i, 'email', e.target.value)} style={IN} />
+                        </td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <input value={r.phone} onChange={e => updateRow(i, 'phone', e.target.value)} style={{ ...IN, width: 130 }} />
+                        </td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <input value={r.cpf} onChange={e => updateRow(i, 'cpf', e.target.value)} style={{ ...IN, width: 118 }} />
+                        </td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <select value={r.paymentMethod} onChange={e => updateRow(i, 'paymentMethod', e.target.value)} style={SEL}>
+                            {PAYMENT_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                          </select>
+                        </td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <input value={r.totalAmount} onChange={e => updateRow(i, 'totalAmount', e.target.value)}
+                            placeholder={isCard ? 'Total' : '0,00'} style={{ ...IN, width: 80 }} />
+                        </td>
+                        <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <button onClick={() => removeRow(i)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 14, padding: 2 }}>
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Sub-row for card installments */}
+                      {isCard && (
+                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(232,177,79,0.04)' }}>
+                          <td />
+                          <td colSpan={numCols - 1} style={{ padding: '4px 4px 8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 9, fontWeight: 900, color: GOLD, textTransform: 'uppercase',
+                                letterSpacing: '0.1em', marginRight: 4, whiteSpace: 'nowrap' }}>💳 Parcelamento:</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <label style={{ fontSize: 9, color: SILVER, whiteSpace: 'nowrap' }}>Nº Parcelas</label>
+                                <input type="number" min="1" max="36"
+                                  value={r.installments}
+                                  onChange={e => updateRow(i, 'installments', e.target.value)}
+                                  style={{ ...IN, width: 52, textAlign: 'center' }} />
+                              </div>
+                              <span style={{ color: SILVER, fontSize: 11 }}>×</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <label style={{ fontSize: 9, color: SILVER, whiteSpace: 'nowrap' }}>R$ / parcela</label>
+                                <input
+                                  value={r.installmentAmount}
+                                  onChange={e => updateRow(i, 'installmentAmount', e.target.value)}
+                                  placeholder="0,00" style={{ ...IN, width: 80 }} />
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+                                <label style={{ fontSize: 9, color: SILVER, whiteSpace: 'nowrap' }}>Pagas</label>
+                                <input type="number" min="0"
+                                  value={r.installmentsPaid}
+                                  onChange={e => updateRow(i, 'installmentsPaid', e.target.value)}
+                                  style={{ ...IN, width: 52, textAlign: 'center' }} />
+                              </div>
+                              {r.installments && r.installmentAmount && (
+                                <span style={{ fontSize: 9, color: GOLD, marginLeft: 4 }}>
+                                  Total: R$ {(parseFloat(r.installments) * parseFloat(r.installmentAmount.replace(',', '.'))).toFixed(2)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
