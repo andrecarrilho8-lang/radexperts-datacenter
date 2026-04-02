@@ -2188,19 +2188,38 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       .filter(s => !manualEmailSet.has((s.email || '').toLowerCase())) // skip if already in manual
       .map(s => ({ ...s, source: 'hotmart' as const })),
   ];
-    // Effective status: for manual students, bp_em_dia from cache overrides PIX→QUITADO default
+    const DAY_MS = 24 * 60 * 60 * 1000;
+  const GRACE_DAYS = 15; // days past proximo_pagamento before marking as overdue
+
+  // Effective status: considers bp_em_dia from cache WITH 15-day grace period
   function getEffectiveStatus(s: Student): 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO' {
     const base = getPayStatus(s);
-    // Only override for manual students whose base status is QUITADO (PIX default)
-    // but have bp_em_dia = NÃO → they are actually INADIMPLENTE
-    if (s.source === 'manual') {
-      const bp = buyerPersonaCache[s.email.toLowerCase()];
-      if (bp) {
-        const emDia = (bp.em_dia || '').toUpperCase();
-        if (emDia === 'NÃO' || emDia === 'NAO') return 'INADIMPLENTE';
-        if (emDia === 'SIM') return base === 'INADIMPLENTE' ? 'ADIMPLENTE' : base;
+    const bp = buyerPersonaCache[(s.email || '').toLowerCase()];
+    if (!bp) return base;
+
+    const emDia = (bp.em_dia || '').toUpperCase();
+    // If student is already QUITADO by payment logic → never override (they finished paying)
+    if (base === 'QUITADO') {
+      // Exception: If they have explicit em_dia AND proximo_pagamento, they're likely on an
+      // ongoing plan tracked manually — respect that only if clearly overdue (15+ days)
+      if ((emDia === 'NÃO' || emDia === 'NAO') && bp.proximo_pagamento) {
+        const daysPast = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS;
+        if (daysPast > GRACE_DAYS) return 'INADIMPLENTE';
       }
+      return 'QUITADO';
     }
+
+    // For ADIMPLENTE/INADIMPLENTE base: apply bp_em_dia with grace period
+    if (emDia === 'NÃO' || emDia === 'NAO') {
+      // Only mark INADIMPLENTE if 15+ days past proximo_pagamento, or no date (trust the field)
+      if (!bp.proximo_pagamento) return 'INADIMPLENTE';
+      const daysPast = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS;
+      if (daysPast > GRACE_DAYS) return 'INADIMPLENTE';
+      // Within grace period → still ADIMPLENTE
+      return 'ADIMPLENTE';
+    }
+    if (emDia === 'SIM') return base === 'INADIMPLENTE' ? 'ADIMPLENTE' : base;
+
     return base;
   }
 
