@@ -72,11 +72,14 @@ export async function POST(request: Request) {
     const bpEmDia  = (s.bp_em_dia  || '').trim() || null;
     const hasBP    = !!(vendedor || bpValor || bpPag || bpModelo || bpParc || bpPrim || bpUlt || bpProx || bpEmDia);
 
-    // Determine if this student already exists anywhere
-    const shouldEnrichOnly = s.isExisting === true || inManual.has(email) || inProfiles.has(email);
+    // ── Determine what to do ────────────────────────────────────────────────
+    // - inManual: already enrolled in THIS course → only enrich BP data, no duplicate enrollment
+    // - inProfiles only (Hotmart student, not yet in this course) → add enrollment + save BP
+    // - new: add enrollment + save BP
+    const alreadyEnrolled = inManual.has(email);
 
-    if (shouldEnrichOnly) {
-      // Only fill in missing fields — never duplicate
+    if (alreadyEnrolled) {
+      // Already in this course — just upsert buyer_persona enrichment
       try {
         if (phone || cpf || hasBP) {
           await sql`
@@ -95,15 +98,15 @@ export async function POST(request: Request) {
               phone    = COALESCE(NULLIF(buyer_profiles.phone,    ''), NULLIF(EXCLUDED.phone,    '')),
               document = COALESCE(NULLIF(buyer_profiles.document, ''), NULLIF(EXCLUDED.document, '')),
               name     = COALESCE(NULLIF(buyer_profiles.name,     ''), NULLIF(EXCLUDED.name,     '')),
-              vendedor           = COALESCE(EXCLUDED.vendedor,           buyer_profiles.vendedor),
-              bp_valor           = COALESCE(EXCLUDED.bp_valor,           buyer_profiles.bp_valor),
-              bp_pagamento       = COALESCE(EXCLUDED.bp_pagamento,       buyer_profiles.bp_pagamento),
-              bp_modelo          = COALESCE(EXCLUDED.bp_modelo,          buyer_profiles.bp_modelo),
-              bp_parcela         = COALESCE(EXCLUDED.bp_parcela,         buyer_profiles.bp_parcela),
+              vendedor             = COALESCE(EXCLUDED.vendedor,             buyer_profiles.vendedor),
+              bp_valor             = COALESCE(EXCLUDED.bp_valor,             buyer_profiles.bp_valor),
+              bp_pagamento         = COALESCE(EXCLUDED.bp_pagamento,         buyer_profiles.bp_pagamento),
+              bp_modelo            = COALESCE(EXCLUDED.bp_modelo,            buyer_profiles.bp_modelo),
+              bp_parcela           = COALESCE(EXCLUDED.bp_parcela,           buyer_profiles.bp_parcela),
               bp_primeira_parcela  = COALESCE(EXCLUDED.bp_primeira_parcela,  buyer_profiles.bp_primeira_parcela),
               bp_ultimo_pagamento  = COALESCE(EXCLUDED.bp_ultimo_pagamento,  buyer_profiles.bp_ultimo_pagamento),
               bp_proximo_pagamento = COALESCE(EXCLUDED.bp_proximo_pagamento, buyer_profiles.bp_proximo_pagamento),
-              bp_em_dia          = COALESCE(EXCLUDED.bp_em_dia,          buyer_profiles.bp_em_dia),
+              bp_em_dia            = COALESCE(EXCLUDED.bp_em_dia,            buyer_profiles.bp_em_dia),
               updated_at = ${now}
           `;
         }
