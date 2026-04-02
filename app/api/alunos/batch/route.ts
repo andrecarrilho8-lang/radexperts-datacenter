@@ -1,9 +1,28 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getDb } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime  = 'nodejs';
 export const maxDuration = 60;
+
+/* ─── Ensure the unique constraint exists (idempotent, runs once per cold start) ── */
+let _constraintReady = false;
+async function ensureUniqueConstraint() {
+  if (_constraintReady) return;
+  const sql = getDb();
+  // Add unique constraint on (course_name, email) so ON CONFLICT works properly.
+  // Safe to call repeatedly — IF NOT EXISTS semantics via exception swallow.
+  try {
+    await sql`
+      ALTER TABLE manual_students
+      ADD CONSTRAINT manual_students_course_email_unique
+      UNIQUE (course_name, email)
+    `;
+  } catch {
+    // Already exists — that's fine
+  }
+  _constraintReady = true;
+}
 
 export async function POST(request: Request) {
   let body: any;
@@ -20,10 +39,14 @@ export async function POST(request: Request) {
   const sql = getDb();
   const now = Date.now();
 
+  // Ensure unique constraint exists BEFORE we process students
+  await ensureUniqueConstraint();
+
   const emailList = students
     .map(s => (s.email || '').toLowerCase().trim())
     .filter(Boolean);
 
+  // Who is already enrolled in this course (in manual_students)?
   const existingManualRows = await sql`
     SELECT email FROM manual_students
     WHERE course_name = ${courseName}
@@ -31,6 +54,7 @@ export async function POST(request: Request) {
   ` as any[];
   const inManual = new Set(existingManualRows.map((r: any) => r.email.toLowerCase()));
 
+  // Who exists in buyer_profiles (came from Hotmart)?
   const existingProfileRows = await sql`
     SELECT email FROM buyer_profiles
     WHERE email = ANY(${emailList})
@@ -63,7 +87,8 @@ export async function POST(request: Request) {
     const bpEmDia  = (s.bp_em_dia  || '').trim() || null;
     const hasBP    = !!(vendedor || bpValor || bpPag || bpModelo || bpParc || bpPrim || bpUlt || bpProx || bpEmDia);
 
-    // Case 1: Already enrolled in this course - enrich profile only
+    /* ── Case 1: Already enrolled in this course (manual_students row exists) ──
+       Only enrich buyer_profiles — never duplicate the enrollment row.         */
     if (inManual.has(email)) {
       try {
         await sql`
@@ -133,8 +158,9 @@ export async function POST(request: Request) {
         : '',
     ].filter(Boolean).join(' | ');
 
-    // Case 2: Exists in Hotmart (buyer_profiles) but not yet in this course
-    // Enroll them AND update their profile with missing data from spreadsheet
+    /* ── Case 2: In Hotmart (buyer_profiles) but NOT yet in this course ──
+       Enroll them via manual_students using ON CONFLICT (course_name, email)
+       so re-importing the spreadsheet never creates duplicate rows.          */
     if (inProfiles.has(email)) {
       try {
         await sql`
@@ -150,14 +176,18 @@ export async function POST(request: Request) {
             ${notes},
             ${now}, ${now}
           )
-          ON CONFLICT DO NOTHING
+          ON CONFLICT (course_name, email) DO UPDATE SET
+            name       = CASE WHEN EXCLUDED.name  IS NOT NULL AND EXCLUDED.name  <> '' THEN EXCLUDED.name  ELSE manual_students.name  END,
+            phone      = CASE WHEN EXCLUDED.phone IS NOT NULL AND EXCLUDED.phone <> '' THEN EXCLUDED.phone ELSE manual_students.phone END,
+            updated_at = ${now}
         `;
 
+        /* Always enrich/update buyer_profiles with spreadsheet data */
         await sql`
           UPDATE buyer_profiles SET
-            phone      = CASE WHEN phone    IS NULL OR phone    = '' THEN NULLIF(${phone || null}, '')  ELSE phone    END,
-            document   = CASE WHEN document IS NULL OR document = '' THEN NULLIF(${cpf   || null}, '')  ELSE document END,
-            name       = CASE WHEN name     IS NULL OR name     = '' THEN NULLIF(${name  || null}, '')  ELSE name     END,
+            phone      = CASE WHEN phone    IS NULL OR phone    = '' THEN NULLIF(${phone || null}, '') ELSE phone    END,
+            document   = CASE WHEN document IS NULL OR document = '' THEN NULLIF(${cpf   || null}, '') ELSE document END,
+            name       = CASE WHEN name     IS NULL OR name     = '' THEN NULLIF(${name  || null}, '') ELSE name     END,
             vendedor             = CASE WHEN ${vendedor}::text    IS NOT NULL THEN ${vendedor}::text    ELSE vendedor             END,
             bp_valor             = CASE WHEN ${bpValor}::numeric  IS NOT NULL THEN ${bpValor}::numeric  ELSE bp_valor             END,
             bp_pagamento         = CASE WHEN ${bpPag}::text       IS NOT NULL THEN ${bpPag}::text       ELSE bp_pagamento         END,
@@ -180,7 +210,8 @@ export async function POST(request: Request) {
       continue;
     }
 
-    // Case 3: Brand new student - full insert
+    /* ── Case 3: Brand new student — not in Hotmart, not in course ──
+       Full insert. ON CONFLICT (course_name, email) prevents duplicates. */
     try {
       await sql`
         INSERT INTO manual_students
@@ -195,6 +226,10 @@ export async function POST(request: Request) {
           ${notes},
           ${now}, ${now}
         )
+        ON CONFLICT (course_name, email) DO UPDATE SET
+          name       = CASE WHEN EXCLUDED.name  IS NOT NULL AND EXCLUDED.name  <> '' THEN EXCLUDED.name  ELSE manual_students.name  END,
+          phone      = CASE WHEN EXCLUDED.phone IS NOT NULL AND EXCLUDED.phone <> '' THEN EXCLUDED.phone ELSE manual_students.phone END,
+          updated_at = ${now}
       `;
       if (phone || cpf || hasBP) {
         await sql`
