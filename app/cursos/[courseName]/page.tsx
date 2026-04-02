@@ -508,15 +508,15 @@ function generateXLS(courseName: string, students: Student[], phoneCacheArg: Rec
 }
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
-const GRID = '120px 1fr 1fr 140px 160px 260px 64px';
+const GRID = '120px 1fr 240px 140px 160px 260px 64px';
 const COLS = [
-  { key: 'entryDate', label: 'Entrada',       sortable: true  },
-  { key: 'name',      label: 'Nome',           sortable: false },
-  { key: 'email',     label: 'Email',          sortable: false },
-  { key: 'parcela',   label: 'Valor Parcela',  sortable: false },
-  { key: 'total',     label: 'Total Pago',     sortable: false },
-  { key: 'payment',   label: 'Status',         sortable: false },
-  { key: 'actions',   label: '',               sortable: false },
+  { key: 'entryDate', label: 'Entrada',        sortable: true  },
+  { key: 'name',      label: 'Nome',            sortable: false },
+  { key: 'email',     label: 'Dados Pessoais',  sortable: false },
+  { key: 'parcela',   label: 'Valor Parcela',   sortable: false },
+  { key: 'total',     label: 'Total Pago',      sortable: false },
+  { key: 'payment',   label: 'Status',          sortable: false },
+  { key: 'actions',   label: '',                sortable: false },
 ];
 
 // ── Convert ManualStudent → Student shape ────────────────────────────────────
@@ -1794,21 +1794,38 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       )}
                     </div>
 
-                    {/* Email + phone */}
-                    <div className="flex flex-col gap-0.5 pr-3 pt-1">
-                      <span className="text-[11px] font-bold truncate" style={{ color: SILVER }}>{s.email}</span>
+                    {/* Dados Pessoais: Email + Telefone + CPF */}
+                    <div className="flex flex-col gap-1 pr-3 pt-1">
+                      {/* Email */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined" style={{ fontSize: 11, color: SILVER, flexShrink: 0 }}>mail</span>
+                        <span className="text-[12px] font-bold truncate" style={{ color: 'white' }}>{s.email}</span>
+                      </div>
+                      {/* Telefone */}
                       {(() => {
-                        // Manual students use stored phone; Hotmart students use AC cache
                         const ph = (s as any).source === 'manual'
                           ? ((s as any).phone || '')
                           : (phoneCache[(s.email || '').toLowerCase()] || '');
                         return ph ? (
-                          <span className="flex items-center gap-1" style={{ color: 'rgba(74,222,128,0.8)', fontSize: 10, fontWeight: 700 }}>
-                            <span className="material-symbols-outlined" style={{ fontSize: 11 }}>phone</span>
-                            {ph}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined" style={{ fontSize: 11, color: 'rgba(74,222,128,0.8)', flexShrink: 0 }}>phone</span>
+                            <span style={{ color: 'rgba(74,222,128,0.9)', fontSize: 12, fontWeight: 700 }}>{ph}</span>
+                          </div>
                         ) : phonesLoading && !((s.email || '').toLowerCase() in phoneCache) ? (
-                          <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 9, fontWeight: 600 }}>buscando...</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined" style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)', flexShrink: 0 }}>phone</span>
+                            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10, fontWeight: 500 }}>buscando...</span>
+                          </div>
+                        ) : null;
+                      })()}
+                      {/* CPF */}
+                      {(() => {
+                        const cpf = documentCache[(s.email || '').toLowerCase()] || (s as any).document || '';
+                        return cpf ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined" style={{ fontSize: 11, color: TEAL, flexShrink: 0 }}>badge</span>
+                            <span style={{ color: TEAL, fontSize: 12, fontWeight: 700 }}>{cpf}</span>
+                          </div>
                         ) : null;
                       })()}
                     </div>
