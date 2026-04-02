@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { getCachedAllSales } from '@/app/lib/salesCache';
 import { fetchActiveSubscriptionsByProduct } from '@/app/lib/hotmartApi';
 import { getCache, setCache } from '@/app/lib/metaApi';
+import { getDb } from '@/app/lib/db';
 
 // Statuses that mean the student has legitimate paid access (per Hotmart docs)
 const APPROVED  = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_KEY = 'cursos_list_v5'; // bump: now uses subscriptions + sales
+const CACHE_KEY = 'cursos_list_v6'; // bumped: now includes manual_students
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 export async function GET() {
@@ -14,11 +15,29 @@ export async function GET() {
     const hit = getCache(CACHE_KEY);
     if (hit?.expires_at > Date.now()) return NextResponse.json(hit.data);
 
-    // Fetch both sources in parallel — subscriptions give active members,
-    // sales give lifetime-access buyers (non-subscription purchases).
-    const [sales, activeSubsMap] = await Promise.all([
+    // Fetch all sources in parallel
+    const [sales, activeSubsMap, manualRows] = await Promise.all([
       getCachedAllSales(),
       fetchActiveSubscriptionsByProduct().catch(() => new Map<string, Set<string>>()),
+      // Count manual students per course (by unique email)
+      (async () => {
+        try {
+          const sql = getDb();
+          const rows = (await sql`
+            SELECT course_name, email FROM manual_students
+          `) as { course_name: string; email: string }[];
+          // Group emails by course_name
+          const map = new Map<string, Set<string>>();
+          for (const r of rows) {
+            if (!r.course_name || !r.email) continue;
+            if (!map.has(r.course_name)) map.set(r.course_name, new Set());
+            map.get(r.course_name)!.add(r.email.toLowerCase());
+          }
+          return map;
+        } catch {
+          return new Map<string, Set<string>>();
+        }
+      })(),
     ]);
 
     // Build courseMap from sales (email-deduplicated, approved only)
@@ -35,28 +54,30 @@ export async function GET() {
       if (email) courseMap.get(prod.name)!.emails.add(email);
     });
 
-    // Merge active subscription emails into the courseMap.
-    // This adds subscription-only students that may not appear in one-time sales,
-    // and ensures subscription students are counted even if their sales record
-    // has a different status (e.g. DELAYED).
+    // Merge active subscription emails
     activeSubsMap.forEach((emailSet, productName) => {
-      // Try exact match first, then fuzzy match
       let entry = courseMap.get(productName);
-
       if (!entry) {
-        // Fuzzy: find the closest sales product name
         const cleanSub = productName.toLowerCase();
         for (const [k, v] of courseMap) {
           if (k.toLowerCase().includes(cleanSub) || cleanSub.includes(k.toLowerCase())) {
-            entry = v;
-            break;
+            entry = v; break;
           }
         }
       }
-
       if (!entry) {
-        // New product only known via subscriptions
         courseMap.set(productName, { id: 0, name: productName, emails: new Set(emailSet) });
+      } else {
+        emailSet.forEach(e => entry!.emails.add(e));
+      }
+    });
+
+    // Merge manual students — add their emails to the matching course
+    manualRows.forEach((emailSet, courseName) => {
+      let entry = courseMap.get(courseName);
+      if (!entry) {
+        // Create a new entry for courses that only exist as manual
+        courseMap.set(courseName, { id: 0, name: courseName, emails: new Set(emailSet) });
       } else {
         emailSet.forEach(e => entry!.emails.add(e));
       }

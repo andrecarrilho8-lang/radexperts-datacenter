@@ -1572,7 +1572,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   }
 
   const SUMMARY_CARDS = [
-    { label: 'Total',        val: students.length, color: '#60a5fa', icon: 'group',        f: '' as const },
+    { label: 'Total',        val: allStudents.length, color: '#60a5fa', icon: 'group',        f: '' as const },
     { label: 'Adimplentes',  val: adimN,           color: '#38bdf8', icon: 'check_circle', f: 'ADIMPLENTE' as const },
     { label: 'Inadimplentes',val: inadimN,         color: '#f87171', icon: 'warning',      f: 'INADIMPLENTE' as const },
     { label: 'Quitados',     val: quitN,           color: '#4ade80', icon: 'verified',     f: 'QUITADO' as const },
