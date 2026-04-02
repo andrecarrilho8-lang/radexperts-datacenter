@@ -782,9 +782,11 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   const [allRaw,     setAllRaw]     = React.useState<any[][]>([]);
   const [mapping,    setMapping]    = React.useState<Record<string, CsvField>>({});
   const [saving,     setSaving]     = React.useState(false);
-  const [result,     setResult]     = React.useState<{saved:number;failed:number;errors:string[]}|null>(null);
+  const [progress,   setProgress]   = React.useState(0); // 0–100 for loading bar
+  const [result,     setResult]     = React.useState<{saved:number;enriched:number;failed:number;errors:string[]}|null>(null);
   const [error,      setError]      = React.useState('');
-  const fileRef = React.useRef<HTMLInputElement>(null);
+  const fileRef   = React.useRef<HTMLInputElement>(null);
+  const progTimer = React.useRef<any>(null);
 
   const processFile = (file: File) => {
     const reader = new FileReader();
@@ -854,7 +856,16 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   const handleImport = async () => {
     const rows = buildRows().filter(r => r.name && r.email);
     if (rows.length === 0) { setError('Nenhuma linha válida (nome + email obrigatórios).'); return; }
-    setSaving(true); setError('');
+    setSaving(true); setProgress(5); setError('');
+
+    // Animate progress bar: fills 5→85% during upload, then 100% on completion
+    const totalMs = Math.max(8000, rows.length * 350);
+    const interval = 200;
+    const perTick = (80 / (totalMs / interval));
+    progTimer.current = setInterval(() => {
+      setProgress(prev => Math.min(85, prev + perTick));
+    }, interval);
+
     try {
       const res = await fetch('/api/alunos/batch', {
         method: 'POST',
@@ -873,11 +884,18 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
           })),
         }),
       });
+      clearInterval(progTimer.current);
+      setProgress(100);
       const data = await res.json();
+      await new Promise(r => setTimeout(r, 500)); // brief pause so 100% is visible
       setResult(data);
       setStep('done');
-      if (data.saved > 0) onSaved(data.saved + (data.enriched || 0));
-    } catch (e: any) { setError(e.message); }
+      if (data.saved > 0 || data.enriched > 0) onSaved(data.saved + (data.enriched || 0));
+    } catch (e: any) {
+      clearInterval(progTimer.current);
+      setProgress(0);
+      setError(`Erro ao importar: ${e.message}`);
+    }
     finally { setSaving(false); }
   };
 
@@ -1112,22 +1130,45 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
               </span>
             )})
           </p>
+          {/* Loading bar */}
+          {saving && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <p style={{ fontSize: 11, color: BLUE, fontWeight: 700, margin: 0 }}>Importando... aguarde</p>
+                <p style={{ fontSize: 11, color: SILVER, margin: 0 }}>{Math.round(progress)}%</p>
+              </div>
+              <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{
+                  width: `${progress}%`, height: '100%', borderRadius: 99,
+                  background: `linear-gradient(90deg, rgba(99,179,237,0.7) 0%, #63b3ed 100%)`,
+                  transition: 'width 0.2s ease',
+                  boxShadow: '0 0 8px rgba(99,179,237,0.6)',
+                }} />
+              </div>
+              <p style={{ fontSize: 10, color: 'rgba(168,178,192,0.6)', margin: '5px 0 0', textAlign: 'center' }}>
+                Processando {totalValid} aluno{totalValid !== 1 ? 's' : ''}... não feche esta janela.
+              </p>
+            </div>
+          )}
           {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => { setStep('map'); setError(''); }}
+            <button onClick={() => { setStep('map'); setError(''); }} disabled={saving}
               style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
-                cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1,
+                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
               ← Ajustar
             </button>
             <button onClick={handleImport} disabled={saving || totalValid === 0}
               style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
                 cursor: saving ? 'not-allowed' : 'pointer', opacity: saving || totalValid === 0 ? 0.7 : 1,
-                background: 'rgba(99,179,237,0.15)', border: '1.5px solid rgba(99,179,237,0.4)', color: BLUE,
+                background: saving ? 'rgba(99,179,237,0.08)' : 'rgba(99,179,237,0.15)',
+                border: '1.5px solid rgba(99,179,237,0.4)', color: BLUE,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 15,
+                animation: saving ? 'spin 1s linear infinite' : 'none' }}>
                 {saving ? 'progress_activity' : 'upload'}
               </span>
-              {saving ? 'Importando...' : `Importar ${totalValid} aluno${totalValid !== 1 ? 's' : ''}`}
+              {saving ? `Importando ${Math.round(progress)}%...` : `Importar ${totalValid} aluno${totalValid !== 1 ? 's' : ''}`}
             </button>
           </div>
         </>)}
@@ -1135,12 +1176,23 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
         {/* ── STEP 4: DONE ────────────────────────────────────────────────── */}
         {step === 'done' && result && (<>
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 56, color: result.saved > 0 ? BLUE : '#f87171' }}>
-              {result.saved > 0 ? 'task_alt' : 'error'}
+            <span className="material-symbols-outlined" style={{ fontSize: 56,
+              color: result.saved > 0 ? BLUE : result.enriched > 0 ? BLUE : '#f87171' }}>
+              {result.saved > 0 || result.enriched > 0 ? 'task_alt' : 'error'}
             </span>
-            <p style={{ color: 'white', fontWeight: 900, fontSize: 20, margin: '14px 0 6px' }}>
-              {result.saved} aluno{result.saved !== 1 ? 's' : ''} importados!
-            </p>
+            {result.saved > 0 && (
+              <p style={{ color: 'white', fontWeight: 900, fontSize: 20, margin: '14px 0 4px' }}>
+                {result.saved} novo{result.saved !== 1 ? 's' : ''} adicionado{result.saved !== 1 ? 's' : ''}!
+              </p>
+            )}
+            {result.enriched > 0 && (
+              <p style={{ color: BLUE, fontSize: 14, fontWeight: 700, margin: '8px 0 4px' }}>
+                🔄 {result.enriched} cadastro{result.enriched !== 1 ? 's' : ''} enriquecido{result.enriched !== 1 ? 's' : ''} com dados faltantes
+              </p>
+            )}
+            {result.saved === 0 && result.enriched === 0 && result.failed === 0 && (
+              <p style={{ color: SILVER, fontSize: 14, margin: '14px 0 4px' }}>Nenhum registro processado.</p>
+            )}
             {result.failed > 0 && (
               <p style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>
                 {result.failed} linha{result.failed !== 1 ? 's' : ''} com erro

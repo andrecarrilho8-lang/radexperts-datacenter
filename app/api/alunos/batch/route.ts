@@ -3,16 +3,11 @@ import { getDb } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime  = 'nodejs';
+export const maxDuration = 60; // 60s Vercel limit
 
 /* ══════════════════════════════════════════════════════════════════════════
    POST /api/alunos/batch
-   Body: {
-     courseName: string,
-     students: Array<{
-       name, email, phone, cpf, paymentMethod, totalAmount, entryDate,
-       isExisting?: boolean   ← if true, only enrich buyer_profiles (no insert)
-     }>
-   }
+   Optimised: 2 bulk pre-checks + individual inserts (no per-row lookups).
    Returns: { saved, enriched, failed, errors }
    ══════════════════════════════════════════════════════════════════════════ */
 export async function POST(request: Request) {
@@ -21,14 +16,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const courseName: string  = (body.courseName || '').trim();
-  const students: any[]     = Array.isArray(body.students) ? body.students : [];
+  const courseName: string = (body.courseName || '').trim();
+  const students: any[]    = Array.isArray(body.students) ? body.students : [];
 
   if (!courseName) return NextResponse.json({ error: 'courseName required' }, { status: 400 });
   if (students.length === 0) return NextResponse.json({ error: 'No students' }, { status: 400 });
 
   const sql = getDb();
   const now = Date.now();
+
+  // ── 1. Collect all emails and do ONE bulk dedup check ─────────────────────
+  const emailList = students
+    .map(s => (s.email || '').toLowerCase().trim())
+    .filter(Boolean);
+
+  // Emails already in manual_students for this course
+  const existingManualRows = await sql`
+    SELECT email FROM manual_students
+    WHERE course_name = ${courseName}
+      AND email = ANY(${emailList})
+  ` as any[];
+  const inManual = new Set(existingManualRows.map((r: any) => r.email.toLowerCase()));
+
+  // Emails already in buyer_profiles (Hotmart students)
+  const existingProfileRows = await sql`
+    SELECT email FROM buyer_profiles
+    WHERE email = ANY(${emailList})
+  ` as any[];
+  const inProfiles = new Set(existingProfileRows.map((r: any) => r.email.toLowerCase()));
+
+  // ── 2. Process each student ───────────────────────────────────────────────
   const results: { saved: number; enriched: number; failed: number; errors: string[] } = {
     saved: 0, enriched: 0, failed: 0, errors: [],
   };
@@ -36,39 +53,20 @@ export async function POST(request: Request) {
   for (const s of students) {
     const name  = (s.name  || '').trim();
     const email = (s.email || '').toLowerCase().trim();
-    if (!name || !email) { results.failed++; results.errors.push(`Linha sem nome ou email: ${email || name}`); continue; }
-
-    const phone  = (s.phone || '').trim();
-    const cpf    = (s.cpf   || '').trim();
-
-    // ── Belt-and-suspenders dedup: check server-side even if client sent isExisting ──
-    // 1. Did client already flag this as existing?
-    const clientFlagged = s.isExisting === true;
-
-    // 2. Check if email already in manual_students for this course
-    let isInManual = false;
-    try {
-      const existing = await sql`
-        SELECT id FROM manual_students
-        WHERE email = ${email} AND course_name = ${courseName}
-        LIMIT 1
-      ` as any[];
-      isInManual = existing.length > 0;
-    } catch { /* ignore check error, will try insert */ }
-
-    // 3. Check if email in buyer_profiles (Hotmart student)
-    let isInProfiles = false;
-    if (!isInManual) {
-      try {
-        const bp = await sql`SELECT email FROM buyer_profiles WHERE email = ${email} LIMIT 1` as any[];
-        isInProfiles = bp.length > 0;
-      } catch { /* ignore */ }
+    if (!name || !email) {
+      results.failed++;
+      results.errors.push(`Linha sem nome ou email: ${email || name}`);
+      continue;
     }
 
-    const shouldEnrichOnly = clientFlagged || isInManual || isInProfiles;
+    const phone = (s.phone || '').trim();
+    const cpf   = (s.cpf   || '').trim();
+
+    // Determine if this student already exists anywhere
+    const shouldEnrichOnly = s.isExisting === true || inManual.has(email) || inProfiles.has(email);
 
     if (shouldEnrichOnly) {
-      // Only update buyer_profiles with missing fields — never create a duplicate
+      // Only fill in missing fields — never duplicate
       try {
         if (phone || cpf) {
           await sql`
@@ -85,34 +83,35 @@ export async function POST(request: Request) {
         results.enriched++;
       } catch (e: any) {
         results.failed++;
-        results.errors.push(`${email}: ${e.message}`);
+        results.errors.push(`${email} (enrich): ${e.message}`);
       }
       continue;
     }
 
-    // ── New student — full insert ─────────────────────────────────────────
-    const entryDate     = s.entryDate ? Number(s.entryDate) : now;
-    const paymentType   = s.paymentMethod || 'PIX';
-    const totalAmount   = parseFloat((s.totalAmount  || '0').toString().replace(',', '.'))  || 0;
-    const instCount     = parseInt(s.installments    || '1', 10) || 1;
-    const instAmtIn     = parseFloat((s.installmentAmount || '0').toString().replace(',', '.'));
-    const instPaid      = parseInt(s.installmentsPaid || '0', 10) || 0;
+    // ── Full insert ──────────────────────────────────────────────────────────
+    const entryDate  = s.entryDate ? Number(s.entryDate) : now;
+    const payType    = (s.paymentMethod || 'PIX').toString();
+    const totalAmt   = parseFloat((s.totalAmount  || '0').toString().replace(',', '.'))  || 0;
+    const instCount  = parseInt(s.installments    || '1', 10) || 1;
+    const instAmtIn  = parseFloat((s.installmentAmount || '0').toString().replace(',', '.'));
+    const instPaid   = parseInt(s.installmentsPaid || '0', 10) || 0;
 
-    const instAmount = instAmtIn > 0 ? instAmtIn : (instCount > 1 ? totalAmount / instCount : totalAmount);
-    const realTotal  = totalAmount > 0 ? totalAmount : instAmount * instCount;
+    const instAmount = instAmtIn > 0 ? instAmtIn : (instCount > 1 ? totalAmt / instCount : totalAmt);
+    const realTotal  = totalAmt > 0 ? totalAmt : instAmount * instCount;
 
     const MONTH = 30 * 24 * 60 * 60 * 1000;
-    const installmentDates = paymentType === 'CARTAO_CREDITO' && instCount > 1
-      ? Array.from({ length: instCount }, (_, i) => {
-          const due_ms  = entryDate + i * MONTH;
-          const isPaid  = i < instPaid;
-          return { due_ms, paid_ms: isPaid ? due_ms : null, paid: isPaid, index: i };
-        })
+    const installmentDates = payType === 'CARTAO_CREDITO' && instCount > 1
+      ? Array.from({ length: instCount }, (_, i) => ({
+          due_ms:  entryDate + i * MONTH,
+          paid_ms: i < instPaid ? entryDate + i * MONTH : null,
+          paid:    i < instPaid,
+          index:   i,
+        }))
       : [];
 
     const notes = [
       cpf ? `CPF: ${cpf}` : '',
-      paymentType === 'CARTAO_CREDITO' && instCount > 1
+      payType === 'CARTAO_CREDITO' && instCount > 1
         ? `Cartão ${instCount}x de R$ ${instAmount.toFixed(2)} · ${instPaid} pagas`
         : '',
     ].filter(Boolean).join(' | ');
@@ -125,7 +124,7 @@ export async function POST(request: Request) {
            created_at, updated_at)
         VALUES (
           gen_random_uuid()::text,
-          ${courseName}, ${name}, ${email}, ${phone}, ${entryDate}, ${paymentType},
+          ${courseName}, ${name}, ${email}, ${phone}, ${entryDate}, ${payType},
           ${realTotal}, ${instCount}, ${instAmount},
           ${JSON.stringify(installmentDates)}::jsonb,
           ${notes},
@@ -138,9 +137,9 @@ export async function POST(request: Request) {
             (email, name, phone, document, purchase_count, created_at, updated_at)
           VALUES (${email}, ${name}, ${phone || null}, ${cpf || null}, 0, ${now}, ${now})
           ON CONFLICT (email) DO UPDATE SET
-            phone    = COALESCE(NULLIF(EXCLUDED.phone, ''),    buyer_profiles.phone),
+            phone    = COALESCE(NULLIF(EXCLUDED.phone,    ''), buyer_profiles.phone),
             document = COALESCE(NULLIF(EXCLUDED.document, ''), buyer_profiles.document),
-            name     = COALESCE(NULLIF(EXCLUDED.name, ''),     buyer_profiles.name),
+            name     = COALESCE(NULLIF(EXCLUDED.name,     ''), buyer_profiles.name),
             updated_at = ${now}
         `;
       }
