@@ -72,9 +72,13 @@ export default function AlunoPage() {
   const router  = useRouter();
   const id      = params?.id as string;
 
-  const [data,    setData]    = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [data,        setData]        = useState<any>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState('');
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading,   setUploading]   = useState(false);
+  const [uploadErr,   setUploadErr]   = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -84,6 +88,35 @@ export default function AlunoPage() {
       .then(d => { setData(d); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }, [id]);
+
+  // Load attachments once we have the student email
+  useEffect(() => {
+    if (!data?.email) return;
+    fetch(`/api/alunos/attachments?email=${encodeURIComponent(data.email)}`)
+      .then(r => r.json())
+      .then(d => setAttachments(d.attachments || []))
+      .catch(() => {});
+  }, [data?.email]);
+
+  const handleUpload = async (file: File) => {
+    if (!data?.email) return;
+    setUploading(true); setUploadErr('');
+    try {
+      const fd = new FormData();
+      fd.append('email', data.email);
+      fd.append('file', file);
+      const res  = await fetch('/api/alunos/attachments', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao enviar');
+      setAttachments(prev => [json.attachment, ...prev]);
+    } catch (e: any) { setUploadErr(e.message); }
+    finally { setUploading(false); }
+  };
+
+  const handleDeleteAttachment = async (attId: string) => {
+    await fetch(`/api/alunos/attachments?id=${attId}`, { method: 'DELETE' });
+    setAttachments(prev => prev.filter(a => a.id !== attId));
+  };
 
   const handlePDF = () => {
     const s = document.createElement('style');
@@ -405,6 +438,51 @@ export default function AlunoPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* ── Arquivos Anexos ── */}
+                  <div style={{ ...card, border: '1px solid rgba(167,139,250,0.2)' }} className="p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: '#a78bfa' }}>
+                      <span className="material-symbols-outlined text-sm">attach_file</span>
+                      Arquivos Anexos
+                      <span className="ml-auto text-[9px]" style={{ color: SILVER }}>{attachments.length}</span>
+                    </p>
+                    <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
+                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                      className="flex items-center justify-center gap-2 w-full mb-3 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                      style={{ background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.28)',
+                        color: '#a78bfa', cursor: 'pointer' }}>
+                      <span className="material-symbols-outlined text-sm">{uploading ? 'progress_activity' : 'upload'}</span>
+                      {uploading ? 'Enviando...' : 'Adicionar Arquivo'}
+                    </button>
+                    {uploadErr && <p className="text-[10px] mb-2" style={{ color: '#f87171' }}>{uploadErr}</p>}
+                    {attachments.length === 0 && !uploading ? (
+                      <p className="text-[11px] text-center py-4" style={{ color: SILVER }}>Nenhum arquivo anexado</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {attachments.map((a: any) => (
+                          <div key={a.id} className="flex items-center gap-2 rounded-xl px-3 py-2"
+                            style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.15)' }}>
+                            <span className="material-symbols-outlined flex-shrink-0" style={{ fontSize: 14, color: '#a78bfa' }}>
+                              {a.mimetype === 'application/pdf' ? 'picture_as_pdf' : 'image'}
+                            </span>
+                            <a href={`/api/alunos/attachments?id=${a.id}`} target="_blank" rel="noopener noreferrer"
+                              className="flex-1 text-[10px] font-bold truncate"
+                              style={{ color: '#a78bfa', textDecoration: 'none' }}>
+                              {a.filename}
+                            </a>
+                            <span className="text-[9px] flex-shrink-0" style={{ color: SILVER }}>
+                              {(a.size_bytes / 1024).toFixed(0)}KB
+                            </span>
+                            <button onClick={() => handleDeleteAttachment(a.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#f87171' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>delete</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

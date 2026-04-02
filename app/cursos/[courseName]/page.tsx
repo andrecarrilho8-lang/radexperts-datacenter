@@ -828,6 +828,14 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   const [progress,   setProgress]   = React.useState(0); // 0–100 for loading bar
   const [result,     setResult]     = React.useState<{saved:number;enriched:number;failed:number;errors:string[]}|null>(null);
   const [error,      setError]      = React.useState('');
+
+  // Load existing attachments
+  React.useEffect(() => {
+    fetch(`/api/alunos/attachments?email=${encodeURIComponent(student.email)}`)
+      .then(r => r.json())
+      .then(d => setAttachments(d.attachments || []))
+      .catch(() => {});
+  }, [student.email]);
   const fileRef   = React.useRef<HTMLInputElement>(null);
   const progTimer = React.useRef<any>(null);
 
@@ -1881,7 +1889,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
     name: string; email: string; phone: string; document: string; manualId?: string;
     // buyer_persona fields
     vendedor?: string; bp_valor?: string; bp_pagamento?: string; bp_modelo?: string;
-    bp_parcela?: string; bp_em_dia?: string;
+    bp_parcela?: string; bp_em_dia?: string; bp_primeira_parcela?: string; bp_ultimo_pagamento?: string; bp_proximo_pagamento?: string;
   };
   onClose: () => void;
   onSaved: (updated: { phone: string; name: string; document: string }) => void;
@@ -1895,8 +1903,36 @@ function EditStudentModal({ student, onClose, onSaved }: {
   const [bpModelo,   setBpModelo]   = React.useState(student.bp_modelo  || '');
   const [bpParcela,  setBpParcela]  = React.useState(student.bp_parcela || '');
   const [bpEmDia,    setBpEmDia]    = React.useState(student.bp_em_dia  || '');
+  const [bpPrimeira, setBpPrimeira] = React.useState(student.bp_primeira_parcela || '');
+  const [bpUltimo,   setBpUltimo]   = React.useState(student.bp_ultimo_pagamento || '');
+  const [bpProximo,  setBpProximo]  = React.useState(student.bp_proximo_pagamento || '');
+  // attachments
+  const [attachments,    setAttachments]    = React.useState<any[]>([]);
+  const [uploading,      setUploading]      = React.useState(false);
+  const [uploadError,    setUploadError]    = React.useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [saving,     setSaving]     = React.useState(false);
   const [error,      setError]      = React.useState('');
+
+  const handleUpload = async (file: File) => {
+    setUploading(true); setUploadError('');
+    try {
+      const fd = new FormData();
+      fd.append('email', student.email);
+      fd.append('file',  file);
+      const res  = await fetch('/api/alunos/attachments', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao enviar');
+      setAttachments(prev => [data.attachment, ...prev]);
+    } catch (e: any) {
+      setUploadError(e.message);
+    } finally { setUploading(false); }
+  };
+
+  const handleDeleteAttachment = async (id: string) => {
+    await fetch(`/api/alunos/attachments?id=${id}`, { method: 'DELETE' });
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  };
 
   const handleSave = async () => {
     setSaving(true); setError('');
@@ -1917,6 +1953,9 @@ function EditStudentModal({ student, onClose, onSaved }: {
           bp_modelo:    bpModelo.trim()  || null,
           bp_parcela:   bpParcela.trim() || null,
           bp_em_dia:    bpEmDia.trim()   || null,
+          bp_primeira_parcela:  bpPrimeira.trim() || null,
+          bp_ultimo_pagamento:  bpUltimo.trim()   || null,
+          bp_proximo_pagamento: bpProximo.trim()  || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
@@ -2018,6 +2057,55 @@ function EditStudentModal({ student, onClose, onSaved }: {
             ))}
           </div>
         </div>
+
+
+        {/* Date fields */}
+        <Field label="1ª Parcela (AAAA-MM-DD)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} placeholder="Ex: 2024-03-15" />
+        <Field label="Último Pagamento (AAAA-MM-DD)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} placeholder="Ex: 2024-12-01" />
+        <Field label="Próximo Pagamento (AAAA-MM-DD)" icon="schedule" value={bpProximo} onChange={setBpProximo} placeholder="Ex: 2025-01-01" />
+
+        {/* ── Anexos ── */}
+        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
+          color: '#a78bfa', marginBottom: 12, marginTop: 20 }}>Arquivos Anexos</p>
+        <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
+        <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px',
+            borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
+            letterSpacing: '0.1em', cursor: 'pointer', marginBottom: 12, transition: 'all 0.2s',
+            background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.28)',
+            color: '#a78bfa', justifyContent: 'center' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{uploading ? 'progress_activity' : 'attach_file'}</span>
+          {uploading ? 'Enviando...' : 'Anexar Arquivo (JPG, PDF, PNG)'}
+        </button>
+        {uploadError && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>{uploadError}</p>}
+        {attachments.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            {attachments.map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                borderRadius: 10, background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#a78bfa', flexShrink: 0 }}>
+                  {a.mimetype === 'application/pdf' ? 'picture_as_pdf' : 'image'}
+                </span>
+                <a href={`/api/alunos/attachments?id=${a.id}`} target="_blank" rel="noopener noreferrer"
+                  style={{ flex: 1, fontSize: 11, fontWeight: 700, color: '#a78bfa',
+                    textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {a.filename}
+                </a>
+                <span style={{ fontSize: 10, color: SILVER, flexShrink: 0 }}>
+                  {(a.size_bytes / 1024).toFixed(0)} KB
+                </span>
+                <button onClick={() => handleDeleteAttachment(a.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', padding: 2 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {attachments.length === 0 && !uploading && (
+          <p style={{ color: SILVER, fontSize: 11, textAlign: 'center', marginBottom: 16 }}>Nenhum arquivo anexado</p>
+        )}
 
         {error && (
           <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>
@@ -2698,6 +2786,9 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                               bp_modelo:     bp.modelo       || '',
                               bp_parcela:    bp.parcela   != null ? String(bp.parcela) : '',
                               bp_em_dia:     bp.em_dia       || '',
+              bp_primeira_parcela:  bp.primeira_parcela  ? new Date(Number(bp.primeira_parcela)).toISOString().slice(0,10)  : '',
+              bp_ultimo_pagamento:  bp.ultimo_pagamento  ? new Date(Number(bp.ultimo_pagamento)).toISOString().slice(0,10)  : '',
+              bp_proximo_pagamento: bp.proximo_pagamento ? new Date(Number(bp.proximo_pagamento)).toISOString().slice(0,10) : '',
                             };
                           })()
                         })}
