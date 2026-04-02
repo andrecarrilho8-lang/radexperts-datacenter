@@ -97,10 +97,42 @@ export async function ensureWebhookSchema() {
       last_purchase_at   BIGINT,
       first_purchase_at  BIGINT,
       purchase_count     INTEGER NOT NULL DEFAULT 0,
+      -- buyer persona / internal spreadsheet fields
+      vendedor           TEXT,
+      bp_valor           NUMERIC(12,2),
+      bp_pagamento       TEXT,
+      bp_modelo          TEXT,
+      bp_parcela         NUMERIC(12,2),
+      bp_primeira_parcela BIGINT,
+      bp_ultimo_pagamento BIGINT,
+      bp_proximo_pagamento BIGINT,
+      bp_em_dia          TEXT,
       -- timestamps
       created_at         BIGINT NOT NULL,
       updated_at         BIGINT NOT NULL
     )
   `;
+
+  // Safe migration for pre-existing tables (adds columns only if missing)
+  await ensureBuyerPersonaColumns();
 }
 
+/** Adds buyer-persona columns to buyer_profiles if they don't exist yet.
+ *  Safe to call multiple times — raw DDL per column. */
+export async function ensureBuyerPersonaColumns() {
+  const sql = getDb();
+  const alters = [
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS vendedor           TEXT`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_valor           NUMERIC(12,2)`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_pagamento       TEXT`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_modelo          TEXT`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_parcela         NUMERIC(12,2)`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_primeira_parcela BIGINT`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_ultimo_pagamento BIGINT`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_proximo_pagamento BIGINT`,
+    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_em_dia          TEXT`,
+  ];
+  for (const stmt of alters) {
+    try { await sql.unsafe(stmt); } catch { /* already exists — ignore */ }
+  }
+}

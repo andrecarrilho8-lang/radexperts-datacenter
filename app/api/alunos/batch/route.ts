@@ -59,8 +59,18 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const phone = (s.phone || '').trim();
-    const cpf   = (s.cpf   || '').trim();
+    const phone    = (s.phone    || '').trim();
+    const cpf      = (s.cpf      || '').trim();
+    const vendedor = (s.vendedor || '').trim() || null;
+    const bpValor  = s.bp_valor  != null ? parseFloat(String(s.bp_valor).replace(',', '.')) || null : null;
+    const bpPag    = (s.bp_pagamento  || '').trim() || null;
+    const bpModelo = (s.bp_modelo     || '').trim() || null;
+    const bpParc   = s.bp_parcela    != null ? parseFloat(String(s.bp_parcela).replace(',', '.')) || null : null;
+    const bpPrim   = s.bp_primeira_parcela  ? Number(s.bp_primeira_parcela)  : null;
+    const bpUlt    = s.bp_ultimo_pagamento  ? Number(s.bp_ultimo_pagamento)  : null;
+    const bpProx   = s.bp_proximo_pagamento ? Number(s.bp_proximo_pagamento) : null;
+    const bpEmDia  = (s.bp_em_dia  || '').trim() || null;
+    const hasBP    = !!(vendedor || bpValor || bpPag || bpModelo || bpParc || bpPrim || bpUlt || bpProx || bpEmDia);
 
     // Determine if this student already exists anywhere
     const shouldEnrichOnly = s.isExisting === true || inManual.has(email) || inProfiles.has(email);
@@ -68,15 +78,32 @@ export async function POST(request: Request) {
     if (shouldEnrichOnly) {
       // Only fill in missing fields — never duplicate
       try {
-        if (phone || cpf) {
+        if (phone || cpf || hasBP) {
           await sql`
             INSERT INTO buyer_profiles
-              (email, name, phone, document, purchase_count, created_at, updated_at)
-            VALUES (${email}, ${name}, ${phone || null}, ${cpf || null}, 0, ${now}, ${now})
+              (email, name, phone, document, purchase_count,
+               vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela,
+               bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia,
+               created_at, updated_at)
+            VALUES (
+              ${email}, ${name}, ${phone || null}, ${cpf || null}, 0,
+              ${vendedor}, ${bpValor}, ${bpPag}, ${bpModelo}, ${bpParc},
+              ${bpPrim}, ${bpUlt}, ${bpProx}, ${bpEmDia},
+              ${now}, ${now}
+            )
             ON CONFLICT (email) DO UPDATE SET
               phone    = COALESCE(NULLIF(buyer_profiles.phone,    ''), NULLIF(EXCLUDED.phone,    '')),
               document = COALESCE(NULLIF(buyer_profiles.document, ''), NULLIF(EXCLUDED.document, '')),
               name     = COALESCE(NULLIF(buyer_profiles.name,     ''), NULLIF(EXCLUDED.name,     '')),
+              vendedor           = COALESCE(EXCLUDED.vendedor,           buyer_profiles.vendedor),
+              bp_valor           = COALESCE(EXCLUDED.bp_valor,           buyer_profiles.bp_valor),
+              bp_pagamento       = COALESCE(EXCLUDED.bp_pagamento,       buyer_profiles.bp_pagamento),
+              bp_modelo          = COALESCE(EXCLUDED.bp_modelo,          buyer_profiles.bp_modelo),
+              bp_parcela         = COALESCE(EXCLUDED.bp_parcela,         buyer_profiles.bp_parcela),
+              bp_primeira_parcela  = COALESCE(EXCLUDED.bp_primeira_parcela,  buyer_profiles.bp_primeira_parcela),
+              bp_ultimo_pagamento  = COALESCE(EXCLUDED.bp_ultimo_pagamento,  buyer_profiles.bp_ultimo_pagamento),
+              bp_proximo_pagamento = COALESCE(EXCLUDED.bp_proximo_pagamento, buyer_profiles.bp_proximo_pagamento),
+              bp_em_dia          = COALESCE(EXCLUDED.bp_em_dia,          buyer_profiles.bp_em_dia),
               updated_at = ${now}
           `;
         }
@@ -131,15 +158,32 @@ export async function POST(request: Request) {
           ${now}, ${now}
         )
       `;
-      if (phone || cpf) {
+      if (phone || cpf || hasBP) {
         await sql`
           INSERT INTO buyer_profiles
-            (email, name, phone, document, purchase_count, created_at, updated_at)
-          VALUES (${email}, ${name}, ${phone || null}, ${cpf || null}, 0, ${now}, ${now})
+            (email, name, phone, document, purchase_count,
+             vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela,
+             bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia,
+             created_at, updated_at)
+          VALUES (
+            ${email}, ${name}, ${phone || null}, ${cpf || null}, 0,
+            ${vendedor}, ${bpValor}, ${bpPag}, ${bpModelo}, ${bpParc},
+            ${bpPrim}, ${bpUlt}, ${bpProx}, ${bpEmDia},
+            ${now}, ${now}
+          )
           ON CONFLICT (email) DO UPDATE SET
             phone    = COALESCE(NULLIF(EXCLUDED.phone,    ''), buyer_profiles.phone),
             document = COALESCE(NULLIF(EXCLUDED.document, ''), buyer_profiles.document),
             name     = COALESCE(NULLIF(EXCLUDED.name,     ''), buyer_profiles.name),
+            vendedor           = COALESCE(EXCLUDED.vendedor,           buyer_profiles.vendedor),
+            bp_valor           = COALESCE(EXCLUDED.bp_valor,           buyer_profiles.bp_valor),
+            bp_pagamento       = COALESCE(EXCLUDED.bp_pagamento,       buyer_profiles.bp_pagamento),
+            bp_modelo          = COALESCE(EXCLUDED.bp_modelo,          buyer_profiles.bp_modelo),
+            bp_parcela         = COALESCE(EXCLUDED.bp_parcela,         buyer_profiles.bp_parcela),
+            bp_primeira_parcela  = COALESCE(EXCLUDED.bp_primeira_parcela,  buyer_profiles.bp_primeira_parcela),
+            bp_ultimo_pagamento  = COALESCE(EXCLUDED.bp_ultimo_pagamento,  buyer_profiles.bp_ultimo_pagamento),
+            bp_proximo_pagamento = COALESCE(EXCLUDED.bp_proximo_pagamento, buyer_profiles.bp_proximo_pagamento),
+            bp_em_dia          = COALESCE(EXCLUDED.bp_em_dia,          buyer_profiles.bp_em_dia),
             updated_at = ${now}
         `;
       }

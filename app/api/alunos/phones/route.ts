@@ -25,10 +25,14 @@ async function fetchPhoneFromAC(email: string): Promise<string> {
 /* ══════════════════════════════════════════════════════════════════════════
    POST /api/alunos/phones
    Body: { emails: string[] }   (max 100)
-   Returns: { phones: { [email]: string } }
+   Returns: {
+     phones:     { [email]: string },
+     documents:  { [email]: string },
+     buyerPersona: { [email]: BuyerPersonaFields }
+   }
 
    Strategy:
-    1. Check buyer_profiles (populated by Hotmart webhook) — instant, no API call
+    1. Check buyer_profiles (populated by Hotmart webhook / CSV import) — instant
     2. For emails not in DB, fall back to ActiveCampaign API in parallel batches
    ══════════════════════════════════════════════════════════════════════════ */
 export async function POST(request: Request) {
@@ -42,23 +46,45 @@ export async function POST(request: Request) {
     .filter((e: string) => e.includes('@'))
     .slice(0, 100);
 
-  if (emails.length === 0) return NextResponse.json({ phones: {}, documents: {} });
+  if (emails.length === 0) return NextResponse.json({ phones: {}, documents: {}, buyerPersona: {} });
 
-  const phones:    Record<string, string> = {};
-  const documents: Record<string, string> = {};
+  const phones:       Record<string, string> = {};
+  const documents:    Record<string, string> = {};
+  const buyerPersona: Record<string, any>    = {};
 
-  // ── 1. Check our DB (buyer_profiles) ────────────────────────────────────────
+  // ── 1. Check our DB (buyer_profiles) ──────────────────────────────────────
   let needAC: string[] = [...emails];
   try {
     const sql = getDb();
     const rows = (await sql`
-      SELECT email, phone, document FROM buyer_profiles
+      SELECT
+        email, phone, document,
+        vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela,
+        bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia
+      FROM buyer_profiles
       WHERE email = ANY(${emails}::text[])
     `) as any[];
+
     for (const row of rows) {
-      if (row.phone)    phones[row.email]    = row.phone;
-      if (row.document) documents[row.email] = row.document;
+      const em = row.email.toLowerCase();
+      if (row.phone)    phones[em]    = row.phone;
+      if (row.document) documents[em] = row.document;
+
+      // Buyer-persona fields — always override Hotmart data when present
+      const bp: Record<string, any> = {};
+      if (row.vendedor)             bp.vendedor           = row.vendedor;
+      if (row.bp_valor != null)     bp.valor              = Number(row.bp_valor);
+      if (row.bp_pagamento)         bp.pagamento          = row.bp_pagamento;
+      if (row.bp_modelo)            bp.modelo             = row.bp_modelo;
+      if (row.bp_parcela != null)   bp.parcela            = Number(row.bp_parcela);
+      if (row.bp_primeira_parcela)  bp.primeira_parcela   = Number(row.bp_primeira_parcela);
+      if (row.bp_ultimo_pagamento)  bp.ultimo_pagamento   = Number(row.bp_ultimo_pagamento);
+      if (row.bp_proximo_pagamento) bp.proximo_pagamento  = Number(row.bp_proximo_pagamento);
+      if (row.bp_em_dia != null)    bp.em_dia             = row.bp_em_dia;
+
+      if (Object.keys(bp).length > 0) buyerPersona[em] = bp;
     }
+
     // Only need AC for emails with no phone in DB
     needAC = emails.filter(e => !(e in phones));
   } catch {
@@ -74,5 +100,5 @@ export async function POST(request: Request) {
     if (i + BATCH < needAC.length) await new Promise(r => setTimeout(r, 150));
   }
 
-  return NextResponse.json({ phones, documents });
+  return NextResponse.json({ phones, documents, buyerPersona });
 }

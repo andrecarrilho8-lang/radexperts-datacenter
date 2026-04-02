@@ -1992,6 +1992,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [phoneCache,      setPhoneCache]      = useState<Record<string, string>>({});
   const [phonesLoading,   setPhonesLoading]   = useState(false);
   const [documentCache,   setDocumentCache]   = useState<Record<string, string>>({});
+  const [buyerPersonaCache, setBuyerPersonaCache] = useState<Record<string, Record<string, any>>>({});
   const [showExportMenu,  setShowExportMenu]  = useState(false);
   const [showAddModal,   setShowAddModal]   = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
@@ -2066,7 +2067,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const paginated  = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(sorted.length / pageSize);
 
-  // ── Background contact fetch (phone + CPF) for current page ──────────────────
+  // ── Background contact fetch (phone + CPF + buyer_persona) for current page ──
   useEffect(() => {
     const uncached = paginated
       .map(s => (s.email || '').toLowerCase())
@@ -2080,10 +2081,11 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       body: JSON.stringify({ emails: uncached }),
     })
       .then(r => r.json())
-      .then(({ phones, documents }) => {
+      .then(({ phones, documents, buyerPersona }) => {
         if (!cancelled) {
-          setPhoneCache(prev    => ({ ...prev, ...(phones    || {}) }));
-          setDocumentCache(prev => ({ ...prev, ...(documents || {}) }));
+          setPhoneCache(prev         => ({ ...prev, ...(phones       || {}) }));
+          setDocumentCache(prev      => ({ ...prev, ...(documents    || {}) }));
+          setBuyerPersonaCache(prev  => ({ ...prev, ...(buyerPersona || {}) }));
           setPhonesLoading(false);
         }
       })
@@ -2372,11 +2374,13 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         <span className="material-symbols-outlined" style={{ fontSize: 11, color: SILVER, flexShrink: 0 }}>mail</span>
                         <span className="text-[12px] font-bold truncate" style={{ color: 'white' }}>{s.email}</span>
                       </div>
-                      {/* Telefone */}
+                      {/* Telefone — buyer_persona overrides */}
                       {(() => {
-                        const ph = (s as any).source === 'manual'
-                          ? ((s as any).phone || '')
-                          : (phoneCache[(s.email || '').toLowerCase()] || '');
+                        const bpData = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                        const ph = bpData.phone
+                          || ((s as any).source === 'manual' ? ((s as any).phone || '') : '')
+                          || phoneCache[(s.email || '').toLowerCase()]
+                          || '';
                         return ph ? (
                           <div className="flex items-center gap-1.5">
                             <span className="material-symbols-outlined" style={{ fontSize: 11, color: 'rgba(74,222,128,0.8)', flexShrink: 0 }}>phone</span>
@@ -2399,13 +2403,41 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           </div>
                         ) : null;
                       })()}
+                      {/* Vendedor (buyer_persona) */}
+                      {(() => {
+                        const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                        return bp.vendedor ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="material-symbols-outlined" style={{ fontSize: 11, color: GOLD, flexShrink: 0 }}>sell</span>
+                            <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>{bp.vendedor}</span>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
-                    {/* Valor Parcela */}
+                    {/* Valor Parcela — buyer_persona.valor/parcela overrides Hotmart */}
                     <div className="flex flex-col gap-0.5 pt-1">
-                      <span className="text-[12px] font-bold" style={{ color: GOLD }}>{fmtMoneyByCurrency(vParcela(s), s.currency)}</span>
-                      {s.valorBRL != null && s.currency !== 'BRL' && (
-                        <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(s.valorBRL)}</span>
-                      )}
+                      {(() => {
+                        const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                        const parcela = bp.parcela ?? bp.valor;
+                        if (parcela != null) {
+                          return (
+                            <>
+                              <span className="text-[12px] font-bold" style={{ color: GOLD }}>
+                                R$ {Number(parcela).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                              {bp.modelo && <span className="text-[9px] font-bold" style={{ color: SILVER }}>{bp.modelo}</span>}
+                            </>
+                          );
+                        }
+                        return (
+                          <>
+                            <span className="text-[12px] font-bold" style={{ color: GOLD }}>{fmtMoneyByCurrency(vParcela(s), s.currency)}</span>
+                            {s.valorBRL != null && s.currency !== 'BRL' && (
+                              <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(s.valorBRL)}</span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     {/* Total Pago */}
                     <div className="flex flex-col gap-0.5 pt-1">
@@ -2417,7 +2449,34 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         return <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(totalBrl)}</span>;
                       })()}
                     </div>
-                    <PaymentCell s={s} />
+                    {/* Pagamento — buyer_persona overrides Hotmart */}
+                    {(() => {
+                      const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                      if (bp.pagamento || bp.em_dia != null || bp.proximo_pagamento || bp.ultimo_pagamento) {
+                        const emDia = bp.em_dia;
+                        return (
+                          <div className="flex flex-col gap-0.5 pt-1">
+                            {bp.pagamento && <span className="text-[11px] font-bold" style={{ color: 'white' }}>{bp.pagamento}</span>}
+                            {emDia != null && (
+                              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
+                                background: emDia === 'SIM' ? 'rgba(74,222,128,0.12)' : 'rgba(239,68,68,0.12)',
+                                color:      emDia === 'SIM' ? GREEN : '#f87171',
+                                border:     `1px solid ${emDia === 'SIM' ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                                width: 'fit-content',
+                              }}>
+                                {emDia === 'SIM' ? '✓ Em dia' : '✗ Atrasado'}
+                              </span>
+                            )}
+                            {bp.proximo_pagamento && (
+                              <span className="text-[9px]" style={{ color: SILVER }}>
+                                Próx: {new Date(bp.proximo_pagamento).toLocaleDateString('pt-BR')}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }
+                      return <PaymentCell s={s} />;
+                    })()}
                     {/* Delete action — all students */}
                     <div className="flex items-center justify-center gap-1 pt-0.5">
                       {/* Edit button */}
