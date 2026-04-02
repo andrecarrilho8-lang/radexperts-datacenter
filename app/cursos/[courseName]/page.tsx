@@ -828,14 +828,6 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   const [progress,   setProgress]   = React.useState(0); // 0–100 for loading bar
   const [result,     setResult]     = React.useState<{saved:number;enriched:number;failed:number;errors:string[]}|null>(null);
   const [error,      setError]      = React.useState('');
-
-  // Load existing attachments
-  React.useEffect(() => {
-    fetch(`/api/alunos/attachments?email=${encodeURIComponent(student.email)}`)
-      .then(r => r.json())
-      .then(d => setAttachments(d.attachments || []))
-      .catch(() => {});
-  }, [student.email]);
   const fileRef   = React.useRef<HTMLInputElement>(null);
   const progTimer = React.useRef<any>(null);
 
@@ -1913,6 +1905,14 @@ function EditStudentModal({ student, onClose, onSaved }: {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [saving,     setSaving]     = React.useState(false);
   const [error,      setError]      = React.useState('');
+
+  // Load existing attachments on mount
+  React.useEffect(() => {
+    fetch(`/api/alunos/attachments?email=${encodeURIComponent(student.email)}`)
+      .then(r => r.json())
+      .then(d => setAttachments(d.attachments || []))
+      .catch(() => {});
+  }, [student.email]);
 
   const handleUpload = async (file: File) => {
     setUploading(true); setUploadError('');
