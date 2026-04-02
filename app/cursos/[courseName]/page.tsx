@@ -562,6 +562,345 @@ function manualToStudent(ms: ManualStudent): Student {
 }
 
 // ── Add Student Modal ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// BATCH PARSER
+// ══════════════════════════════════════════════════════════════════════════════
+interface ParsedRow {
+  name: string; email: string; phone: string; cpf: string;
+  paymentMethod: string; totalAmount: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+const RE_EMAIL   = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+const RE_CPF_FMT = /\d{3}\.\d{3}\.\d{3}[\-.\s]\d{2}/;          // formatted CPF
+const RE_CPF_RAW = /\b\d{11}\b(?![\w.\-])/;                     // 11-digit raw (low priority)
+const RE_PHONE   = /(?:\+?55\s?)?(?:\(?\d{2}\)?[\s.\-]?)?(?:9[\s.\-]?)?\d{4}[\s.\-]?\d{4}/;
+const PAYMENT_KW: Record<string, string> = {
+  pix: 'PIX', boleto: 'BOLETO', 'cartão': 'CARTAO_CREDITO', cartao: 'CARTAO_CREDITO',
+  crédito: 'CARTAO_CREDITO', credito: 'CARTAO_CREDITO', débito: 'CARTAO_DEBITO',
+  debito: 'CARTAO_DEBITO', picpay: 'PIX', transferência: 'PIX', transferencia: 'PIX',
+};
+
+function detectPayment(text: string): string {
+  const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const [kw, val] of Object.entries(PAYMENT_KW)) {
+    const normalizedKw = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (lower.includes(normalizedKw)) return val;
+  }
+  return 'PIX';
+}
+
+function parseSingleLine(raw: string): ParsedRow {
+  let work = raw;
+  const remove = (match: string | undefined) => { if (match) work = work.replace(match, ' '); };
+
+  const emailM   = RE_EMAIL.exec(work);
+  const email    = emailM?.[0] || '';  remove(email);
+
+  const cpfFmtM  = RE_CPF_FMT.exec(work);
+  const cpfFmt   = cpfFmtM?.[0] || ''; remove(cpfFmt);
+
+  const phoneM   = RE_PHONE.exec(work);
+  const phone    = phoneM?.[0] || '';  remove(phone);
+
+  // Raw CPF only if phone was already found (so 11-digit doesn't become phone twice)
+  const cpfRawM  = cpfFmt ? null : RE_CPF_RAW.exec(work.replace(phone, ''));
+  const cpf      = (cpfFmt || cpfRawM?.[0] || '').replace(/[\s]/g, '').trim();
+  if (cpfRawM?.[0]) remove(cpfRawM[0]);
+
+  const payment  = detectPayment(raw);
+  // Remove payment keywords from work
+  work = work.replace(/\b(pix|boleto|cart[aã]o|cr[eé]dito|d[eé]bito|picpay|transfer[eê]ncia)\b/gi, ' ');
+
+  // Remove amounts like R$ 1.000,00 or 1500.00
+  work = work.replace(/R\$\s?[\d.,]+/gi, ' ').replace(/\b\d{1,6}[.,]\d{2}\b/g, ' ');
+
+  // Clean separators
+  const name = work
+    .replace(/[\|,;:\t]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\W_]+|[\W_]+$/g, '')
+    .trim();
+
+  const fields = [email, cpf, phone, name].filter(Boolean);
+  const confidence: ParsedRow['confidence'] =
+    email && name ? 'high' :
+    email         ? 'medium' : 'low';
+
+  return { name, email, phone, cpf, paymentMethod: payment, totalAmount: '', confidence };
+}
+
+function parseBatchText(text: string): ParsedRow[] {
+  // Split by newline; if a line has no email try combining with next line
+  const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const rows: ParsedRow[] = [];
+  let i = 0;
+  while (i < rawLines.length) {
+    let line = rawLines[i];
+    // If no email found, peek at next line and combine (multi-line student blocks)
+    if (!RE_EMAIL.test(line) && i + 1 < rawLines.length && RE_EMAIL.test(rawLines[i + 1])) {
+      line = line + ' ' + rawLines[i + 1];
+      i += 2;
+    } else {
+      i++;
+    }
+    const parsed = parseSingleLine(line);
+    if (parsed.email || parsed.name) rows.push(parsed); // skip fully empty
+  }
+  return rows;
+}
+
+// ── Badge ─────────────────────────────────────────────────────────────────────
+function ConfBadge({ level }: { level: 'high' | 'medium' | 'low' }) {
+  const cfg = level === 'high'   ? { c: '#4ade80', bg: 'rgba(74,222,128,0.1)',  label: '✓ OK' }
+            : level === 'medium' ? { c: '#fbbf24', bg: 'rgba(251,191,36,0.1)',  label: '⚠ Rev' }
+            :                      { c: '#f87171', bg: 'rgba(248,113,113,0.1)', label: '✕ Erro' };
+  return <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
+    background: cfg.bg, color: cfg.c, whiteSpace: 'nowrap' }}>{cfg.label}</span>;
+}
+
+// ── Batch Add Modal ───────────────────────────────────────────────────────────
+function BatchAddModal({ courseName, onClose, onSaved }: {
+  courseName: string;
+  onClose: () => void;
+  onSaved: (count: number) => void;
+}) {
+  const [step,     setStep]     = React.useState<'paste' | 'preview' | 'done'>('paste');
+  const [rawText,  setRawText]  = React.useState('');
+  const [rows,     setRows]     = React.useState<ParsedRow[]>([]);
+  const [saving,   setSaving]   = React.useState(false);
+  const [result,   setResult]   = React.useState<{ saved: number; failed: number; errors: string[] } | null>(null);
+  const [error,    setError]    = React.useState('');
+
+  const handleParse = () => {
+    const parsed = parseBatchText(rawText);
+    if (parsed.length === 0) { setError('Nenhum aluno identificado. Verifique o formato.'); return; }
+    setRows(parsed); setError(''); setStep('preview');
+  };
+
+  const updateRow = (i: number, field: keyof ParsedRow, value: string) =>
+    setRows(prev => prev.map((r, idx) => idx === i ? { ...r, [field]: value } : r));
+
+  const removeRow = (i: number) => setRows(prev => prev.filter((_, idx) => idx !== i));
+
+  const handleImport = async () => {
+    const valid = rows.filter(r => r.name && r.email);
+    if (valid.length === 0) { setError('Nenhuma linha válida (nome + email obrigatórios).'); return; }
+    setSaving(true); setError('');
+    try {
+      const res = await fetch('/api/alunos/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseName,
+          students: valid.map(r => ({
+            name: r.name, email: r.email, phone: r.phone,
+            cpf: r.cpf, paymentMethod: r.paymentMethod,
+            totalAmount: r.totalAmount || '0',
+            entryDate: Date.now(),
+          })),
+        }),
+      });
+      const data = await res.json();
+      setResult(data);
+      setStep('done');
+      if (data.saved > 0) onSaved(data.saved);
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const IN = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 7, color: 'white', fontSize: 11, padding: '4px 7px', outline: 'none', boxSizing: 'border-box' as const };
+  const SEL = { ...IN, cursor: 'pointer' };
+  const PAYMENT_OPTS = [
+    { v: 'PIX',           l: 'PIX' },
+    { v: 'CARTAO_CREDITO', l: 'Cartão Crédito' },
+    { v: 'CARTAO_DEBITO',  l: 'Cartão Débito' },
+    { v: 'BOLETO',         l: 'Boleto' },
+  ];
+
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10002, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(16px)' }} />
+      <div style={{
+        position: 'relative', width: '100%',
+        maxWidth: step === 'preview' ? 1000 : 560,
+        maxHeight: '90vh', overflowY: 'auto',
+        borderRadius: 24,
+        background: 'linear-gradient(160deg, rgba(8,15,30,0.99) 0%, rgba(4,10,20,0.99) 100%)',
+        border: '1px solid rgba(74,222,128,0.2)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
+        padding: 32, transition: 'max-width 0.3s',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.25)',
+            flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ color: GREEN, fontSize: 20 }}>upload_file</span>
+          </div>
+          <div>
+            <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Adicionar por Lote</h3>
+            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>
+              {step === 'paste'   ? 'Cole os dados — a plataforma identifica os campos automaticamente' :
+               step === 'preview' ? `${rows.length} aluno${rows.length !== 1 ? 's' : ''} identificado${rows.length !== 1 ? 's' : ''} — revise e confirme` :
+               'Importação concluída'}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none',
+            color: SILVER, cursor: 'pointer', padding: 4 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+          </button>
+        </div>
+
+        {/* ─── STEP 1: PASTE ─────────────────────────────────────────────── */}
+        {step === 'paste' && (<>
+          {/* Examples */}
+          <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 12,
+            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <p style={{ fontSize: 10, fontWeight: 900, color: SILVER, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Formatos aceitos</p>
+            {["João Silva, joao@email.com, (11) 99999-0000, 123.456.789-00, PIX",
+              "Maria Souza\naria.souza@gmail.com\n(21) 98765-4321\nCartão Crédito",
+              "joao@email.com 11 99999-0000 João da Silva 123.456.789-00 boleto",
+            ].map((ex, i) => (
+              <div key={i} style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(74,222,128,0.8)',
+                background: 'rgba(74,222,128,0.05)', borderRadius: 7, padding: '6px 10px',
+                marginBottom: i < 2 ? 6 : 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{ex}</div>
+            ))}
+          </div>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 900, color: SILVER,
+            textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Cole os dados aqui</label>
+          <textarea
+            value={rawText}
+            onChange={e => setRawText(e.target.value)}
+            placeholder={"João Silva, joao@gmail.com, (11) 99999-0000\nMaria Santos, maria@hotmail.com, 987.654.321-00, Boleto\n..."}
+            style={{ width: '100%', minHeight: 220, background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: 'white',
+              fontSize: 12, padding: 14, outline: 'none', resize: 'vertical',
+              fontFamily: 'monospace', lineHeight: 1.7, boxSizing: 'border-box' }}
+          />
+          {error && <p style={{ color: '#f87171', fontSize: 11, marginTop: 8 }}>{error}</p>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+            <button onClick={onClose}
+              style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
+                cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+              Cancelar
+            </button>
+            <button onClick={handleParse} disabled={!rawText.trim()}
+              style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
+                cursor: rawText.trim() ? 'pointer' : 'not-allowed', opacity: rawText.trim() ? 1 : 0.5,
+                background: 'rgba(74,222,128,0.15)', border: '1.5px solid rgba(74,222,128,0.4)', color: GREEN,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>auto_awesome</span>
+              Processar e Identificar
+            </button>
+          </div>
+        </>)}
+
+        {/* ─── STEP 2: PREVIEW ───────────────────────────────────────────── */}
+        {step === 'preview' && (<>
+          <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','OK',''].map(h => (
+                    <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
+                      fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER,
+                      whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '5px 8px', color: SILVER, fontSize: 10 }}>{i + 1}</td>
+                    <td style={{ padding: '5px 4px' }}>
+                      <input value={r.name} onChange={e => updateRow(i, 'name', e.target.value)} style={IN} />
+                    </td>
+                    <td style={{ padding: '5px 4px' }}>
+                      <input value={r.email} onChange={e => updateRow(i, 'email', e.target.value)} style={IN} />
+                    </td>
+                    <td style={{ padding: '5px 4px' }}>
+                      <input value={r.phone} onChange={e => updateRow(i, 'phone', e.target.value)} style={{ ...IN, width: 130 }} />
+                    </td>
+                    <td style={{ padding: '5px 4px' }}>
+                      <input value={r.cpf} onChange={e => updateRow(i, 'cpf', e.target.value)} style={{ ...IN, width: 118 }} />
+                    </td>
+                    <td style={{ padding: '5px 4px' }}>
+                      <select value={r.paymentMethod} onChange={e => updateRow(i, 'paymentMethod', e.target.value)} style={SEL}>
+                        {PAYMENT_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '5px 4px' }}>
+                      <input value={r.totalAmount} onChange={e => updateRow(i, 'totalAmount', e.target.value)}
+                        placeholder="0,00" style={{ ...IN, width: 80 }} />
+                    </td>
+                    <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
+                    <td style={{ padding: '5px 4px' }}>
+                      <button onClick={() => removeRow(i)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 14, padding: 2 }}>
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 12 }}>{error}</p>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => { setStep('paste'); setError(''); }}
+              style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
+                cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+              ← Voltar
+            </button>
+            <button onClick={handleImport} disabled={saving || rows.filter(r => r.name && r.email).length === 0}
+              style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
+                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+                background: 'rgba(74,222,128,0.15)', border: '1.5px solid rgba(74,222,128,0.4)', color: GREEN,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+                {saving ? 'progress_activity' : 'upload'}
+              </span>
+              {saving ? 'Importando...' : `Importar ${rows.filter(r => r.name && r.email).length} aluno${rows.filter(r => r.name && r.email).length !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </>)}
+
+        {/* ─── STEP 3: DONE ──────────────────────────────────────────────── */}
+        {step === 'done' && result && (<>
+          <div style={{ textAlign: 'center', padding: '12px 0' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 56, color: result.saved > 0 ? GREEN : '#f87171' }}>
+              {result.saved > 0 ? 'task_alt' : 'error'}
+            </span>
+            <p style={{ color: 'white', fontWeight: 900, fontSize: 18, margin: '12px 0 4px' }}>
+              {result.saved} aluno{result.saved !== 1 ? 's' : ''} importado{result.saved !== 1 ? 's' : ''}!
+            </p>
+            {result.failed > 0 && (
+              <p style={{ color: '#fbbf24', fontSize: 12 }}>{result.failed} falha{result.failed !== 1 ? 's' : ''}</p>
+            )}
+            {result.errors.length > 0 && (
+              <div style={{ maxHeight: 100, overflowY: 'auto', marginTop: 12, textAlign: 'left',
+                background: 'rgba(248,113,113,0.07)', borderRadius: 10, padding: '10px 14px' }}>
+                {result.errors.map((e, i) => <p key={i} style={{ color: '#f87171', fontSize: 10, margin: '2px 0' }}>{e}</p>)}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ width: '100%', marginTop: 20, padding: '12px 0', borderRadius: 12,
+            fontWeight: 900, fontSize: 13, cursor: 'pointer',
+            background: 'rgba(74,222,128,0.15)', border: '1.5px solid rgba(74,222,128,0.4)', color: GREEN }}>
+            Fechar
+          </button>
+        </>)}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Add Student Modal ─────────────────────────────────────────────────────────
 function AddStudentModal({ courseName, onClose, onSaved }: {
   courseName: string;
   onClose: () => void;
@@ -1039,6 +1378,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [documentCache,   setDocumentCache]   = useState<Record<string, string>>({});
   const [showExportMenu,  setShowExportMenu]  = useState(false);
   const [showAddModal,   setShowAddModal]   = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
   const [editTarget,     setEditTarget]     = useState<{ name: string; email: string; phone: string; document: string; manualId?: string } | null>(null);
@@ -1260,12 +1600,20 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               </div>
             </div>
             <button onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
               style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', color: GREEN }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.18)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.08)')}>
               <span className="material-symbols-outlined text-[16px]">person_add</span>
-              Adicionar Aluno
+              Adicionar
+            </button>
+            <button onClick={() => setShowBatchModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+              style={{ background: 'rgba(99,179,237,0.08)', border: '1px solid rgba(99,179,237,0.3)', color: '#63b3ed' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.18)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.08)')}>
+              <span className="material-symbols-outlined text-[16px]">upload_file</span>
+              Lote
             </button>
           </div>
 
@@ -1480,6 +1828,21 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           </div>
         </main>
       </div>
+
+      {/* Batch add modal */}
+      {showBatchModal && typeof window !== 'undefined' && (
+        <BatchAddModal
+          courseName={decoded}
+          onClose={() => setShowBatchModal(false)}
+          onSaved={() => {
+            setShowBatchModal(false);
+            // Reload manual students to show new batch
+            fetch(`/api/alunos/manual?course=${encodeURIComponent(decoded)}`)
+              .then(r => r.json())
+              .then(d => setManualStudents(d.students || []));
+          }}
+        />
+      )}
 
       {/* Add student modal */}
       {showAddModal && typeof window !== 'undefined' && (
