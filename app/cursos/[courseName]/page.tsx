@@ -577,6 +577,7 @@ interface ParsedRow {
   name: string; email: string; phone: string; cpf: string;
   paymentMethod: string; totalAmount: string;
   installments: string; installmentAmount: string; installmentsPaid: string;
+  entryDate: string; // YYYY-MM-DD
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -639,7 +640,9 @@ function parseSingleLine(raw: string): ParsedRow {
     email         ? 'medium' : 'low';
 
   return { name, email, phone, cpf, paymentMethod: payment,
-    totalAmount: '', installments, installmentAmount: '', installmentsPaid: '0', confidence };
+    totalAmount: '', installments, installmentAmount: '', installmentsPaid: '0',
+    entryDate: new Date().toISOString().slice(0, 10),
+    confidence };
 }
 
 function parseBatchText(text: string): ParsedRow[] {
@@ -691,6 +694,451 @@ function ConfBadge({ level }: { level: 'high' | 'medium' | 'low' }) {
     background: cfg.bg, color: cfg.c, whiteSpace: 'nowrap' }}>{cfg.label}</span>;
 }
 
+// ── CSV / XLS Import Modal ────────────────────────────────────────────────────
+type CsvField = 'name'|'email'|'phone'|'cpf'|'entryDate'|'paymentMethod'|'totalAmount'|'installments'|'installmentsPaid'|'_ignore';
+
+const CSV_FIELD_LABELS: Record<CsvField, string> = {
+  name:            'Nome',
+  email:           'Email',
+  phone:           'Telefone',
+  cpf:             'CPF',
+  entryDate:       'Data de Entrada',
+  paymentMethod:   'Tipo de Pagamento',
+  totalAmount:     'Valor Parcela (R$)',
+  installments:    'Nº de Parcelas',
+  installmentsPaid:'Parcelas Pagas',
+  _ignore:         '— Ignorar —',
+};
+
+// Auto-detect column mapping from header name
+function guessField(header: string): CsvField {
+  const h = header.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (/nome|name/.test(h))                                    return 'name';
+  if (/e.*mail/.test(h))                                      return 'email';
+  if (/tel|fone|phone|celular|whatsapp|contato/.test(h))      return 'phone';
+  if (/cpf|documento|document|doc/.test(h))                    return 'cpf';
+  if (/data|entrada|ingresso|date|inicio/.test(h))             return 'entryDate';
+  if (/pag|payment|forma|tipo|metodo|method/.test(h))          return 'paymentMethod';
+  if (/valor|value|amount|parcela|mensalidade/.test(h))        return 'totalAmount';
+  if (/parcelas|installments|n.*parc|num/.test(h))             return 'installments';
+  if (/pag.*parc|pagas?|paid/.test(h))                         return 'installmentsPaid';
+  return '_ignore';
+}
+
+// Normalise raw payment cell value to our enum
+function normalisePayment(raw: string): string {
+  const v = (raw || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/pix/.test(v))                                return 'PIX';
+  if (/boleto/.test(v))                             return 'BOLETO';
+  if (/debito|debit/.test(v))                       return 'CARTAO_DEBITO';
+  if (/credito|credit|cartao|card/.test(v))         return 'CARTAO_CREDITO';
+  return 'PIX';
+}
+
+// Parse a raw Excel serial date or string date → YYYY-MM-DD
+function parseDateCell(val: any): string {
+  if (!val) return new Date().toISOString().slice(0, 10);
+  if (typeof val === 'number') {
+    // Excel serial: days since 1900-01-00
+    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  }
+  if (typeof val === 'string') {
+    // Try DD/MM/YYYY
+    const m = val.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (m) {
+      const [, d, mo, y] = m;
+      const yr = y.length === 2 ? `20${y}` : y;
+      return `${yr}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    // ISO already
+    if (/^\d{4}-\d{2}-\d{2}/.test(val)) return val.slice(0, 10);
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
+function CSVImportModal({ courseName, onClose, onSaved }: {
+  courseName: string;
+  onClose: () => void;
+  onSaved: (count: number) => void;
+}) {
+  type Step = 'upload' | 'map' | 'preview' | 'done';
+  const [step,       setStep]       = React.useState<Step>('upload');
+  const [dragging,   setDragging]   = React.useState(false);
+  const [headers,    setHeaders]    = React.useState<string[]>([]);
+  const [rawRows,    setRawRows]    = React.useState<any[][]>([]); // first 5 rows for preview
+  const [allRaw,     setAllRaw]     = React.useState<any[][]>([]);
+  const [mapping,    setMapping]    = React.useState<Record<string, CsvField>>({});
+  const [saving,     setSaving]     = React.useState(false);
+  const [result,     setResult]     = React.useState<{saved:number;failed:number;errors:string[]}|null>(null);
+  const [error,      setError]      = React.useState('');
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const processFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = new Uint8Array(ev.target!.result as ArrayBuffer);
+        const wb   = XLSX.read(data, { type: 'array', cellDates: false });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][];
+        if (rows.length < 2) { setError('Arquivo vazio ou sem dados.'); return; }
+        const hdrs = (rows[0] as any[]).map(h => String(h || '').trim());
+        const dataRows = rows.slice(1).filter(r => r.some(c => c !== ''));
+        setHeaders(hdrs);
+        setAllRaw(dataRows);
+        setRawRows(dataRows.slice(0, 5));
+        // Auto-detect mapping
+        const auto: Record<string, CsvField> = {};
+        hdrs.forEach(h => { auto[h] = guessField(h); });
+        setMapping(auto);
+        setError('');
+        setStep('map');
+      } catch (e: any) { setError(`Erro ao ler arquivo: ${e.message}`); }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  // Build ParsedRows from allRaw + mapping
+  const buildRows = (): ParsedRow[] => {
+    const fieldFor = (col: string): CsvField => mapping[col] || '_ignore';
+    return allRaw.map(row => {
+      const pick = (field: CsvField) => {
+        const idx = headers.findIndex(h => fieldFor(h) === field);
+        return idx >= 0 ? String(row[idx] ?? '').trim() : '';
+      };
+      const name  = pick('name');
+      const email = pick('email');
+      const conf: ParsedRow['confidence'] = name && email ? 'high' : email ? 'medium' : 'low';
+      return {
+        name, email,
+        phone:            pick('phone'),
+        cpf:              pick('cpf'),
+        entryDate:        parseDateCell(headers.findIndex(h => fieldFor(h) === 'entryDate') >= 0
+                            ? allRaw[allRaw.indexOf(row)][headers.findIndex(h => fieldFor(h) === 'entryDate')]
+                            : ''),
+        paymentMethod:    normalisePayment(pick('paymentMethod')),
+        totalAmount:      pick('totalAmount').replace(/[^\d.,]/g, ''),
+        installments:     pick('installments') || '1',
+        installmentAmount:'',
+        installmentsPaid: pick('installmentsPaid') || '0',
+        confidence:       conf,
+      };
+    }).filter(r => r.name || r.email);
+  };
+
+  const handleImport = async () => {
+    const rows = buildRows().filter(r => r.name && r.email);
+    if (rows.length === 0) { setError('Nenhuma linha válida (nome + email obrigatórios).'); return; }
+    setSaving(true); setError('');
+    try {
+      const res = await fetch('/api/alunos/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseName,
+          students: rows.map(r => ({
+            name: r.name, email: r.email, phone: r.phone,
+            cpf: r.cpf, paymentMethod: r.paymentMethod,
+            totalAmount:  r.totalAmount || '0',
+            installments: r.installments || '1',
+            installmentAmount: '0',
+            installmentsPaid: r.installmentsPaid || '0',
+            entryDate: r.entryDate ? new Date(r.entryDate).getTime() : Date.now(),
+          })),
+        }),
+      });
+      const data = await res.json();
+      setResult(data);
+      setStep('done');
+      if (data.saved > 0) onSaved(data.saved);
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const previewRows = buildRows().slice(0, 5);
+  const totalValid  = step === 'preview' || step === 'map' ? buildRows().filter(r => r.name && r.email).length : 0;
+
+  const BOX: React.CSSProperties = {
+    position: 'relative', width: '100%',
+    maxWidth: step === 'map' || step === 'preview' ? 1100 : 560,
+    maxHeight: '90vh', overflowY: 'auto', borderRadius: 24,
+    background: 'linear-gradient(160deg, rgba(8,15,30,0.99) 0%, rgba(4,10,20,0.99) 100%)',
+    border: '1px solid rgba(99,179,237,0.25)',
+    boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
+    padding: 32, transition: 'max-width 0.3s',
+  };
+  const IN2: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 7, color: 'white', fontSize: 11, padding: '4px 8px',
+    outline: 'none', width: '100%',
+  };
+  const BLUE = '#63b3ed';
+
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10003, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(16px)' }} />
+      <div style={BOX}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', background: 'rgba(99,179,237,0.12)', border: '1px solid rgba(99,179,237,0.25)', flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ color: BLUE, fontSize: 20 }}>table_view</span>
+          </div>
+          <div>
+            <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Importar Planilha CSV / XLS</h3>
+            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>
+              {step === 'upload'  ? 'Faça upload da planilha e mapeie os campos'            :
+               step === 'map'    ? `${headers.length} colunas detectadas — associe os campos` :
+               step === 'preview'? `${totalValid} aluno${totalValid !== 1 ? 's' : ''} prontos para importar` :
+               'Importação concluída'}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: SILVER, cursor: 'pointer', padding: 4 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
+          </button>
+        </div>
+
+        {/* Step indicator */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
+          {(['upload','map','preview','done'] as Step[]).map((s, i) => (
+            <div key={s} style={{ flex: 1, height: 3, borderRadius: 3,
+              background: ['upload','map','preview','done'].indexOf(step) >= i
+                ? 'rgba(99,179,237,0.8)' : 'rgba(255,255,255,0.1)' }} />
+          ))}
+        </div>
+
+        {/* ── STEP 1: UPLOAD ─────────────────────────────────────────────── */}
+        {step === 'upload' && (<>
+          <div
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => fileRef.current?.click()}
+            style={{
+              border: `2px dashed ${dragging ? BLUE : 'rgba(99,179,237,0.3)'}`,
+              borderRadius: 16, padding: '48px 24px', textAlign: 'center', cursor: 'pointer',
+              background: dragging ? 'rgba(99,179,237,0.06)' : 'rgba(255,255,255,0.02)',
+              transition: 'all 0.2s', marginBottom: 20,
+            }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 48, color: BLUE, display: 'block', marginBottom: 12 }}>upload_file</span>
+            <p style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: '0 0 6px' }}>Arraste o arquivo aqui</p>
+            <p style={{ color: SILVER, fontSize: 12, margin: '0 0 16px' }}>ou clique para selecionar</p>
+            <span style={{ fontSize: 10, fontWeight: 800, color: BLUE, background: 'rgba(99,179,237,0.1)',
+              border: '1px solid rgba(99,179,237,0.3)', borderRadius: 8, padding: '4px 12px' }}>
+              .CSV · .XLS · .XLSX
+            </span>
+            <input ref={fileRef} type="file" accept=".csv,.xls,.xlsx"
+              style={{ display: 'none' }} onChange={handleFileChange} />
+          </div>
+          <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.07)', marginBottom: 16 }}>
+            <p style={{ fontSize: 10, fontWeight: 900, color: SILVER, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Dica</p>
+            <p style={{ fontSize: 11, color: SILVER, margin: 0, lineHeight: 1.7 }}>
+              A planilha pode ter qualquer cabeçalho — você vai associar cada coluna ao campo correto na próxima etapa. <br/>
+              Campos reconhecidos: <strong style={{ color: 'white' }}>Nome, Email, Telefone, CPF, Data de Entrada, Tipo de Pagamento, Valor Parcela, Nº Parcelas, Parcelas Pagas</strong>.
+            </p>
+          </div>
+          {error && <p style={{ color: '#f87171', fontSize: 11, marginTop: 8 }}>{error}</p>}
+        </>)}
+
+        {/* ── STEP 2: MAP COLUMNS ─────────────────────────────────────────── */}
+        {step === 'map' && (<>
+          <div style={{ overflowX: 'auto', marginBottom: 20 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 900, fontSize: 9,
+                    textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, whiteSpace: 'nowrap' }}>
+                    Coluna da planilha
+                  </th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 900, fontSize: 9,
+                    textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, whiteSpace: 'nowrap' }}>
+                    Mapear para
+                  </th>
+                  <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 900, fontSize: 9,
+                    textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER }}>
+                    Exemplo (1ª linha)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {headers.map((h, hi) => (
+                  <tr key={hi} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '5px 10px', color: GOLD, fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</td>
+                    <td style={{ padding: '5px 6px', minWidth: 180 }}>
+                      <select
+                        value={mapping[h] || '_ignore'}
+                        onChange={e => setMapping(prev => ({ ...prev, [h]: e.target.value as CsvField }))}
+                        style={{ ...IN2, cursor: 'pointer', colorScheme: 'dark' }}>
+                        {(Object.keys(CSV_FIELD_LABELS) as CsvField[]).map(f => (
+                          <option key={f} value={f} style={{ background: '#010d1f', color: 'white' }}>
+                            {CSV_FIELD_LABELS[f]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={{ padding: '5px 10px', color: SILVER, fontSize: 10, maxWidth: 200,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {String(rawRows[0]?.[hi] ?? '—')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mini preview of first 3 rows */}
+          {rawRows.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontSize: 10, fontWeight: 900, color: SILVER, textTransform: 'uppercase',
+                letterSpacing: '0.1em', margin: '0 0 8px' }}>Pré-visualização (3 primeiras linhas)</p>
+              <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      {headers.map((h, i) => (
+                        <th key={i} style={{ padding: '5px 8px', fontWeight: 800, color: mapping[h] !== '_ignore' ? BLUE : 'rgba(255,255,255,0.3)',
+                          whiteSpace: 'nowrap', textAlign: 'left' }}>
+                          {h}{mapping[h] !== '_ignore' ? ` → ${CSV_FIELD_LABELS[mapping[h]]}` : ''}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rawRows.slice(0,3).map((row, ri) => (
+                      <tr key={ri} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        {headers.map((_, ci) => (
+                          <td key={ci} style={{ padding: '4px 8px', color: SILVER, whiteSpace: 'nowrap' }}>
+                            {String(row[ci] ?? '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => { setStep('upload'); setError(''); }}
+              style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
+                cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+              ← Voltar
+            </button>
+            <button onClick={() => {
+                const has = Object.values(mapping).some(v => v === 'name');
+                const hasE = Object.values(mapping).some(v => v === 'email');
+                if (!has || !hasE) { setError('Mapeie pelo menos as colunas Nome e Email.'); return; }
+                setError(''); setStep('preview');
+              }}
+              style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
+                cursor: 'pointer', background: 'rgba(99,179,237,0.12)', border: '1.5px solid rgba(99,179,237,0.4)', color: BLUE,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>arrow_forward</span>
+              Confirmar mapeamento
+            </button>
+          </div>
+        </>)}
+
+        {/* ── STEP 3: PREVIEW ──────────────────────────────────────────────── */}
+        {step === 'preview' && (<>
+          <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','OK'].map(h => (
+                    <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
+                      fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {buildRows().map((r, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '5px 8px', color: SILVER, fontSize: 10 }}>{i+1}</td>
+                    <td style={{ padding: '5px 8px', color: 'white', fontWeight: 700 }}>{r.name || <span style={{color:'#f87171'}}>—</span>}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.email || <span style={{color:'#f87171'}}>—</span>}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.phone || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.cpf || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: GOLD, fontWeight: 700 }}>
+                      {{PIX:'PIX',BOLETO:'Boleto',CARTAO_CREDITO:'Crédito',CARTAO_DEBITO:'Débito'}[r.paymentMethod] || r.paymentMethod}
+                    </td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.totalAmount || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.installments}×</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.entryDate || '—'}</td>
+                    <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ fontSize: 11, color: SILVER, marginBottom: 14 }}>
+            <strong style={{ color: 'white' }}>{totalValid}</strong> aluno{totalValid !== 1 ? 's' : ''} válidos de {allRaw.length} linhas na planilha.
+          </p>
+          {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => { setStep('map'); setError(''); }}
+              style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
+                cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+              ← Ajustar
+            </button>
+            <button onClick={handleImport} disabled={saving || totalValid === 0}
+              style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
+                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving || totalValid === 0 ? 0.7 : 1,
+                background: 'rgba(99,179,237,0.15)', border: '1.5px solid rgba(99,179,237,0.4)', color: BLUE,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+                {saving ? 'progress_activity' : 'upload'}
+              </span>
+              {saving ? 'Importando...' : `Importar ${totalValid} aluno${totalValid !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </>)}
+
+        {/* ── STEP 4: DONE ────────────────────────────────────────────────── */}
+        {step === 'done' && result && (<>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 56, color: result.saved > 0 ? BLUE : '#f87171' }}>
+              {result.saved > 0 ? 'task_alt' : 'error'}
+            </span>
+            <p style={{ color: 'white', fontWeight: 900, fontSize: 20, margin: '14px 0 6px' }}>
+              {result.saved} aluno{result.saved !== 1 ? 's' : ''} importados!
+            </p>
+            {result.failed > 0 && (
+              <p style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>
+                {result.failed} linha{result.failed !== 1 ? 's' : ''} com erro
+              </p>
+            )}
+          </div>
+          <button onClick={onClose}
+            style={{ width: '100%', padding: '13px 0', borderRadius: 14, fontWeight: 900, fontSize: 13,
+              cursor: 'pointer', background: 'rgba(99,179,237,0.15)', border: `1.5px solid ${BLUE}`, color: BLUE }}>
+            Fechar
+          </button>
+        </>)}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // ── Batch Add Modal ───────────────────────────────────────────────────────────
 function BatchAddModal({ courseName, onClose, onSaved }: {
   courseName: string;
@@ -732,7 +1180,7 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
             installments:      r.installments      || '1',
             installmentAmount: r.installmentAmount || '0',
             installmentsPaid:  r.installmentsPaid  || '0',
-            entryDate: Date.now(),
+            entryDate: r.entryDate ? new Date(r.entryDate).getTime() : Date.now(),
           })),
         }),
       });
@@ -840,7 +1288,7 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','OK',''].map(h => (
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Data Entrada','OK',''].map(h => (
                     <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
                       fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER,
                       whiteSpace: 'nowrap' }}>{h}</th>
@@ -876,6 +1324,10 @@ function BatchAddModal({ courseName, onClose, onSaved }: {
                         <td style={{ padding: '5px 4px' }}>
                           <input value={r.totalAmount} onChange={e => updateRow(i, 'totalAmount', e.target.value)}
                             placeholder={isCard ? 'Total' : '0,00'} style={{ ...IN, width: 80 }} />
+                        </td>
+                        <td style={{ padding: '5px 4px' }}>
+                          <input type="date" value={r.entryDate} onChange={e => updateRow(i, 'entryDate', e.target.value)}
+                            style={{ ...IN, width: 120, colorScheme: 'dark' }} />
                         </td>
                         <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
                         <td style={{ padding: '5px 4px' }}>
@@ -1460,6 +1912,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [showExportMenu,  setShowExportMenu]  = useState(false);
   const [showAddModal,   setShowAddModal]   = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showCSVModal,   setShowCSVModal]   = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
   const [editTarget,     setEditTarget]     = useState<{ name: string; email: string; phone: string; document: string; manualId?: string } | null>(null);
@@ -1687,6 +2140,14 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               onMouseLeave={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.08)')}>
               <span className="material-symbols-outlined text-[16px]">person_add</span>
               Adicionar
+            </button>
+            <button onClick={() => setShowCSVModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
+              style={{ background: 'rgba(99,179,237,0.08)', border: '1px solid rgba(99,179,237,0.3)', color: '#63b3ed' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.18)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.08)')}>
+              <span className="material-symbols-outlined text-[16px]">table_view</span>
+              Importar Planilha
             </button>
             <button onClick={() => setShowBatchModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
@@ -1926,6 +2387,20 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           </div>
         </main>
       </div>
+
+      {/* CSV/XLS import modal */}
+      {showCSVModal && typeof window !== 'undefined' && (
+        <CSVImportModal
+          courseName={decoded}
+          onClose={() => setShowCSVModal(false)}
+          onSaved={() => {
+            setShowCSVModal(false);
+            fetch(`/api/alunos/manual?course=${encodeURIComponent(decoded)}`)
+              .then(r => r.json())
+              .then(d => setManualStudents(d.students || []));
+          }}
+        />
+      )}
 
       {/* Batch add modal */}
       {showBatchModal && typeof window !== 'undefined' && (
