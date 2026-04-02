@@ -22,12 +22,20 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const email    = (body.email || '').toLowerCase().trim();
-  const phone    = (body.phone    ?? null) as string | null;
-  const name     = (body.name     ?? null) as string | null;
-  const document = (body.document ?? null) as string | null;
-  const country  = (body.country  ?? null) as string | null;
-  const manualId = (body.manualId ?? null) as string | null;
+  const email      = (body.email    || '').toLowerCase().trim();
+  const phone      = (body.phone    ?? null) as string | null;
+  const name       = (body.name     ?? null) as string | null;
+  const document   = (body.document ?? null) as string | null;
+  const country    = (body.country  ?? null) as string | null;
+  const manualId   = (body.manualId ?? null) as string | null;
+
+  // buyer_persona fields
+  const vendedor     = (body.vendedor     ?? null) as string | null;
+  const bpValor      = body.bp_valor != null ? (parseFloat(String(body.bp_valor).replace(',', '.')) || null) : null;
+  const bpPagamento  = (body.bp_pagamento ?? null) as string | null;
+  const bpModelo     = (body.bp_modelo    ?? null) as string | null;
+  const bpParcela    = body.bp_parcela != null ? (parseFloat(String(body.bp_parcela).replace(',', '.')) || null) : null;
+  const bpEmDia      = (body.bp_em_dia   ?? null) as string | null;
 
   if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 });
 
@@ -36,34 +44,43 @@ export async function PATCH(request: Request) {
     const sql = getDb();
     const now = Date.now();
 
-    // 1. Upsert buyer_profiles (enriched contact store)
+    // 1. Upsert buyer_profiles (enriched contact store + buyer_persona)
     await sql`
       INSERT INTO buyer_profiles (
         email, name, phone, document, country,
+        vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela, bp_em_dia,
         purchase_count, created_at, updated_at
       ) VALUES (
         ${email},
         ${name || null}, ${phone || null}, ${document || null}, ${country || null},
+        ${vendedor}, ${bpValor}, ${bpPagamento}, ${bpModelo}, ${bpParcela}, ${bpEmDia},
         0, ${now}, ${now}
       )
       ON CONFLICT (email) DO UPDATE SET
-        phone      = CASE WHEN ${phone}::text IS NOT NULL THEN ${phone} ELSE buyer_profiles.phone    END,
-        name       = CASE WHEN ${name}::text  IS NOT NULL THEN ${name}  ELSE buyer_profiles.name     END,
-        document   = CASE WHEN ${document}::text IS NOT NULL THEN ${document} ELSE buyer_profiles.document END,
-        country    = CASE WHEN ${country}::text  IS NOT NULL THEN ${country}  ELSE buyer_profiles.country  END,
-        updated_at = ${now}
+        phone      = CASE WHEN ${phone}::text      IS NOT NULL THEN ${phone}      ELSE buyer_profiles.phone    END,
+        name       = CASE WHEN ${name}::text       IS NOT NULL THEN ${name}       ELSE buyer_profiles.name     END,
+        document   = CASE WHEN ${document}::text   IS NOT NULL THEN ${document}   ELSE buyer_profiles.document END,
+        country    = CASE WHEN ${country}::text    IS NOT NULL THEN ${country}    ELSE buyer_profiles.country  END,
+        vendedor    = CASE WHEN ${vendedor}::text   IS NOT NULL THEN ${vendedor}   ELSE buyer_profiles.vendedor    END,
+        bp_valor    = CASE WHEN ${bpValor}::numeric IS NOT NULL THEN ${bpValor}   ELSE buyer_profiles.bp_valor    END,
+        bp_pagamento= CASE WHEN ${bpPagamento}::text IS NOT NULL THEN ${bpPagamento} ELSE buyer_profiles.bp_pagamento END,
+        bp_modelo   = CASE WHEN ${bpModelo}::text  IS NOT NULL THEN ${bpModelo}  ELSE buyer_profiles.bp_modelo   END,
+        bp_parcela  = CASE WHEN ${bpParcela}::numeric IS NOT NULL THEN ${bpParcela} ELSE buyer_profiles.bp_parcela  END,
+        bp_em_dia   = CASE WHEN ${bpEmDia}::text   IS NOT NULL THEN ${bpEmDia}   ELSE buyer_profiles.bp_em_dia   END,
+        updated_at  = ${now}
     `;
 
-    // 2. If manualId provided → also update manual_students.phone
-    if (manualId && phone !== null) {
-      await sql`
-        UPDATE manual_students
-        SET phone = ${phone}, updated_at = ${now}
-        WHERE id = ${manualId}
-      `;
+    // 2. If manualId provided → also update manual_students.phone + name
+    if (manualId) {
+      if (phone !== null) {
+        await sql`UPDATE manual_students SET phone = ${phone}, updated_at = ${now} WHERE id = ${manualId}`;
+      }
+      if (name !== null) {
+        await sql`UPDATE manual_students SET name = ${name}, updated_at = ${now} WHERE id = ${manualId}`;
+      }
     }
 
-    return NextResponse.json({ ok: true, email, updated: { phone, name, document, country } });
+    return NextResponse.json({ ok: true, email });
   } catch (e: any) {
     console.error('[profile PATCH]', e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });

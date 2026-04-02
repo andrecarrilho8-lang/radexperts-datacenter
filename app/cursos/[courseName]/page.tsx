@@ -359,12 +359,18 @@ function generatePDF(courseName: string, students: Student[], phoneCache: Record
     const emailKey = (s.email || '').toLowerCase();
     const phone = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCache[emailKey] || '');
     const cpf = documentCache[emailKey] || (s as any).document || '';
+    const bp = (s as any).buyerPersonaData || {};
+    const vendedor  = bp.vendedor || '';
+    const pagamento = bp.pagamento || '';
+    const modelo    = bp.modelo || '';
+    const bpValor   = bp.parcela != null ? fmtMoney(Number(bp.parcela)) : bp.valor != null ? fmtMoney(Number(bp.valor)) : '';
+    const emDia     = bp.em_dia || '';
     const dadosPessoais = [
       `<b>${s.email}</b>`,
       phone ? `<span style="color:#16a34a">📞 ${phone}</span>` : '',
       cpf   ? `<span style="color:#0369a1">🪪 ${cpf}</span>`  : '',
     ].filter(Boolean).join('<br/>');
-    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td>${fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#555">${method}</td></tr>`;
+    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name}</strong></td><td style="min-width:200px">${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td style="color:#555">${pagamento}${modelo ? ` · ${modelo}` : ''}</td><td style="font-weight:700">${bpValor || fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#555">${method}</td></tr>`;
   }).join('');
 
   const active    = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
@@ -390,7 +396,7 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top;line-height:1
 <div class="stat" style="background:#fff0f0;border:1px solid #fca5a5"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">Inadimplentes</div></div>
 <div class="stat" style="background:#f0fff4;border:1px solid #86efac"><div class="num" style="color:#16a34a">${quitado}</div><div class="lbl">Quitados</div></div>
 </div>
-<table><thead><tr><th>#</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Valor Parcela</th><th>Total Pago</th><th>Status</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th>#</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Vendedor</th><th>Pagamento</th><th>Valor Parcela</th><th>Total Pago</th><th>Status</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="ftr">RadExperts Data Center · Dados vitalícios</div>
 <script>window.onload=()=>window.print()</script></body></html>`);
   win.document.close();
@@ -516,7 +522,7 @@ function generateXLS(courseName: string, students: Student[], phoneCacheArg: Rec
 }
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
-const GRID = '120px 1fr 240px 140px 160px 260px 64px';
+const GRID = '120px 1fr 320px 140px 160px 260px 64px';
 const COLS = [
   { key: 'entryDate', label: 'Entrada',        sortable: true  },
   { key: 'name',      label: 'Nome',            sortable: false },
@@ -1864,15 +1870,26 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
 
 // ── Edit Student Modal ────────────────────────────────────────────────────────
 function EditStudentModal({ student, onClose, onSaved }: {
-  student: { name: string; email: string; phone: string; document: string; manualId?: string };
+  student: {
+    name: string; email: string; phone: string; document: string; manualId?: string;
+    // buyer_persona fields
+    vendedor?: string; bp_valor?: string; bp_pagamento?: string; bp_modelo?: string;
+    bp_parcela?: string; bp_em_dia?: string;
+  };
   onClose: () => void;
   onSaved: (updated: { phone: string; name: string; document: string }) => void;
 }) {
-  const [phone,    setPhone]    = React.useState(student.phone    || '');
-  const [name,     setName]     = React.useState(student.name     || '');
-  const [docNum,   setDocNum]   = React.useState(student.document || '');
-  const [saving,   setSaving]   = React.useState(false);
-  const [error,    setError]    = React.useState('');
+  const [phone,      setPhone]      = React.useState(student.phone      || '');
+  const [name,       setName]       = React.useState(student.name       || '');
+  const [docNum,     setDocNum]     = React.useState(student.document   || '');
+  const [vendedor,   setVendedor]   = React.useState(student.vendedor   || '');
+  const [bpValor,    setBpValor]    = React.useState(student.bp_valor   || '');
+  const [bpPag,      setBpPag]      = React.useState(student.bp_pagamento || '');
+  const [bpModelo,   setBpModelo]   = React.useState(student.bp_modelo  || '');
+  const [bpParcela,  setBpParcela]  = React.useState(student.bp_parcela || '');
+  const [bpEmDia,    setBpEmDia]    = React.useState(student.bp_em_dia  || '');
+  const [saving,     setSaving]     = React.useState(false);
+  const [error,      setError]      = React.useState('');
 
   const handleSave = async () => {
     setSaving(true); setError('');
@@ -1881,11 +1898,18 @@ function EditStudentModal({ student, onClose, onSaved }: {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email:    student.email,
-          phone:    phone.trim()    || null,
-          name:     name.trim()     || null,
-          document: docNum.trim()   || null,
-          manualId: student.manualId || null,
+          email:        student.email,
+          phone:        phone.trim()    || null,
+          name:         name.trim()     || null,
+          document:     docNum.trim()   || null,
+          manualId:     student.manualId || null,
+          // buyer_persona
+          vendedor:     vendedor.trim()  || null,
+          bp_valor:     bpValor.trim()   || null,
+          bp_pagamento: bpPag.trim()     || null,
+          bp_modelo:    bpModelo.trim()  || null,
+          bp_parcela:   bpParcela.trim() || null,
+          bp_em_dia:    bpEmDia.trim()   || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
@@ -1928,11 +1952,11 @@ function EditStudentModal({ student, onClose, onSaved }: {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.9)', backdropFilter: 'blur(14px)' }} />
       <div style={{
-        position: 'relative', width: '100%', maxWidth: 440, borderRadius: 24,
+        position: 'relative', width: '100%', maxWidth: 520, borderRadius: 24,
         background: 'linear-gradient(160deg, rgba(8,15,30,0.98) 0%, rgba(4,10,20,0.99) 100%)',
         border: '1px solid rgba(99,179,237,0.2)',
         boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(99,179,237,0.08), 0 1px 0 rgba(255,255,255,0.05) inset',
-        padding: 32,
+        padding: 32, maxHeight: '90vh', overflowY: 'auto',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
@@ -1943,7 +1967,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
           </div>
           <div>
             <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Editar Informações</h3>
-            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>{student.name}</p>
+            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>{student.name} · {student.email}</p>
           </div>
           <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none',
             color: SILVER, cursor: 'pointer', padding: 4 }}>
@@ -1951,16 +1975,45 @@ function EditStudentModal({ student, onClose, onSaved }: {
           </button>
         </div>
 
-        {/* Fields */}
-        <Field label="Telefone" icon="phone" value={phone} onChange={setPhone}
-          placeholder="(11) 99999-9999" />
-        <Field label="Nome" icon="person" value={name} onChange={setName}
-          placeholder="Nome completo" />
-        <Field label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum}
-          placeholder="000.000.000-00" />
+        {/* Section: Dados Pessoais */}
+        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
+          color: TEAL, marginBottom: 12 }}>Dados Pessoais</p>
+        <Field label="Nome" icon="person" value={name} onChange={setName} placeholder="Nome completo" />
+        <Field label="Telefone" icon="phone" value={phone} onChange={setPhone} placeholder="(11) 99999-9999" />
+        <Field label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum} placeholder="000.000.000-00" />
+
+        {/* Section: Buyer Persona */}
+        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
+          color: GOLD, marginBottom: 12, marginTop: 20 }}>Buyer Persona</p>
+        <Field label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} placeholder="Nome do vendedor" />
+        <Field label="Valor Total (R$)" icon="payments" value={bpValor} onChange={setBpValor} placeholder="Ex: 30000" />
+        <Field label="Tipo de Pagamento" icon="account_balance" value={bpPag} onChange={setBpPag} placeholder="Ex: PIX, Hotmart 12x" />
+        <Field label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} placeholder="Ex: 12x, 1x" />
+        <Field label="Valor da Parcela (R$)" icon="receipt" value={bpParcela} onChange={setBpParcela} placeholder="Ex: 2500" />
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Em Dia</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['SIM', 'NÃO', ''] as string[]).map(v => (
+              <button key={v} type="button"
+                onClick={() => setBpEmDia(v)}
+                style={{ flex: 1, padding: '8px 0', borderRadius: 10, fontWeight: 800, fontSize: 11,
+                  cursor: 'pointer', transition: 'all 0.15s',
+                  background: bpEmDia === v
+                    ? (v === 'SIM' ? 'rgba(74,222,128,0.18)' : v === 'NÃO' ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.1)')
+                    : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${bpEmDia === v
+                    ? (v === 'SIM' ? '#4ade80' : v === 'NÃO' ? '#f87171' : 'rgba(255,255,255,0.3)')
+                    : 'rgba(255,255,255,0.1)'}`,
+                  color: bpEmDia === v ? (v === 'SIM' ? '#4ade80' : v === 'NÃO' ? '#f87171' : SILVER) : SILVER }}>
+                {v === '' ? '— Não def.' : v}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {error && (
-          <p style={{ color: '#f87171', fontSize: 11, marginBottom: 12, textAlign: 'center' }}>{error}</p>
+          <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>
         )}
 
         {/* Actions */}
@@ -1972,14 +2025,14 @@ function EditStudentModal({ student, onClose, onSaved }: {
             Cancelar
           </button>
           <button onClick={handleSave} disabled={saving}
-            style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
+            style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
               cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
-              background: 'rgba(99,179,237,0.15)', border: '1.5px solid rgba(99,179,237,0.4)', color: '#63b3ed',
+              background: 'rgba(99,179,237,0.12)', border: '1.5px solid rgba(99,179,237,0.4)', color: '#63b3ed',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
               {saving ? 'progress_activity' : 'save'}
             </span>
-            {saving ? 'Salvando...' : 'Salvar'}
+            {saving ? 'Salvando...' : 'Salvar Alterações'}
           </button>
         </div>
       </div>
@@ -2370,7 +2423,32 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           <div style={{ ...TABLE_STYLE, overflow: 'visible' }}>
             <div className="pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', borderRadius: '24px 24px 0 0', height: 4, marginBottom: -4 }} />
 
-            {/* Header */}
+            {/* Top pagination bar */}
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Por página:</span>
+                {[50, 100, 150, 200].map(n => (
+                  <button key={n} onClick={() => { setPageSize(n); setPage(0); }}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
+                    style={{ background: pageSize === n ? GOLD : 'rgba(255,255,255,0.07)', color: pageSize === n ? NAVY : SILVER, border: `1px solid ${pageSize === n ? GOLD : 'rgba(255,255,255,0.1)'}` }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                    className="px-4 py-1.5 rounded-xl text-[11px] font-black transition-all disabled:opacity-30"
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>← Anterior</button>
+                  <span className="text-[12px] font-bold px-3" style={{ color: SILVER }}>{page + 1} / {totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                    className="px-4 py-1.5 rounded-xl text-[11px] font-black transition-all disabled:opacity-30"
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Próxima →</button>
+                </div>
+              )}
+              <span className="text-[11px] font-bold" style={{ color: SILVER }}>{sorted.length.toLocaleString('pt-BR')} alunos</span>
+            </div>
+
             <div className="grid px-5 py-3.5" style={{ gridTemplateColumns: GRID, ...HEADER_STYLE }}>
               {COLS.map(col => (
                 <div key={col.key}
@@ -2556,8 +2634,20 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           phone:    (s as any).source === 'manual'
                                       ? ((s as any).phone || '')
                                       : (phoneCache[(s.email || '').toLowerCase()] || ''),
-                          document: (s as any).document || '',
+                          document: documentCache[(s.email || '').toLowerCase()] || (s as any).document || '',
                           manualId: (s as any).source === 'manual' ? (s as any).manualId : undefined,
+                          // pass current BP data so fields are pre-filled
+                          ...(() => {
+                            const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                            return {
+                              vendedor:      bp.vendedor     || '',
+                              bp_valor:      bp.valor     != null ? String(bp.valor)   : '',
+                              bp_pagamento:  bp.pagamento    || '',
+                              bp_modelo:     bp.modelo       || '',
+                              bp_parcela:    bp.parcela   != null ? String(bp.parcela) : '',
+                              bp_em_dia:     bp.em_dia       || '',
+                            };
+                          })()
                         })}
                         title="Editar informações"
                         style={{ background: 'none', border: '1px solid rgba(99,179,237,0.2)', borderRadius: 8,
