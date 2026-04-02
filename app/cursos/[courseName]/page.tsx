@@ -343,7 +343,13 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
-function generatePDF(courseName: string, students: Student[], phoneCache: Record<string, string> = {}, documentCache: Record<string, string> = {}) {
+function generatePDF(
+  courseName: string,
+  students: Student[],
+  phoneCache: Record<string, string> = {},
+  documentCache: Record<string, string> = {},
+  bpCache: Record<string, Record<string, any>> = {}
+) {
   const rows = students.map((s, i) => {
     const status = getPayStatus(s);
     const stLabel = status === 'INADIMPLENTE' ? '⚠ INADIMPLENTE' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : '✓ QUITADO') : '● ADIMPLENTE';
@@ -359,18 +365,19 @@ function generatePDF(courseName: string, students: Student[], phoneCache: Record
     const emailKey = (s.email || '').toLowerCase();
     const phone = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCache[emailKey] || '');
     const cpf = documentCache[emailKey] || (s as any).document || '';
-    const bp = (s as any).buyerPersonaData || {};
+    // Buyer persona — from cache (works for Hotmart + manual)
+    const bp = bpCache[emailKey] || {};
     const vendedor  = bp.vendedor || '';
-    const pagamento = bp.pagamento || '';
-    const modelo    = bp.modelo || '';
-    const bpValor   = bp.parcela != null ? fmtMoney(Number(bp.parcela)) : bp.valor != null ? fmtMoney(Number(bp.valor)) : '';
-    const emDia     = bp.em_dia || '';
+    const bpPag    = bp.pagamento || (s as any).source === 'manual' ? (bp.pagamento || '') : '';
+    const bpModelo = bp.modelo || '';
+    const bpParcela = bp.parcela != null ? fmtMoney(Number(bp.parcela)) : bp.valor != null ? fmtMoney(Number(bp.valor)) : '';
+    const emDia    = bp.em_dia ? (bp.em_dia === 'SIM' ? '✓ Em Dia' : '✗ Atrasado') : '';
     const dadosPessoais = [
       `<b>${s.email}</b>`,
       phone ? `<span style="color:#16a34a">📞 ${phone}</span>` : '',
       cpf   ? `<span style="color:#0369a1">🪪 ${cpf}</span>`  : '',
     ].filter(Boolean).join('<br/>');
-    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name}</strong></td><td style="min-width:200px">${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td style="color:#555">${pagamento}${modelo ? ` · ${modelo}` : ''}</td><td style="font-weight:700">${bpValor || fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#555">${method}</td></tr>`;
+    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${bpPag}${bpModelo ? ` · ${bpModelo}` : ''}</td><td style="font-weight:700">${bpParcela || fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#888">${emDia}</td><td style="color:#555">${method}</td></tr>`;
   }).join('');
 
   const active    = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
@@ -396,7 +403,7 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top;line-height:1
 <div class="stat" style="background:#fff0f0;border:1px solid #fca5a5"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">Inadimplentes</div></div>
 <div class="stat" style="background:#f0fff4;border:1px solid #86efac"><div class="num" style="color:#16a34a">${quitado}</div><div class="lbl">Quitados</div></div>
 </div>
-<table><thead><tr><th>#</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Vendedor</th><th>Pagamento</th><th>Valor Parcela</th><th>Total Pago</th><th>Status</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th>#</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Vendedor</th><th>Pagamento</th><th>Valor/Parcela</th><th>Total Pago</th><th>Status</th><th>Em Dia</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="ftr">RadExperts Data Center · Dados vitalícios</div>
 <script>window.onload=()=>window.print()</script></body></html>`);
   win.document.close();
@@ -868,8 +875,8 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
       return idx >= 0 ? String(row[idx] ?? '').trim() : '';
     };
     return allRaw.map(row => {
-      const name  = pickRaw('name', row);
-      const email = pickRaw('email', row);
+      const name  = (pickRaw('name', row) || '').toUpperCase(); // normalize to UPPERCASE on import
+      const email = pickRaw('email', row).toLowerCase().trim();
       const conf: ParsedRow['confidence'] = name && email ? 'high' : email ? 'medium' : 'low';
       const entryIdx = headers.findIndex(h => fieldFor(h) === 'entryDate');
       return {
@@ -2293,7 +2300,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                 color: 'rgba(168,178,192,0.6)', margin: 0, paddingLeft: 2 }}>Gerar Relatórios</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {/* PDF */}
-                <button onClick={() => generatePDF(decoded, sorted, phoneCache, documentCache)}
+                <button onClick={() => generatePDF(decoded, sorted, phoneCache, documentCache, buyerPersonaCache)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
                     borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
                     letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 0.2s',
@@ -2500,8 +2507,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           onMouseEnter={e => (e.currentTarget.style.color = GOLD)}
                           onMouseLeave={e => (e.currentTarget.style.color = '#fff')}
-                          title={s.name}
-                        >{s.name}</button>
+                          title={s.name.toUpperCase()}
+                        >{s.name.toUpperCase()}</button>
                         {(s as any).source === 'manual' && (
                           <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
                             color: GREEN, borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
