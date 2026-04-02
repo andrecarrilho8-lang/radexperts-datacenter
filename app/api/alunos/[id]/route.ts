@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getHotmartToken } from '@/app/lib/hotmartApi';
+import { getDb } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -101,6 +102,38 @@ export async function GET(
   }
 
   try {
+    // ── 0. Buyer Persona (internal DB) ──────────────────────────────────────
+    let buyerPersona: Record<string, any> | null = null;
+    try {
+      const sql = getDb();
+      const rows = await sql`
+        SELECT
+          name, phone, document,
+          vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela,
+          bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia
+        FROM buyer_profiles
+        WHERE email = ${email}
+        LIMIT 1
+      ` as any[];
+      if (rows.length > 0) {
+        const r = rows[0];
+        buyerPersona = {
+          name:               r.name     || null,
+          phone:              r.phone    || null,
+          document:           r.document || null,
+          vendedor:           r.vendedor || null,
+          valor:              r.bp_valor    != null ? Number(r.bp_valor)    : null,
+          pagamento:          r.bp_pagamento || null,
+          modelo:             r.bp_modelo   || null,
+          parcela:            r.bp_parcela  != null ? Number(r.bp_parcela)  : null,
+          primeira_parcela:   r.bp_primeira_parcela  ? new Date(Number(r.bp_primeira_parcela)).toISOString() : null,
+          ultimo_pagamento:   r.bp_ultimo_pagamento  ? new Date(Number(r.bp_ultimo_pagamento)).toISOString() : null,
+          proximo_pagamento:  r.bp_proximo_pagamento ? new Date(Number(r.bp_proximo_pagamento)).toISOString() : null,
+          em_dia:             r.bp_em_dia || null,
+        };
+      }
+    } catch { /* columns may not exist yet — ignore */ }
+
     // ── 1. ActiveCampaign ───────────────────────────────────────────────────
     const acSearch = await acGet(`/contacts?email=${encodeURIComponent(email)}&limit=1`);
     const acContact: any = acSearch?.contacts?.[0] || null;
@@ -236,12 +269,14 @@ export async function GET(
 
     return NextResponse.json({
       email,
-      name: [acFirstName, acLastName].filter(Boolean).join(' ') || hotmartName || null,
+      name: [acFirstName, acLastName].filter(Boolean).join(' ') || buyerPersona?.name || hotmartName || null,
       hotmartName,
-      phone: acPhone || null,
+      phone: buyerPersona?.phone || acPhone || null,
+      document: buyerPersona?.document || null,
       ltv,
       purchases,
       uniqueProducts,
+      buyerPersona,
       ac: acId ? {
         id:          acId,
         firstName:   acFirstName,

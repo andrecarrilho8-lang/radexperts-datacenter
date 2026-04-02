@@ -260,6 +260,45 @@ export default function AlunoPage() {
                 {/* Lateral cards (1/3) */}
                 <div className="flex flex-col gap-4">
 
+                  {/* ── Buyer Persona ── */}
+                  {data.buyerPersona && Object.values(data.buyerPersona).some(v => v != null) && (() => {
+                    const bp = data.buyerPersona;
+                    const rows = [
+                      { label: 'Vendedor',         value: bp.vendedor },
+                      { label: 'CPF',              value: bp.document },
+                      { label: 'Telefone BP',      value: bp.phone },
+                      { label: 'Pagamento',        value: bp.pagamento },
+                      { label: 'Modelo',           value: bp.modelo },
+                      { label: 'Valor',            value: bp.valor    != null ? R(bp.valor)   : null },
+                      { label: 'Parcela',          value: bp.parcela  != null ? R(bp.parcela) : null },
+                      { label: '1ª Parcela',       value: bp.primeira_parcela  ? D(bp.primeira_parcela)  : null },
+                      { label: 'Últ. Pagamento',   value: bp.ultimo_pagamento  ? D(bp.ultimo_pagamento)  : null },
+                      { label: 'Próx. Pagamento',  value: bp.proximo_pagamento ? D(bp.proximo_pagamento) : null },
+                    ].filter(r => r.value);
+                    return (
+                      <div style={{ ...card, border: '1px solid rgba(232,177,79,0.2)' }} className="p-5">
+                        <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: GOLD }}>
+                          <span className="material-symbols-outlined text-sm">manage_accounts</span>
+                          Buyer Persona
+                          {bp.em_dia === 'SIM' && (
+                            <span className="ml-auto text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>✓ Em dia</span>
+                          )}
+                          {bp.em_dia && bp.em_dia !== 'SIM' && (
+                            <span className="ml-auto text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>✗ {bp.em_dia}</span>
+                          )}
+                        </p>
+                        <div className="space-y-2.5">
+                          {rows.map(row => (
+                            <div key={row.label} className="flex justify-between gap-2 items-baseline">
+                              <span className="text-[10px] font-bold uppercase tracking-wider flex-shrink-0" style={{ color: SILVER }}>{row.label}</span>
+                              <span className="text-[11px] font-black text-white text-right break-all">{row.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* AC personal data */}
                   {ac && (
                     <div style={card} className="p-5">

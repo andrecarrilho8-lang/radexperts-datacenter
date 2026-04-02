@@ -1149,7 +1149,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','Status','OK'].map(h => (
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','Vendedor','Valor BP','Pag. BP','Modelo','Parcela BP','1ª Parcela','Últ. Pag.','Próx. Pag.','Em Dia','Status','OK'].map(h => (
                     <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
                       fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
@@ -1169,6 +1169,21 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
                     <td style={{ padding: '5px 8px', color: SILVER }}>{r.totalAmount || '—'}</td>
                     <td style={{ padding: '5px 8px', color: SILVER }}>{r.installments}×</td>
                     <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.entryDate || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: GOLD, fontWeight: 700 }}>{r.vendedor || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_valor || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_pagamento || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_modelo || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_parcela || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_primeira_parcela || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_ultimo_pagamento || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_proximo_pagamento || '—'}</td>
+                    <td style={{ padding: '5px 8px' }}>
+                      {r.bp_em_dia === 'SIM'
+                        ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>✓ SIM</span>
+                        : r.bp_em_dia
+                        ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>✗ {r.bp_em_dia}</span>
+                        : <span style={{ color: SILVER }}>—</span>}
+                    </td>
                     <td style={{ padding: '5px 8px' }}><DupBadge status={r.dupStatus} /></td>
                     <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
                   </tr>
