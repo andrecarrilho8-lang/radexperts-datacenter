@@ -2073,90 +2073,109 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                 </div>
               </div>
             </div>
-            {/* Export buttons group */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {/* PDF */}
-              <button onClick={() => generatePDF(decoded, sorted, phoneCache, documentCache)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-                style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.2)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.1)')}>
-                <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-                PDF
-              </button>
-              {/* Planilha dropdown */}
-              <div style={{ position: 'relative' }}>
-                <button
-                  onClick={() => setShowExportMenu(v => !v)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-                  style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', color: GREEN }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.16)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.08)')}>
-                  <span className="material-symbols-outlined text-[16px]">table_chart</span>
-                  Planilha
-                  <span className="material-symbols-outlined text-[14px]">{showExportMenu ? 'expand_less' : 'expand_more'}</span>
+          </div>
+
+          {/* ── Action toolbar (row 2) ───────────────────────────────────── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 28 }}>
+
+            {/* ── Group 1: Gerar Relatórios ──────────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em',
+                color: 'rgba(168,178,192,0.6)', margin: 0, paddingLeft: 2 }}>Gerar Relatórios</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* PDF */}
+                <button onClick={() => generatePDF(decoded, sorted, phoneCache, documentCache)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+                    borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
+                    letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 0.2s',
+                    background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>picture_as_pdf</span>
+                  PDF
                 </button>
-                {showExportMenu && (
-                  <div style={{
-                    position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 500,
-                    background: 'linear-gradient(160deg, rgba(8,18,38,0.99) 0%, rgba(4,12,26,0.99) 100%)',
-                    border: '1px solid rgba(74,222,128,0.25)',
-                    borderRadius: 14, padding: '6px', minWidth: 160,
-                    boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
-                    backdropFilter: 'blur(20px)',
-                  }}>
-                    {[{
-                      label: 'CSV',
-                      icon: 'csv',
-                      desc: 'Simples, universal',
-                      action: () => { generateCSV(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
-                    }, {
-                      label: 'XLS (Excel)',
-                      icon: 'grid_on',
-                      desc: 'Planilha completa',
-                      action: () => { generateXLS(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
-                    }].map(opt => (
-                      <button key={opt.label} onClick={opt.action}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                          borderRadius: 10, background: 'none', border: 'none', cursor: 'pointer',
-                          color: 'white', textAlign: 'left', transition: 'background 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.12)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: GREEN }}>{opt.icon}</span>
-                        <div>
-                          <p style={{ fontSize: 12, fontWeight: 900, color: 'white', margin: 0 }}>{opt.label}</p>
-                          <p style={{ fontSize: 9, color: SILVER, margin: 0, marginTop: 1 }}>{opt.desc}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* Planilha dropdown */}
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => setShowExportMenu(v => !v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+                      borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
+                      letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 0.2s',
+                      background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.28)', color: GREEN }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>table_chart</span>
+                    Planilha
+                    <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{showExportMenu ? 'expand_less' : 'expand_more'}</span>
+                  </button>
+                  {showExportMenu && (
+                    <div style={{
+                      position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 500,
+                      background: 'linear-gradient(160deg, rgba(8,18,38,0.99) 0%, rgba(4,12,26,0.99) 100%)',
+                      border: '1px solid rgba(74,222,128,0.25)',
+                      borderRadius: 14, padding: '6px', minWidth: 160,
+                      boxShadow: '0 20px 50px rgba(0,0,0,0.7)',
+                      backdropFilter: 'blur(20px)',
+                    }}>
+                      {[{
+                        label: 'CSV', icon: 'csv', desc: 'Simples, universal',
+                        action: () => { generateCSV(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
+                      }, {
+                        label: 'XLS (Excel)', icon: 'grid_on', desc: 'Planilha completa',
+                        action: () => { generateXLS(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
+                      }].map(opt => (
+                        <button key={opt.label} onClick={opt.action}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                            borderRadius: 10, background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'white', textAlign: 'left', transition: 'background 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.12)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 16, color: GREEN }}>{opt.icon}</span>
+                          <div>
+                            <p style={{ fontSize: 12, fontWeight: 900, color: 'white', margin: 0 }}>{opt.label}</p>
+                            <p style={{ fontSize: 9, color: SILVER, margin: 0, marginTop: 1 }}>{opt.desc}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            <button onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-              style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.3)', color: GREEN }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.18)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(74,222,128,0.08)')}>
-              <span className="material-symbols-outlined text-[16px]">person_add</span>
-              Adicionar
-            </button>
-            <button onClick={() => setShowCSVModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-              style={{ background: 'rgba(99,179,237,0.08)', border: '1px solid rgba(99,179,237,0.3)', color: '#63b3ed' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.18)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.08)')}>
-              <span className="material-symbols-outlined text-[16px]">table_view</span>
-              Importar Planilha
-            </button>
-            <button onClick={() => setShowBatchModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all"
-              style={{ background: 'rgba(99,179,237,0.08)', border: '1px solid rgba(99,179,237,0.3)', color: '#63b3ed' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.18)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(99,179,237,0.08)')}>
-              <span className="material-symbols-outlined text-[16px]">upload_file</span>
-              Lote
-            </button>
+
+            {/* Divider */}
+            <div style={{ width: 1, height: 48, background: 'rgba(255,255,255,0.09)', flexShrink: 0 }} />
+
+            {/* ── Group 2: Importar Alunos ────────────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em',
+                color: 'rgba(168,178,192,0.6)', margin: 0, paddingLeft: 2 }}>Importar Alunos</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* Adicionar aluno único */}
+                <button onClick={() => setShowAddModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+                    borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
+                    letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 0.2s',
+                    background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.28)', color: GREEN }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person_add</span>
+                  Aluno único
+                </button>
+                {/* Adicionar em Lote */}
+                <button onClick={() => setShowBatchModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+                    borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
+                    letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 0.2s',
+                    background: 'rgba(99,179,237,0.07)', border: '1px solid rgba(99,179,237,0.28)', color: '#63b3ed' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>upload_file</span>
+                  Em Lote
+                </button>
+                {/* Importar Planilha */}
+                <button onClick={() => setShowCSVModal(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+                    borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
+                    letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 0.2s',
+                    background: 'rgba(99,179,237,0.07)', border: '1px solid rgba(99,179,237,0.28)', color: '#63b3ed' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>table_view</span>
+                  Importar Planilha
+                </button>
+              </div>
+            </div>
+
           </div>
 
           {/* Summary cards */}
