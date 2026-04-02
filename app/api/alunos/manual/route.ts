@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
    ══════════════════════════════════════════════════════════════════════════ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const course = searchParams.get('course') || '';
+  const course = (searchParams.get('course') || '').trim();
 
   try {
     await ensureSchema();

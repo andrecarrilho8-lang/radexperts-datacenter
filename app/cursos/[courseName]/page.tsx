@@ -2052,7 +2052,7 @@ function DeleteConfirmModal({ name, source, onConfirm, onCancel, loading }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CursoDetailPage({ params }: { params: Promise<{ courseName: string }> }) {
   const { courseName } = use(params);
-  const decoded = decodeURIComponent(courseName);
+  const decoded = decodeURIComponent(courseName).trim(); // trim trailing/leading spaces from URL
   const router  = useRouter();
 
   const [students,       setStudents]       = useState<Student[]>([]);
