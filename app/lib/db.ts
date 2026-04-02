@@ -117,22 +117,16 @@ export async function ensureWebhookSchema() {
   await ensureBuyerPersonaColumns();
 }
 
-/** Adds buyer-persona columns to buyer_profiles if they don't exist yet.
- *  Safe to call multiple times — raw DDL per column. */
+/** Adds buyer-persona columns to buyer_profiles if they don't exist yet (idempotent). */
 export async function ensureBuyerPersonaColumns() {
   const sql = getDb();
-  const alters = [
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS vendedor           TEXT`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_valor           NUMERIC(12,2)`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_pagamento       TEXT`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_modelo          TEXT`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_parcela         NUMERIC(12,2)`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_primeira_parcela BIGINT`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_ultimo_pagamento BIGINT`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_proximo_pagamento BIGINT`,
-    `ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_em_dia          TEXT`,
-  ];
-  for (const stmt of alters) {
-    try { await sql.unsafe(stmt); } catch { /* already exists — ignore */ }
-  }
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS vendedor           TEXT`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_valor           NUMERIC(12,2)`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_pagamento       TEXT`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_modelo          TEXT`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_parcela         NUMERIC(12,2)`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_primeira_parcela BIGINT`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_ultimo_pagamento BIGINT`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_proximo_pagamento BIGINT`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_em_dia          TEXT`; } catch {}
 }
