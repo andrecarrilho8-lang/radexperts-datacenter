@@ -346,6 +346,37 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
+// Standalone status helper used by PDF / CSV / XLS exports
+const GRACE_DAYS_EXPORT = 15;
+const DAY_MS_EXPORT = 86_400_000;
+function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, any>>): PayStatus {
+  const base = getPayStatus(s);
+  const bp = bpCache[(s.email || "").toLowerCase()] || {};
+  const emDia = (bp.em_dia || "").toUpperCase().trim();
+  if ((s as any).source === "manual" && s.paymentHistory.length === 0) {
+    if (emDia === "NÃO" || emDia === "NAO") {
+      if (!bp.proximo_pagamento) return "INADIMPLENTE";
+      const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
+      return d > GRACE_DAYS_EXPORT ? "INADIMPLENTE" : "ADIMPLENTE";
+    }
+    return "ADIMPLENTE";
+  }
+  if (base === "QUITADO") {
+    if ((emDia === "NÃO" || emDia === "NAO") && bp.proximo_pagamento) {
+      const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
+      if (d > GRACE_DAYS_EXPORT) return "INADIMPLENTE";
+    }
+    return "QUITADO";
+  }
+  if (emDia === "NÃO" || emDia === "NAO") {
+    if (!bp.proximo_pagamento) return "INADIMPLENTE";
+    const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
+    return d > GRACE_DAYS_EXPORT ? "INADIMPLENTE" : "ADIMPLENTE";
+  }
+  if (emDia === "SIM") return base === "INADIMPLENTE" ? "ADIMPLENTE" : base;
+  return base;
+}
+
 function generatePDF(
   courseName: string,
   students: Student[],
@@ -354,7 +385,7 @@ function generatePDF(
   bpCache: Record<string, Record<string, any>> = {}
 ) {
   const rows = students.map((s, i) => {
-    const status = getPayStatus(s);
+    const status = effectiveStatusFor(s, bpCache);
     const stLabel = status === 'INADIMPLENTE' ? '⚠ INADIMPLENTE' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : '✓ QUITADO') : '● ADIMPLENTE';
     const stColor = status === 'INADIMPLENTE' ? '#dc2626' : status === 'QUITADO' ? '#16a34a' : '#0ea5e9';
     const inst = s.paymentInstallments;
@@ -383,9 +414,9 @@ function generatePDF(
     return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${bpPag}${bpModelo ? ` · ${bpModelo}` : ''}</td><td style="font-weight:700">${bpParcela || fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#888">${emDia}</td><td style="color:#555">${method}</td></tr>`;
   }).join('');
 
-  const active    = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
-  const overdue   = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
-  const quitado   = students.filter(s => getPayStatus(s) === 'QUITADO').length;
+  const active    = students.filter(s => effectiveStatusFor(s, bpCache) === 'ADIMPLENTE').length;
+  const overdue   = students.filter(s => effectiveStatusFor(s, bpCache) === 'INADIMPLENTE').length;
+  const quitado   = students.filter(s => effectiveStatusFor(s, bpCache) === 'QUITADO').length;
   const win = window.open('', '_blank');
   if (!win) return;
   win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>${courseName} — Alunos</title>
@@ -431,7 +462,7 @@ function generateCSV(
     '1ª PARCELA','Últ. PAGAMENTO','PRÓX. PAGAMENTO','EM DIA',
   ];
   const rows = students.map((s, i) => {
-    const status   = getPayStatus(s);
+    const status   = effectiveStatusFor(s, bpCacheArg);
     const inst     = s.paymentInstallments || 1;
     const paid     = s.paymentHistory.length;
     const emailKey = (s.email || '').toLowerCase();
@@ -505,7 +536,7 @@ function generateXLS(
   ];
 
   const data = students.map((s, i) => {
-    const status   = getPayStatus(s);
+    const status   = effectiveStatusFor(s, bpCacheArg);
     const inst     = s.paymentInstallments || 1;
     const paid     = s.paymentHistory.length;
     const emailKey = (s.email || '').toLowerCase();
@@ -570,9 +601,9 @@ function generateXLS(
   XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
 
   /* ── Sheet 2: Resumo ───────────────── */
-  const adim      = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
-  const inadim    = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
-  const quit      = students.filter(s => getPayStatus(s) === 'QUITADO').length;
+  const adim      = students.filter(s => effectiveStatusFor(s, bpCache) === 'ADIMPLENTE').length;
+  const inadim    = students.filter(s => effectiveStatusFor(s, bpCache) === 'INADIMPLENTE').length;
+  const quit      = students.filter(s => effectiveStatusFor(s, bpCache) === 'QUITADO').length;
   const totalPago = students.reduce((acc, s) => acc + s.paymentHistory.reduce((a, p) => a + p.valor, 0), 0);
   const comPhone  = students.filter(s => {
     const ph = (s as any).source === 'manual' ? (s as any).phone : phoneCacheArg[(s.email || '').toLowerCase()];
