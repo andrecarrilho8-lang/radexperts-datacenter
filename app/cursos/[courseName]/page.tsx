@@ -409,31 +409,68 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top;line-height:1
   win.document.close();
 }
 
-// ── CSV Export ───────────────────────────────────────────────────────
-function generateCSV(courseName: string, students: Student[], phoneCacheArg: Record<string, string>, docCacheArg: Record<string, string>) {
-  const headers = ['#','Nome','Email','Telefone','CPF','Data Entrada','Status','Forma Pagamento','Valor Parcela (R$)','Total Pago (R$)','Parcelas','Pagas','Restantes'];
+// ── CSV Export ────────────────────────────────────────────────────────────────────────
+function generateCSV(
+  courseName: string,
+  students: Student[],
+  phoneCacheArg: Record<string, string>,
+  docCacheArg:   Record<string, string>,
+  bpCacheArg:    Record<string, Record<string, any>>,
+) {
+  const headers = [
+    '#','NOME','EMAIL','TELEFONE','CPF',
+    'DATA ENTRADA','STATUS','ORIGEM',
+    'FORMA PAGAMENTO','VALOR PARCELA (R$)','TOTAL PAGO (R$)',
+    'Nº PARCELAS','PAGAS','RESTANTES',
+    'MOEDA','TURMA',
+    // Buyer Persona
+    'VENDEDOR','BP VALOR TOTAL','BP PAGAMENTO','BP MODELO','BP PARCELA',
+    '1ª PARCELA','Últ. PAGAMENTO','PRÓX. PAGAMENTO','EM DIA',
+  ];
   const rows = students.map((s, i) => {
-    const status  = getPayStatus(s);
-    const inst    = s.paymentInstallments;
-    const paid    = s.paymentHistory.length;
+    const status   = getPayStatus(s);
+    const inst     = s.paymentInstallments || 1;
+    const paid     = s.paymentHistory.length;
     const emailKey = (s.email || '').toLowerCase();
-    const phone   = (s as any).source === 'manual'
-      ? ((s as any).phone || '')
-      : (phoneCacheArg[emailKey] || '');
-    const cpf     = docCacheArg[emailKey] || (s as any).document || '';
-    const vParc   = s.valor && inst > 1 ? (s.valor / inst) : s.valor;
-    const vTotal  = s.paymentHistory.reduce((a, p) => a + p.valor, 0);
-    const stLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
+    const phone    = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCacheArg[emailKey] || '');
+    const cpf      = docCacheArg[emailKey] || (s as any).document || '';
+    const bp       = bpCacheArg[emailKey] || {};
+    const vParc    = (s as any).source === 'manual' ? (s.valor || 0) : (s.valor && inst > 1 ? s.valor / inst : s.valor || 0);
+    const vTotal   = s.paymentHistory.reduce((a, p) => a + p.valor, 0)
+                     || (bp.valor ? Number(bp.valor) * (paid || 1) : 0);
+    const stLabel  = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
+    const D = (ms: any) => ms ? new Date(Number(ms)).toLocaleDateString('pt-BR') : '';
     return [
-      i + 1, s.name, s.email, phone, cpf,
+      i + 1,
+      s.name,
+      s.email,
+      phone,
+      cpf,
       s.entryDate ? new Date(s.entryDate).toLocaleDateString('pt-BR') : '',
-      stLabel, s.paymentLabel || s.paymentType || '',
-      vParc.toFixed(2), vTotal.toFixed(2),
-      inst, paid, Math.max(0, inst - paid),
+      stLabel,
+      (s as any).source === 'manual' ? 'Manual' : 'Hotmart',
+      bp.pagamento || s.paymentLabel || s.paymentType || '',
+      +vParc.toFixed(2),
+      +vTotal.toFixed(2),
+      inst > 1 ? inst : (s.paymentIsSub ? 'Ass.' : 1),
+      paid,
+      inst > 1 ? Math.max(0, inst - paid) : '',
+      s.currency || 'BRL',
+      (s as any).turma || 'Manual',
+      // BP fields
+      bp.vendedor           || '',
+      bp.valor              ? Number(bp.valor).toFixed(2) : '',
+      bp.pagamento          || '',
+      bp.modelo             || '',
+      bp.parcela            ? Number(bp.parcela).toFixed(2) : '',
+      D(bp.primeira_parcela),
+      D(bp.ultimo_pagamento),
+      D(bp.proximo_pagamento),
+      bp.em_dia             || '',
     ];
   });
   const csv = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
@@ -442,68 +479,104 @@ function generateCSV(courseName: string, students: Student[], phoneCacheArg: Rec
   a.click(); URL.revokeObjectURL(url);
 }
 
-// ── XLS Export (SheetJS) ───────────────────────────────────────────────
-function generateXLS(courseName: string, students: Student[], phoneCacheArg: Record<string, string>, docCacheArg: Record<string, string>) {
+// ── XLS Export (SheetJS) ────────────────────────────────────────────────────
+function generateXLS(
+  courseName: string,
+  students: Student[],
+  phoneCacheArg: Record<string, string>,
+  docCacheArg:   Record<string, string>,
+  bpCacheArg:    Record<string, Record<string, any>>,
+) {
   const wb = XLSX.utils.book_new();
 
-  /* ── Sheet 1: Alunos ──────────────────── */
+  /* ── Sheet 1: Alunos ────────────────── */
   const headers = [
     '#', 'NOME', 'EMAIL', 'TELEFONE', 'CPF',
-    'DATA ENTRADA', 'STATUS', 'FORMA PAGAMENTO',
+    'DATA ENTRADA', 'STATUS', 'ORIGEM', 'FORMA PAGAMENTO',
     'VALOR PARCELA (R$)', 'TOTAL PAGO (R$)',
     'Nº PARCELAS', 'PAGAS', 'RESTANTES',
-    'TURMA', 'MOEDA'
+    'MOEDA', 'TURMA',
+    // Buyer Persona
+    'VENDEDOR', 'BP VALOR TOTAL', 'BP PAGAMENTO', 'BP MODELO', 'BP PARCELA',
+    '1ª PARCELA', 'ÜLT. PAGAMENTO', 'PRÓX. PAGAMENTO', 'EM DIA',
   ];
 
   const data = students.map((s, i) => {
-    const status  = getPayStatus(s);
-    const inst    = s.paymentInstallments;
-    const paid    = s.paymentHistory.length;
+    const status   = getPayStatus(s);
+    const inst     = s.paymentInstallments || 1;
+    const paid     = s.paymentHistory.length;
     const emailKey = (s.email || '').toLowerCase();
-    const phone   = (s as any).source === 'manual'
-      ? ((s as any).phone || '')
-      : (phoneCacheArg[emailKey] || '');
-    const cpf     = docCacheArg[emailKey] || (s as any).document || '';
-    const vParc   = s.valor && inst > 1 ? (s.valor / inst) : s.valor;
-    const vTotal  = s.paymentHistory.reduce((a, p) => a + p.valor, 0);
-    const stLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
+    const phone    = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCacheArg[emailKey] || '');
+    const cpf      = docCacheArg[emailKey] || (s as any).document || '';
+    const bp       = bpCacheArg[emailKey] || {};
+    // For manual students, s.valor is the installment amount directly
+    // For Hotmart students, s.valor is the installment amount
+    const vParc    = s.valor || 0;
+    const vTotal   = s.paymentHistory.reduce((a, p) => a + p.valor, 0)
+                     || (bp.valor ? Number(bp.valor) : 0);
+    const stLabel  = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
     const entryDate = s.entryDate ? new Date(s.entryDate) : null;
+    const D = (ms: any) => ms ? new Date(Number(ms)).toLocaleDateString('pt-BR') : '';
     return [
-      i + 1, s.name, s.email, phone, cpf,
+      i + 1,
+      s.name,
+      s.email,
+      phone,
+      cpf,
       entryDate ? entryDate.toLocaleDateString('pt-BR') : '',
       stLabel,
-      s.paymentIsSub ? `Assinatura (· ciclo ${s.paymentRecurrency})` :
-        s.paymentIsSmartInstall ? `Parcelamento Inteligente` :
+      (s as any).source === 'manual' ? 'Manual' : 'Hotmart',
+      bp.pagamento || (
+        s.paymentIsSub        ? `Assinatura (ciclo ${s.paymentRecurrency})` :
+        s.paymentIsSmartInstall ? 'Parcelamento Inteligente' :
         s.paymentIsCardInstall  ? `Cartão (${inst}x banco)` :
-        (s.paymentLabel || s.paymentType || ''),
-      +vParc.toFixed(2), +vTotal.toFixed(2),
-      inst > 1 ? inst : (s.paymentIsSub ? 'Assinatura' : '1'),
+        (s.paymentLabel || s.paymentType || '')
+      ),
+      +vParc.toFixed(2),
+      +vTotal.toFixed(2),
+      inst > 1 ? inst : (s.paymentIsSub ? 'Assinatura' : 1),
       paid,
       inst > 1 ? Math.max(0, inst - paid) : '',
-      (s as any).turma || '', s.currency || 'BRL',
+      s.currency || 'BRL',
+      (s as any).turma || 'Manual',
+      // BP fields
+      bp.vendedor           || '',
+      bp.valor              ? +Number(bp.valor).toFixed(2) : '',
+      bp.pagamento          || '',
+      bp.modelo             || '',
+      bp.parcela            ? +Number(bp.parcela).toFixed(2) : '',
+      D(bp.primeira_parcela),
+      D(bp.ultimo_pagamento),
+      D(bp.proximo_pagamento),
+      bp.em_dia             || '',
     ];
   });
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
   ws['!cols'] = [
-    { wch: 4  }, { wch: 35 }, { wch: 36 }, { wch: 18 }, { wch: 16 },
-    { wch: 14 }, { wch: 14 }, { wch: 26 },
+    { wch: 4  }, { wch: 38 }, { wch: 36 }, { wch: 18 }, { wch: 16 },
+    { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 28 },
     { wch: 18 }, { wch: 14 },
-    { wch: 12 }, { wch: 8  }, { wch: 10 },
-    { wch: 20 }, { wch: 8  },
+    { wch: 10 }, { wch: 8  }, { wch: 10 },
+    { wch: 8  }, { wch: 18 },
+    // BP cols
+    { wch: 22 }, { wch: 16 }, { wch: 22 }, { wch: 16 }, { wch: 14 },
+    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
   ];
   ws['!freeze'] = { xSplit: 0, ySplit: 1 };
   XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
 
-  /* ── Sheet 2: Resumo ─────────────────── */
-  const adim  = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
-  const inadim = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
-  const quit  = students.filter(s => getPayStatus(s) === 'QUITADO').length;
+  /* ── Sheet 2: Resumo ───────────────── */
+  const adim      = students.filter(s => getPayStatus(s) === 'ADIMPLENTE').length;
+  const inadim    = students.filter(s => getPayStatus(s) === 'INADIMPLENTE').length;
+  const quit      = students.filter(s => getPayStatus(s) === 'QUITADO').length;
   const totalPago = students.reduce((acc, s) => acc + s.paymentHistory.reduce((a, p) => a + p.valor, 0), 0);
   const comPhone  = students.filter(s => {
     const ph = (s as any).source === 'manual' ? (s as any).phone : phoneCacheArg[(s.email || '').toLowerCase()];
     return !!ph;
   }).length;
+  const hotmartN  = students.filter(s => (s as any).source !== 'manual').length;
+  const manualN   = students.filter(s => (s as any).source === 'manual').length;
 
   const resData: any[][] = [
     ['RESUMO', courseName],
@@ -511,6 +584,9 @@ function generateXLS(courseName: string, students: Student[], phoneCacheArg: Rec
     [],
     ['INDICADOR', 'VALOR'],
     ['Total de Alunos', students.length],
+    ['Via Hotmart', hotmartN],
+    ['Via Manual/Planilha', manualN],
+    [],
     ['Adimplentes', adim],
     ['Inadimplentes', inadim],
     ['Quitados / Encerrados', quit],
@@ -2453,10 +2529,10 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     }}>
                       {[{
                         label: 'CSV', icon: 'csv', desc: 'Simples, universal',
-                        action: () => { generateCSV(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
+                        action: () => { generateCSV(decoded, allStudents, phoneCache, documentCache, buyerPersonaCache); setShowExportMenu(false); },
                       }, {
                         label: 'XLS (Excel)', icon: 'grid_on', desc: 'Planilha completa',
-                        action: () => { generateXLS(decoded, sorted, phoneCache, documentCache); setShowExportMenu(false); },
+                        action: () => { generateXLS(decoded, allStudents, phoneCache, documentCache, buyerPersonaCache); setShowExportMenu(false); },
                       }].map(opt => (
                         <button key={opt.label} onClick={opt.action}
                           style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
