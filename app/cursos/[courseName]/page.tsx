@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import * as XLSX from 'xlsx';
+import { resolveCourseName } from '@/app/lib/slug';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
@@ -2276,8 +2277,12 @@ function DeleteConfirmModal({ name, source, onConfirm, onCancel, loading }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function CursoDetailPage({ params }: { params: Promise<{ courseName: string }> }) {
   const { courseName } = use(params);
-  const decoded = decodeURIComponent(courseName).trim(); // trim trailing/leading spaces from URL
+  // Support both slug (e.g. 'skeletal-expert') and legacy %XX encoded names
+  const slugOrRaw = decodeURIComponent(courseName).trim();
   const router  = useRouter();
+
+  const [allCourseNames, setAllCourseNames] = useState<string[]>([]);
+  const [decoded, setDecoded] = useState(slugOrRaw); // updated once courses load
 
   const [students,       setStudents]       = useState<Student[]>([]);
   const [manualStudents,  setManualStudents]  = useState<ManualStudent[]>([]);
@@ -2326,7 +2331,21 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     return () => document.removeEventListener('mousemove', onMove);
   }, []);
 
+  // Fetch all courses once to resolve slug → original DB name
   useEffect(() => {
+    fetch('/api/cursos')
+      .then(r => r.json())
+      .then(d => {
+        const names: string[] = (d.courses || []).map((c: any) => c.name as string);
+        setAllCourseNames(names);
+        const resolved = resolveCourseName(slugOrRaw, names);
+        setDecoded(resolved);
+      })
+      .catch(() => {});
+  }, [slugOrRaw]);
+
+  useEffect(() => {
+    if (!decoded) return; // wait for slug resolution
     setLoading(true);
     const p = turmaFilter ? `?turma=${encodeURIComponent(turmaFilter)}` : '';
     Promise.all([

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
+import { slugify } from '@/app/lib/slug';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
@@ -45,7 +46,7 @@ export default function CursosPage() {
   }, []);
 
   const goTo = (course: Course) => {
-    router.push(`/cursos/${encodeURIComponent(course.name)}`);
+    router.push(`/cursos/${slugify(course.name)}`);
   };
 
   /** Courses for the active tab, filtered by search */
