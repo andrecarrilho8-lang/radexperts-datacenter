@@ -2460,6 +2460,34 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const paginated  = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(sorted.length / pageSize);
 
+  // ── Pre-load buyerPersonaCache for ALL students on initial load (for correct pill counts) ────────────
+  useEffect(() => {
+    if (allStudents.length === 0) return;
+    const allEmails = allStudents
+      .map(s => (s.email || '').toLowerCase())
+      .filter(Boolean);
+    const uncachedAll = allEmails.filter(e => !(e in buyerPersonaCache));
+    if (uncachedAll.length === 0) return;
+    // Load in batches of 100 to avoid oversized requests
+    const BATCH = 100;
+    for (let i = 0; i < uncachedAll.length; i += BATCH) {
+      const batch = uncachedAll.slice(i, i + BATCH);
+      fetch('/api/alunos/phones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails: batch }),
+      })
+        .then(r => r.json())
+        .then(({ phones, documents, buyerPersona }) => {
+          setPhoneCache(prev        => ({ ...prev, ...(phones       || {}) }));
+          setDocumentCache(prev     => ({ ...prev, ...(documents    || {}) }));
+          setBuyerPersonaCache(prev => ({ ...prev, ...(buyerPersona || {}) }));
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allStudents.length]);
+
   // ── Background contact fetch (phone + CPF + buyer_persona) for current page ──
   useEffect(() => {
     const uncached = paginated
