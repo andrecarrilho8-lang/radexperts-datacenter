@@ -137,6 +137,8 @@ function addMonths(ts: number, n: number): number {
 type PayStatus = 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO';
 
 function getPayStatus(s: Student): PayStatus {
+  // 0. Manual-only student (no Hotmart history) → base = ADIMPLENTE so bp_em_dia controls it
+  if ((s as any).source === 'manual' && s.paymentHistory.length === 0) return 'ADIMPLENTE';
   // 1. ONE_TIME (PIX, Boleto, card à vista) → QUITADO
   if (!s.paymentIsSub && !s.paymentIsSmartInstall && s.paymentInstallments <= 1) return 'QUITADO';
   // 2. Standard bank card installments → QUITADO (Hotmart received full amount, bank splits)
@@ -154,8 +156,8 @@ function getPayStatus(s: Student): PayStatus {
   if (s.subStatus === 'CANCELLED') return 'QUITADO';
   return 'ADIMPLENTE';
 }
-function PaymentCell({ s }: { s: Student }) {
-  const status = getPayStatus(s);
+function PaymentCell({ s, statusOverride }: { s: Student; statusOverride?: 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO' }) {
+  const status = statusOverride ?? getPayStatus(s);
   const days   = daysSince(s.lastPayDate);
   const inst   = s.paymentInstallments;
   const paid   = s.paymentHistory.length;
@@ -2383,8 +2385,19 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     const emDia = (bp.em_dia || '').toUpperCase();
     // If student is already QUITADO by payment logic → never override (they finished paying)
     if (base === 'QUITADO') {
-      // Exception: If they have explicit em_dia AND proximo_pagamento, they're likely on an
-      // ongoing plan tracked manually — respect that only if clearly overdue (15+ days)
+      const isManual = (s as any).source === 'manual';
+      // Manual students: bp_em_dia has FULL authority regardless of base status
+      if (isManual) {
+        if (emDia === 'NÃO' || emDia === 'NAO') {
+          if (!bp.proximo_pagamento) return 'INADIMPLENTE';
+          const daysPast = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS;
+          return daysPast > GRACE_DAYS ? 'INADIMPLENTE' : 'ADIMPLENTE';
+        }
+        if (emDia === 'SIM') return 'ADIMPLENTE';
+        // No bp_em_dia set for manual student → keep as ADIMPLENTE (base from fix 1)
+        return base;
+      }
+      // Hotmart student: only override QUITADO if explicitly overdue 15+ days
       if ((emDia === 'NÃO' || emDia === 'NAO') && bp.proximo_pagamento) {
         const daysPast = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS;
         if (daysPast > GRACE_DAYS) return 'INADIMPLENTE';
@@ -2708,7 +2721,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               </div>
             ) : (
               paginated.map((s, idx) => {
-                const status  = getPayStatus(s);
+                const status  = getEffectiveStatus(s);
                 const rowBase = status === 'INADIMPLENTE' ? 'rgba(239,68,68,0.04)'
                   : idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent';
                 return (
@@ -2857,7 +2870,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           </div>
                         );
                       }
-                      return <PaymentCell s={s} />;
+                      return <PaymentCell s={s} statusOverride={status} />;
                     })()}
                     {/* Delete action — all students */}
                     <div className="flex items-center justify-center gap-1 pt-0.5">
