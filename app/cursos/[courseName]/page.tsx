@@ -2778,7 +2778,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
 
                     {/* Name + flag — exactly like Hotmart page */}
                     <div className="pr-3 pt-0.5"
-                      onMouseEnter={e => openTip(e, s)}
+                      onMouseEnter={e => { if ((s as any).source !== 'manual') openTip(e, s); }}
                       onMouseLeave={closeTip}>
                       <div className="flex items-center gap-2 leading-tight min-w-0">
                         {getStudentFlag(s.flag, 18)}
@@ -3091,7 +3091,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         />
       )}
 
-      {tooltipSt && typeof window !== 'undefined' && createPortal(
+      {tooltipSt && (tooltipSt as any).source !== 'manual' && typeof window !== 'undefined' && createPortal(
         <NameTooltip
           s={tooltipSt}
           onHoverIn={() => clearTimeout(tipTimer.current)}

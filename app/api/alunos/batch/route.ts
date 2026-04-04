@@ -182,21 +182,21 @@ export async function POST(request: Request) {
             updated_at = ${now}
         `;
 
-        /* Always enrich/update buyer_profiles with spreadsheet data */
+        /* Enrich buyer_profiles: contact info fills blanks, bp_* only fills if NULL (preserve Hotmart data) */
         await sql`
           UPDATE buyer_profiles SET
             phone      = CASE WHEN phone    IS NULL OR phone    = '' THEN NULLIF(${phone || null}, '') ELSE phone    END,
             document   = CASE WHEN document IS NULL OR document = '' THEN NULLIF(${cpf   || null}, '') ELSE document END,
             name       = CASE WHEN name     IS NULL OR name     = '' THEN NULLIF(${name  || null}, '') ELSE name     END,
-            vendedor             = CASE WHEN ${vendedor}::text    IS NOT NULL THEN ${vendedor}::text    ELSE vendedor             END,
-            bp_valor             = CASE WHEN ${bpValor}::numeric  IS NOT NULL THEN ${bpValor}::numeric  ELSE bp_valor             END,
-            bp_pagamento         = CASE WHEN ${bpPag}::text       IS NOT NULL THEN ${bpPag}::text       ELSE bp_pagamento         END,
-            bp_modelo            = CASE WHEN ${bpModelo}::text    IS NOT NULL THEN ${bpModelo}::text    ELSE bp_modelo            END,
-            bp_parcela           = CASE WHEN ${bpParc}::numeric   IS NOT NULL THEN ${bpParc}::numeric   ELSE bp_parcela           END,
-            bp_primeira_parcela  = CASE WHEN ${bpPrim}::bigint    IS NOT NULL THEN ${bpPrim}::bigint    ELSE bp_primeira_parcela  END,
-            bp_ultimo_pagamento  = CASE WHEN ${bpUlt}::bigint     IS NOT NULL THEN ${bpUlt}::bigint     ELSE bp_ultimo_pagamento  END,
-            bp_proximo_pagamento = CASE WHEN ${bpProx}::bigint    IS NOT NULL THEN ${bpProx}::bigint    ELSE bp_proximo_pagamento END,
-            bp_em_dia            = CASE WHEN ${bpEmDia}::text     IS NOT NULL THEN ${bpEmDia}::text     ELSE bp_em_dia            END,
+            vendedor             = CASE WHEN vendedor             IS NULL THEN ${vendedor}::text    ELSE vendedor             END,
+            bp_valor             = CASE WHEN bp_valor             IS NULL THEN ${bpValor}::numeric  ELSE bp_valor             END,
+            bp_pagamento         = CASE WHEN bp_pagamento         IS NULL THEN ${bpPag}::text       ELSE bp_pagamento         END,
+            bp_modelo            = CASE WHEN bp_modelo            IS NULL THEN ${bpModelo}::text    ELSE bp_modelo            END,
+            bp_parcela           = CASE WHEN bp_parcela           IS NULL THEN ${bpParc}::numeric   ELSE bp_parcela           END,
+            bp_primeira_parcela  = CASE WHEN bp_primeira_parcela  IS NULL THEN ${bpPrim}::bigint    ELSE bp_primeira_parcela  END,
+            bp_ultimo_pagamento  = CASE WHEN bp_ultimo_pagamento  IS NULL THEN ${bpUlt}::bigint     ELSE bp_ultimo_pagamento  END,
+            bp_proximo_pagamento = CASE WHEN bp_proximo_pagamento IS NULL THEN ${bpProx}::bigint    ELSE bp_proximo_pagamento END,
+            bp_em_dia            = CASE WHEN bp_em_dia            IS NULL THEN ${bpEmDia}::text     ELSE bp_em_dia            END,
             updated_at = ${now}
           WHERE email = ${email}
         `;
