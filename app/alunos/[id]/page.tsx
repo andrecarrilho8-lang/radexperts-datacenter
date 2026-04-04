@@ -124,14 +124,127 @@ export default function AlunoPage() {
     if (pdfState !== 'idle') return;
     setPdfState('printing');
     const s = document.createElement('style');
-    s.innerHTML = `@media print{.no-print{display:none!important}body{background:#fff!important;color:#000!important}}`;
+    s.innerHTML = `
+      @media print {
+        /* ── Hide all UI chrome ── */
+        nav, .no-print, [data-no-print],
+        button, input, textarea,
+        .no-print { display: none !important; }
+
+        /* ── Page setup ── */
+        @page { size: A4 portrait; margin: 18mm 14mm 14mm 14mm; }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body {
+          background: #ffffff !important;
+          color: #1a1a2e !important;
+          font-family: 'Inter', 'Segoe UI', Arial, sans-serif !important;
+          font-size: 10pt !important;
+          line-height: 1.45;
+          margin: 0; padding: 0;
+        }
+
+        /* ── Header bar (RadExperts branding) ── */
+        main::before {
+          content: '';
+          display: block;
+          height: 6px;
+          background: linear-gradient(90deg, #E8B14F 0%, #c47d1a 50%, #E8B14F 100%);
+          border-radius: 3px;
+          margin-bottom: 18px;
+        }
+
+        /* ── Remove dark card backgrounds ── */
+        div[style], section { background: transparent !important; border: none !important;
+          box-shadow: none !important; backdrop-filter: none !important; border-radius: 0 !important; }
+
+        /* ── Section separators ── */
+        .space-y-6 > div { border-bottom: 1px solid #e8e8f0; margin-bottom: 12px; padding-bottom: 12px; page-break-inside: avoid; }
+
+        /* ── Typography ── */
+        h1 { font-size: 20pt !important; color: #1a1a2e !important; margin: 0 0 4px 0; font-weight: 900; }
+        p  { color: #444 !important; }
+
+        /* ── Avatar → hidden in print (replaced by name) ── */
+        .w-20.h-20 { display: none !important; }
+
+        /* ── KPI cards ── */
+        .grid.grid-cols-3 div {
+          border: 1.5px solid #e0e0ee !important;
+          border-radius: 8px !important;
+          background: #f8f8fd !important;
+          padding: 8px !important;
+        }
+        .grid.grid-cols-3 p { color: #1a1a2e !important; }
+
+        /* ── Section headers ── */
+        p.text-\\[10px\\].font-black.uppercase {
+          font-size: 7pt !important; letter-spacing: 0.15em;
+          color: #b08020 !important; border-bottom: 1px solid #f0e0a0;
+          padding-bottom: 4px; margin-bottom: 8px;
+        }
+
+        /* ── Key-value rows ── */
+        .space-y-2\\.5 > div, .space-y-2 > div {
+          border-bottom: 1px solid #f3f3f9;
+          padding: 3px 0;
+        }
+        span.text-\\[10px\\].font-bold.uppercase { color: #888 !important; }
+        span.text-\\[11px\\].font-black { color: #1a1a2e !important; }
+
+        /* ── Badges ── */
+        span.text-\\[9px\\].font-black.uppercase.tracking-widest {
+          padding: 2px 6px !important; border-radius: 4px !important;
+          font-size: 7pt !important; font-weight: 900 !important;
+        }
+
+        /* ── Status badge colours (preserve) ── */
+        span[style*="4ade80"] { background: #dcfce7 !important; color: #15803d !important; border: 1px solid #86efac !important; }
+        span[style*="f87171"] { background: #fee2e2 !important; color: #b91c1c !important; border: 1px solid #fca5a5 !important; }
+        span[style*="E8B14F"], span[style*="e8b14f"] { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #fcd34d !important; }
+
+        /* ── Timeline ── */
+        .max-h-\\[640px\\] { max-height: none !important; overflow: visible !important; }
+        .flex.gap-4.items-start { page-break-inside: avoid; }
+        .w-8.h-8 { width: 22px !important; height: 22px !important; border-radius: 50% !important; }
+        .w-px { background: #e0e0ee !important; }
+
+        /* ── Purchases table ── */
+        table { width: 100% !important; border-collapse: collapse !important; font-size: 8pt !important; }
+        thead tr { background: #f8f8fd !important; border-bottom: 2px solid #e8e8f0 !important; }
+        th { color: #888 !important; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; padding: 5px 6px !important; }
+        td { color: #1a1a2e !important; padding: 4px 6px !important; border-bottom: 1px solid #f0f0f8 !important; }
+        tr:nth-child(even) td { background: #fafafe !important; }
+
+        /* ── Tags ── */
+        .flex.flex-wrap.gap-1\\.5 span {
+          background: #fef3c7 !important; color: #92400e !important;
+          border: 1px solid #fcd34d !important; border-radius: 4px !important;
+          font-size: 7pt !important;
+        }
+
+        /* ── Footer ── */
+        main::after {
+          content: 'RadExperts · Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}';
+          display: block; margin-top: 20px; padding-top: 8px;
+          border-top: 1px solid #e8e8f0;
+          font-size: 7pt; color: #aaa; text-align: right;
+        }
+
+        /* ── Hide attachment upload section ── */
+        div[style*="167,139,250"] { display: none !important; }
+
+        /* ── Grid layout → stack for print ── */
+        .xl\\:grid-cols-3 { display: block !important; }
+        .xl\\:col-span-2 { margin-bottom: 12px; }
+      }
+    `;
     document.head.appendChild(s);
     setTimeout(() => {
       window.print();
       document.head.removeChild(s);
       setPdfState('done');
       setTimeout(() => setPdfState('idle'), 2500);
-    }, 300);
+    }, 400);
   };
 
   // Build timeline
