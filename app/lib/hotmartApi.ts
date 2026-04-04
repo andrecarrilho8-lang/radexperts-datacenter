@@ -72,7 +72,7 @@ export async function getHotmartToken() {
 // Returns: Map<productName, Set<subscriberEmail>> for ACTIVE subscriptions only.
 // Paginates automatically through all results.
 export async function fetchActiveSubscriptionsByProduct(): Promise<Map<string, Set<string>>> {
-  const CACHE_KEY = 'hotmart_active_subs_v1';
+  const CACHE_KEY = 'hotmart_active_subs_v2'; // bumped: trim() on product names
   const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
   const cached = getCache(CACHE_KEY);
@@ -92,7 +92,7 @@ export async function fetchActiveSubscriptionsByProduct(): Promise<Map<string, S
 
     const items: any[] = data.items || [];
     for (const item of items) {
-      const productName  = item.product?.name  || 'Desconhecido';
+      const productName     = (item.product?.name || 'Desconhecido').trim(); // normalize: trim whitespace
       const subscriberEmail = (item.subscriber?.email || '').toLowerCase();
       if (!subscriberEmail) continue;
       if (!productMap.has(productName)) productMap.set(productName, new Set());
@@ -367,7 +367,7 @@ export async function fetchSalesForAttribution(
       receivedAt:   Date.now(),
       source:       'api',
       product_id:   product.id   ?? 0,
-      product_name: product.name || '',
+      product_name: (product.name || '').trim(), // normalize: trim whitespace from Hotmart
       buyer_email:  buyer.email  || '',
       buyer_name:   buyer.name   || '',
       amount,
