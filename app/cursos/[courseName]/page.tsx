@@ -2895,7 +2895,9 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     <div className="flex flex-col gap-0.5 pt-1">
                       {(() => {
                         const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
-                        const parcela = bp.parcela ?? bp.valor;
+                        // For Hotmart BRL students, trust Hotmart pricing — skip bp override
+                        const isHotmartBRL = (s as any).source !== 'manual' && s.currency === 'BRL';
+                        const parcela = isHotmartBRL ? null : (bp.parcela ?? bp.valor);
                         if (parcela != null) {
                           return (
                             <>
@@ -2929,7 +2931,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     {/* Pagamento — buyer_persona overrides Hotmart */}
                     {(() => {
                       const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
-                      if (bp.pagamento || bp.em_dia != null || bp.proximo_pagamento || bp.ultimo_pagamento) {
+                      const isHotmartBRLpay = (s as any).source !== 'manual' && s.currency === 'BRL';
+                      if (!isHotmartBRLpay && (bp.pagamento || bp.em_dia != null || bp.proximo_pagamento || bp.ultimo_pagamento)) {
                         const emDia = bp.em_dia;
                         return (
                           <div className="flex flex-col gap-0.5 pt-1">

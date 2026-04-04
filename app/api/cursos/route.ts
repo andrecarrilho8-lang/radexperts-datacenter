@@ -6,7 +6,7 @@ import { getDb } from '@/app/lib/db';
 
 // Statuses that mean the student has legitimate paid access (per Hotmart docs)
 const APPROVED  = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_KEY = 'cursos_list_v7'; // bumped: now subtracts hidden_students
+const CACHE_KEY = 'cursos_list_v8'; // bumped: fixes count for courses with manual students
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 export async function GET() {
