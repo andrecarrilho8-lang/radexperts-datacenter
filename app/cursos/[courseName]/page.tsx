@@ -599,9 +599,9 @@ function generateXLS(
   XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
 
   /* ── Sheet 2: Resumo ───────────────── */
-  const adim      = students.filter(s => effectiveStatusFor(s, bpCache) === 'ADIMPLENTE').length;
-  const inadim    = students.filter(s => effectiveStatusFor(s, bpCache) === 'INADIMPLENTE').length;
-  const quit      = students.filter(s => effectiveStatusFor(s, bpCache) === 'QUITADO').length;
+  const adim      = students.filter(s => effectiveStatusFor(s, bpCacheArg) === 'ADIMPLENTE').length;
+  const inadim    = students.filter(s => effectiveStatusFor(s, bpCacheArg) === 'INADIMPLENTE').length;
+  const quit      = students.filter(s => effectiveStatusFor(s, bpCacheArg) === 'QUITADO').length;
   const totalPago = students.reduce((acc, s) => acc + s.paymentHistory.reduce((a, p) => a + p.valor, 0), 0);
   const comPhone  = students.filter(s => {
     const ph = (s as any).source === 'manual' ? (s as any).phone : phoneCacheArg[(s.email || '').toLowerCase()];
@@ -1458,6 +1458,11 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
   const [result,   setResult]   = React.useState<{ saved: number; enriched: number; failed: number; errors: string[] } | null>(null);
   const [error,    setError]    = React.useState('');
 
+  const [useBp, setUseBp] = React.useState(false);
+  const [bpVendedor, setBpVendedor] = React.useState('');
+  const [bpModelo, setBpModelo] = React.useState('');
+  const [bpEmDia, setBpEmDia] = React.useState('');
+
   const handleParse = () => {
     const parsed = parseBatchText(rawText).map(r => ({
       ...r,
@@ -1491,6 +1496,15 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
             installmentsPaid:  r.installmentsPaid  || '0',
             entryDate: r.entryDate ? new Date(r.entryDate).getTime() : Date.now(),
             isExisting: r.dupStatus === 'enrich',
+            vendedor:      r.vendedor?.trim()  || (useBp ? bpVendedor : null),
+            bp_modelo:     r.bp_modelo?.trim() || (useBp ? bpModelo : null),
+            bp_em_dia:     r.bp_em_dia?.trim() || (useBp ? bpEmDia : null),
+            bp_valor:      r.bp_valor             || null,
+            bp_pagamento:  r.bp_pagamento         || null,
+            bp_parcela:    r.bp_parcela           || null,
+            bp_primeira_parcela:  r.bp_primeira_parcela  ? new Date(r.bp_primeira_parcela).getTime()  : null,
+            bp_ultimo_pagamento:  r.bp_ultimo_pagamento  ? new Date(r.bp_ultimo_pagamento).getTime()  : null,
+            bp_proximo_pagamento: r.bp_proximo_pagamento ? new Date(r.bp_proximo_pagamento).getTime() : null,
           })),
         }),
       });
@@ -1514,8 +1528,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
 
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 10002, display: 'flex', alignItems: 'center',
-      justifyContent: 'center', padding: 16 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      justifyContent: 'center', padding: 16 }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.92)', backdropFilter: 'blur(16px)' }} />
       <div style={{
         position: 'relative', width: '100%',
@@ -1693,6 +1706,30 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
               </tbody>
             </table>
           </div>
+
+          <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 20 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 900, color: SILVER, textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}>
+              <input type="checkbox" checked={useBp} onChange={e => setUseBp(e.target.checked)} />
+              Incluir Informações Adicionais para TODOS OS ALUNOS do lote (Modelo / Vendedor / Status)
+            </label>
+            {useBp && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 12 }}>
+                 <div>
+                  <label style={{ display: 'block', fontSize: 10, color: SILVER, marginBottom: 4 }}>Vendedor</label>
+                  <input style={IN} placeholder="Ex: Samuel" value={bpVendedor} onChange={e => setBpVendedor(e.target.value)} />
+                 </div>
+                 <div>
+                  <label style={{ display: 'block', fontSize: 10, color: SILVER, marginBottom: 4 }}>Modelo</label>
+                  <input style={IN} placeholder="1x / 3x" value={bpModelo} onChange={e => setBpModelo(e.target.value)} />
+                 </div>
+                 <div>
+                  <label style={{ display: 'block', fontSize: 10, color: SILVER, marginBottom: 4 }}>Status</label>
+                  <input style={IN} placeholder="SIM / QUITO" value={bpEmDia} onChange={e => setBpEmDia(e.target.value)} />
+                 </div>
+              </div>
+            )}
+          </div>
+
           {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 12 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => { setStep('paste'); setError(''); }}
@@ -1765,6 +1802,9 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
     total_amount:        '',
     installments:        1,
     notes:               '',
+    bp_vendedor:         '',
+    bp_modelo:           '',
+    bp_em_dia:           '',
   });
   const [instDates, setInstDates] = useState<InstallmentDate[]>([]);
   const [saving, setSaving] = useState(false);
@@ -1814,6 +1854,11 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           ? [{ due_ms: entryTs, paid: true, paid_ms: entryTs }]
           : instDates,
         notes: form.notes,
+        bp_vendedor: form.bp_vendedor,
+        bp_modelo: form.bp_modelo,
+        bp_em_dia: form.bp_em_dia,
+        bp_valor: form.total_amount,
+        bp_pagamento: form.payment_type === 'PIX' ? 'Pix' : 'Cartao',
       };
       const r = await fetch('/api/alunos/manual', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -1844,8 +1889,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   };
 
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.85)', backdropFilter: 'blur(12px)' }} />
       <div style={{ ...GLASS, position: 'relative', width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto', padding: 32 }}>
 
@@ -1985,6 +2029,29 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
               </div>
             </div>
           )}
+
+          {/* Buyer Persona */}
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '20px 0' }} />
+          <p style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'rgba(168,178,192,0.8)', marginBottom: 12 }}>
+            Informações Adicionais (Planilha)
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
+            <div>
+              <label style={LABEL}>Vendedor</label>
+              <input style={INPUT} placeholder="Ex: Samuel" value={form.bp_vendedor}
+                onChange={e => setForm(f => ({ ...f, bp_vendedor: e.target.value }))} />
+            </div>
+            <div>
+              <label style={LABEL}>Modelo</label>
+              <input style={INPUT} placeholder="1x / Recorrência" value={form.bp_modelo}
+                onChange={e => setForm(f => ({ ...f, bp_modelo: e.target.value }))} />
+            </div>
+            <div>
+              <label style={LABEL}>Status</label>
+              <input style={INPUT} placeholder="SIM / QUITO / NÃO" value={form.bp_em_dia}
+                onChange={e => setForm(f => ({ ...f, bp_em_dia: e.target.value }))} />
+            </div>
+          </div>
 
           {/* Notes */}
           <div style={{ marginBottom: 24 }}>
