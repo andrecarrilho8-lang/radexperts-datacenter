@@ -2366,7 +2366,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     return () => document.removeEventListener('mousemove', onMove);
   }, []);
 
-  // Fetch all courses once to resolve slug → original DB name
+  // Resolve slug → real course name, then load students (single sequential flow)
   useEffect(() => {
     fetch('/api/cursos')
       .then(r => r.json())
@@ -2376,11 +2376,17 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         const resolved = resolveCourseName(slugOrRaw, names);
         setDecoded(resolved);
       })
-      .catch(() => {});
+      .catch(() => {
+        // If courses can't load, try using slugOrRaw directly (legacy encoded URL)
+        setDecoded(slugOrRaw);
+      });
   }, [slugOrRaw]);
 
   useEffect(() => {
-    if (!decoded) return; // wait for slug resolution
+    // Wait until decoded is the REAL course name (not just the slug).
+    // We know it's resolved when allCourseNames is populated OR decoded !== slugOrRaw.
+    const isResolved = allCourseNames.length > 0 || decoded !== slugOrRaw;
+    if (!decoded || !isResolved) return;
     setLoading(true);
     const p = turmaFilter ? `?turma=${encodeURIComponent(turmaFilter)}` : '';
     Promise.all([
@@ -2395,7 +2401,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       setLoading(false);
       setPage(0);
     }).catch(() => setLoading(false));
-  }, [decoded, turmaFilter]);
+  }, [decoded, turmaFilter, allCourseNames.length]);
 
   // Merge Hotmart + manual students — manual has priority (dedup by email)
   const manualEmailSet = new Set(manualStudents.map(ms => ms.email.toLowerCase()));
