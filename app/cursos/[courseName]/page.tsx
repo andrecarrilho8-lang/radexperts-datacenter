@@ -2737,11 +2737,25 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             </div>
 
             {loading ? (
-              [...Array(10)].map((_, i) => (
-                <div key={i} className="grid px-5 py-4 animate-pulse" style={{ gridTemplateColumns: GRID, borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  {[...Array(6)].map((_, j) => <div key={j} className="h-4 rounded-lg mr-3" style={{ background: 'rgba(255,255,255,0.06)' }} />)}
+              <div style={{ padding: '60px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                <div style={{ position: 'relative', width: 56, height: 56 }}>
+                  <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(232,177,79,0.15)', borderTopColor: GOLD, animation: 'spin 1s linear infinite' }} />
+                  <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '2px solid rgba(232,177,79,0.08)', borderBottomColor: 'rgba(232,177,79,0.5)', animation: 'spin 1.5s linear infinite reverse' }} />
+                  <span className="material-symbols-outlined" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: GOLD }}>group</span>
                 </div>
-              ))
+                <p style={{ color: SILVER, fontSize: 13, fontWeight: 700, margin: 0 }}>Carregando alunos...</p>
+                <div style={{ width: 280, height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 99, background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)`, backgroundSize: '200% 100%', animation: 'shimmerBar 1.4s ease-in-out infinite' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[0, 1, 2].map(dotI => <div key={dotI} style={{ width: 5, height: 5, borderRadius: '50%', background: GOLD, opacity: 0.4, animation: `dotPulse 1.2s ease-in-out ${dotI * 0.2}s infinite` }} />)}
+                </div>
+                <style>{`
+                  @keyframes spin { to { transform: rotate(360deg); } }
+                  @keyframes shimmerBar { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+                  @keyframes dotPulse { 0%,100% { opacity:0.2; transform:scale(0.8); } 50% { opacity:1; transform:scale(1.2); } }
+                `}</style>
+              </div>
             ) : paginated.length === 0 ? (
               <div className="py-20 text-center">
                 <span className="material-symbols-outlined text-4xl mb-3 block" style={{ color: SILVER }}>group</span>
