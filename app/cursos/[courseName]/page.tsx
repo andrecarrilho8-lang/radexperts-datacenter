@@ -352,13 +352,16 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
 // Standalone status helper used by PDF / CSV / XLS exports
 const GRACE_DAYS_EXPORT = 15;
 const DAY_MS_EXPORT = 86_400_000;
-function effectiveStatusFor(s: Student, _bpCache?: Record<string, Record<string, any>>): PayStatus {
-  // bp_em_dia is now embedded in the Student object by the server-side API (no client cache needed)
-  const emDia  = (s.bpEmDia || '').trim();
-  const proxMs = s.bpProximoPagamento;
+function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, any>> = {}): PayStatus {
+  // Use BOTH sources: server-side JOIN (s.bpEmDia) + client-side async cache (bpCache)
+  // This makes the function robust regardless of which source is available first.
+  const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
+  const emDia  = ((s as any).bpEmDia || cacheEntry.em_dia || '').trim();
+  const proxMs: number | undefined = (s as any).bpProximoPagamento ?? cacheEntry.proximo_pagamento;
 
   if (emDia) {
     const up = emDia.toUpperCase();
+    // Match 'NÃO', 'NAO', 'NãO' etc.
     const isNao = up === 'NÃO' || up === 'NAO' || up === 'NÃo'.toUpperCase();
     const isSim = up === 'SIM';
     if (isNao) {
@@ -369,9 +372,8 @@ function effectiveStatusFor(s: Student, _bpCache?: Record<string, Record<string,
     if (isSim) return 'ADIMPLENTE';
   }
 
-  // No bp_em_dia set: use Hotmart payment logic
+  // No bp_em_dia from either source: fall back to Hotmart payment logic
   const base = getPayStatus(s);
-  // Manual students without any bp override default to ADIMPLENTE
   if ((s as any).source === 'manual') return 'ADIMPLENTE';
   return base;
 }
