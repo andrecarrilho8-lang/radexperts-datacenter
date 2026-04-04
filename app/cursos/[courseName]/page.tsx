@@ -682,7 +682,8 @@ function detectFlagAndCurrency(phone: string): { flag: string; currency: string 
   for (const { prefix, flag, currency } of PREFIX_MAP) {
     if (digits.startsWith(prefix)) return { flag, currency };
   }
-  return { flag: '', currency: 'USD' };
+  // No international prefix detected = local Brazilian number (no +55 prefix stored)
+  return { flag: 'br', currency: 'BRL' };
 }
 
 // ── Convert ManualStudent → Student shape ────────────────────────────────────
