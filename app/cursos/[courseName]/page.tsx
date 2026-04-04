@@ -60,6 +60,9 @@ type ManualStudent = {
   installment_dates: InstallmentDate[];
   notes: string;
   created_at: number;
+
+  bp_em_dia?:             string | null;
+  bp_proximo_pagamento?:  string | number | null;
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -709,7 +712,7 @@ function manualToStudent(ms: ManualStudent): Student {
       recurrencyNumber: i + 1, index: i,
     })),
   
-    bpEmDia:            ms.bp_em_dia ?? undefined,
+    bpEmDia:            ms.bp_em_dia ?? undefined,  // joined from buyer_profiles
     bpProximoPagamento: ms.bp_proximo_pagamento != null ? Number(ms.bp_proximo_pagamento) : undefined,
   };
 }
