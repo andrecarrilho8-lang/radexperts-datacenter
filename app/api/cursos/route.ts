@@ -6,7 +6,7 @@ import { getDb } from '@/app/lib/db';
 
 // Statuses that mean the student has legitimate paid access (per Hotmart docs)
 const APPROVED  = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_KEY = 'cursos_list_v8'; // bumped: fixes count for courses with manual students
+const CACHE_KEY = 'cursos_list_v9'; // bumped: normaliza nomes com trim() para evitar duplicatas por espaco
 const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 export async function GET() {
@@ -64,18 +64,20 @@ export async function GET() {
       if (!APPROVED.has(s.purchase?.status)) return;
       const prod = s.product;
       if (!prod?.name) return;
+      const name = prod.name.trim(); // normalize: remove leading/trailing spaces
       const email = (s.buyer?.email || '').toLowerCase();
-      if (!courseMap.has(prod.name)) {
-        courseMap.set(prod.name, { id: prod.id || 0, name: prod.name, emails: new Set() });
+      if (!courseMap.has(name)) {
+        courseMap.set(name, { id: prod.id || 0, name, emails: new Set() });
       }
-      if (email) courseMap.get(prod.name)!.emails.add(email);
+      if (email) courseMap.get(name)!.emails.add(email);
     });
 
     // Merge active subscription emails
     activeSubsMap.forEach((emailSet, productName) => {
-      let entry = courseMap.get(productName);
+      const name = productName.trim();
+      let entry = courseMap.get(name);
       if (!entry) {
-        const cleanSub = productName.toLowerCase();
+        const cleanSub = name.toLowerCase();
         for (const [k, v] of courseMap) {
           if (k.toLowerCase().includes(cleanSub) || cleanSub.includes(k.toLowerCase())) {
             entry = v; break;
@@ -83,7 +85,7 @@ export async function GET() {
         }
       }
       if (!entry) {
-        courseMap.set(productName, { id: 0, name: productName, emails: new Set(emailSet) });
+        courseMap.set(name, { id: 0, name, emails: new Set(emailSet) });
       } else {
         emailSet.forEach(e => entry!.emails.add(e));
       }
@@ -91,10 +93,17 @@ export async function GET() {
 
     // Merge manual students — add their emails to the matching course
     manualRows.forEach((emailSet, courseName) => {
-      let entry = courseMap.get(courseName);
+      const name = courseName.trim();
+      let entry = courseMap.get(name);
       if (!entry) {
-        // Create a new entry for courses that only exist as manual
-        courseMap.set(courseName, { id: 0, name: courseName, emails: new Set(emailSet) });
+        // Try case-insensitive partial match
+        const lower = name.toLowerCase();
+        for (const [k, v] of courseMap) {
+          if (k.toLowerCase() === lower) { entry = v; break; }
+        }
+      }
+      if (!entry) {
+        courseMap.set(name, { id: 0, name, emails: new Set(emailSet) });
       } else {
         emailSet.forEach(e => entry!.emails.add(e));
       }
