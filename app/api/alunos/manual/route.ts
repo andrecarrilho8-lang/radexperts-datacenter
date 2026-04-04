@@ -15,9 +15,20 @@ export async function GET(request: Request) {
   try {
     await ensureSchema();
     const sql = getDb();
+    // LEFT JOIN buyer_profiles so bp_em_dia and bp_proximo_pagamento travel with the student.
+    // This eliminates the need for a separate client-side cache lookup for status calculation.
     const rows = course
-      ? await sql`SELECT * FROM manual_students WHERE course_name = ${course} ORDER BY entry_date DESC`
-      : await sql`SELECT * FROM manual_students ORDER BY entry_date DESC`;
+      ? await sql`
+          SELECT ms.*, bp.bp_em_dia, bp.bp_proximo_pagamento
+          FROM manual_students ms
+          LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
+          WHERE ms.course_name = ${course}
+          ORDER BY ms.entry_date DESC`
+      : await sql`
+          SELECT ms.*, bp.bp_em_dia, bp.bp_proximo_pagamento
+          FROM manual_students ms
+          LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
+          ORDER BY ms.entry_date DESC`;
 
     return NextResponse.json({ students: rows });
   } catch (e: any) {

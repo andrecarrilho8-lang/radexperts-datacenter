@@ -86,6 +86,9 @@ type Student   = {
   paymentRecurrency: number;
   subStatus: SubStatus;
   paymentHistory: PayHist[];
+
+  bpEmDia?:            string;  // from buyer_profiles JOIN (status calc server-side)
+  bpProximoPagamento?: number;  // epoch ms
 };
 
 // ── Glossy table style ────────────────────────────────────────────────────────
@@ -349,32 +352,27 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
 // Standalone status helper used by PDF / CSV / XLS exports
 const GRACE_DAYS_EXPORT = 15;
 const DAY_MS_EXPORT = 86_400_000;
-function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, any>>): PayStatus {
-  const bp    = bpCache[(s.email || '').toLowerCase()] || {};
-  const emDia = (bp.em_dia || '').trim();          // 'SIM' | 'NÃO' | ''
+function effectiveStatusFor(s: Student, _bpCache?: Record<string, Record<string, any>>): PayStatus {
+  // bp_em_dia is now embedded in the Student object by the server-side API (no client cache needed)
+  const emDia  = (s.bpEmDia || '').trim();
+  const proxMs = s.bpProximoPagamento;
 
-  // ── If bp_em_dia is explicitly set: it is the SOURCE OF TRUTH ──────────────
-  // This applies to ALL students (manual or Hotmart) who have bp_em_dia filled.
   if (emDia) {
-    const isNao = emDia.toUpperCase() === 'NÃO' || emDia.toUpperCase() === 'NAO' || emDia === 'N\u00e3o';
-    const isSim = emDia.toUpperCase() === 'SIM';
-
+    const up = emDia.toUpperCase();
+    const isNao = up === 'NÃO' || up === 'NAO' || up === 'NÃo'.toUpperCase();
+    const isSim = up === 'SIM';
     if (isNao) {
-      // Only mark INADIMPLENTE if 15+ days past proximo_pagamento (or no date = trust field)
-      if (!bp.proximo_pagamento) return 'INADIMPLENTE';
-      const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
+      if (!proxMs) return 'INADIMPLENTE';
+      const d = (Date.now() - proxMs) / DAY_MS_EXPORT;
       return d > GRACE_DAYS_EXPORT ? 'INADIMPLENTE' : 'ADIMPLENTE';
     }
     if (isSim) return 'ADIMPLENTE';
-    // Unknown value (e.g. partial text) — fall through to base
   }
 
-  // ── No bp_em_dia: use Hotmart payment logic ─────────────────────────────────
+  // No bp_em_dia set: use Hotmart payment logic
   const base = getPayStatus(s);
-
-  // Manual students with no real payment history default to ADIMPLENTE
+  // Manual students without any bp override default to ADIMPLENTE
   if ((s as any).source === 'manual') return 'ADIMPLENTE';
-
   return base;
 }
 
@@ -690,6 +688,9 @@ function manualToStudent(ms: ManualStudent): Student {
       date: d.paid_ms ?? d.due_ms, valor: instAmt,
       recurrencyNumber: i + 1, index: i,
     })),
+  
+    bpEmDia:            ms.bp_em_dia ?? undefined,
+    bpProximoPagamento: ms.bp_proximo_pagamento != null ? Number(ms.bp_proximo_pagamento) : undefined,
   };
 }
 

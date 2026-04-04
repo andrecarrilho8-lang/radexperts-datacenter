@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCachedAllSales } from '@/app/lib/salesCache';
 import { getCache, setCache } from '@/app/lib/metaApi';
 import { convertToBRLOnDate } from '@/app/lib/currency';
+import { getDb } from '@/app/lib/db';
 
 /**
  * ═══════════════════════════════════════════════════════════════════
@@ -70,7 +71,7 @@ export async function GET(
   const turma      = searchParams.get('turma') || '';
 
   // v10: offer-aware payment mode detection
-  const CACHE_KEY = `curso_v12_${courseName}`;
+  const CACHE_KEY = `curso_v13_${courseName}`;
   const hit = getCache(CACHE_KEY);
   if (hit?.expires_at > Date.now()) {
     const result = hit.data;
@@ -279,6 +280,30 @@ export async function GET(
       };
 
     }))).sort((a, b) => (b.entryDate || 0) - (a.entryDate || 0));
+
+    // ── Enrich with bp_em_dia and bp_proximo_pagamento from buyer_profiles ──────
+    try {
+      const sql = getDb();
+      const emails = students.map(s => s.email.toLowerCase()).filter(Boolean);
+      if (emails.length > 0) {
+        const bpRows = await sql`
+          SELECT LOWER(email) AS email, bp_em_dia, bp_proximo_pagamento
+          FROM buyer_profiles
+          WHERE LOWER(email) = ANY(${emails}::text[])
+        ` as any[];
+        const bpMap: Record<string, { bpEmDia?: string; bpProximoPagamento?: number }> = {};
+        for (const row of bpRows) {
+          bpMap[row.email] = {
+            bpEmDia:             row.bp_em_dia         ?? undefined,
+            bpProximoPagamento:  row.bp_proximo_pagamento != null ? Number(row.bp_proximo_pagamento) : undefined,
+          };
+        }
+        for (const s of students) {
+          const bp = bpMap[s.email.toLowerCase()];
+          if (bp) { (s as any).bpEmDia = bp.bpEmDia; (s as any).bpProximoPagamento = bp.bpProximoPagamento; }
+        }
+      }
+    } catch { /* non-fatal: status falls back to Hotmart logic */ }
 
     const result = {
       students,
