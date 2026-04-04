@@ -373,30 +373,6 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
   const base = getPayStatus(s);
   if ((s as any).source === 'manual') return 'ADIMPLENTE'; // manual without bp = default ADIMPLENTE
   return base;
-}): PayStatus {
-  // Use BOTH sources: server-side JOIN (s.bpEmDia) + client-side async cache (bpCache)
-  // This makes the function robust regardless of which source is available first.
-  const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
-  const emDia  = ((s as any).bpEmDia || cacheEntry.em_dia || '').trim();
-  const proxMs: number | undefined = (s as any).bpProximoPagamento ?? cacheEntry.proximo_pagamento;
-
-  if (emDia) {
-    const up = emDia.toUpperCase();
-    // Match 'NÃO', 'NAO', 'NãO' etc.
-    const isNao = up === 'NÃO' || up === 'NAO' || up === 'NÃo'.toUpperCase();
-    const isSim = up === 'SIM';
-    if (isNao) {
-      if (!proxMs) return 'INADIMPLENTE';
-      const d = (Date.now() - proxMs) / DAY_MS_EXPORT;
-      return d > GRACE_DAYS_EXPORT ? 'INADIMPLENTE' : 'ADIMPLENTE';
-    }
-    if (isSim) return 'ADIMPLENTE';
-  }
-
-  // No bp_em_dia from either source: fall back to Hotmart payment logic
-  const base = getPayStatus(s);
-  if ((s as any).source === 'manual') return 'ADIMPLENTE';
-  return base;
 }
 
 function generatePDF(
