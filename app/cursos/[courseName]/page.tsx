@@ -648,6 +648,43 @@ const COLS = [
   { key: 'actions',   label: '',                sortable: false },
 ];
 
+// ── Detect country flag + currency from phone prefix ────────────────────────
+function detectFlagAndCurrency(phone: string): { flag: string; currency: string } {
+  const digits = (phone || '').replace(/\\D/g, '');
+  const PREFIX_MAP: Array<{ prefix: string; flag: string; currency: string }> = [
+    { prefix: '5400', flag: 'ar', currency: 'USD' },
+    { prefix: '5401', flag: 'ar', currency: 'USD' },
+    { prefix: '5402', flag: 'ar', currency: 'USD' },
+    { prefix: '5403', flag: 'ar', currency: 'USD' },
+    { prefix: '5492', flag: 'ar', currency: 'USD' },
+    { prefix: '5493', flag: 'ar', currency: 'USD' },
+    { prefix: '5494', flag: 'ar', currency: 'USD' },
+    { prefix: '598', flag: 'uy', currency: 'USD' },
+    { prefix: '593', flag: 'ec', currency: 'USD' },
+    { prefix: '591', flag: 'bo', currency: 'USD' },
+    { prefix: '595', flag: 'py', currency: 'USD' },
+    { prefix: '507', flag: 'pa', currency: 'USD' },
+    { prefix: '506', flag: 'cr', currency: 'USD' },
+    { prefix: '504', flag: 'hn', currency: 'USD' },
+    { prefix: '503', flag: 'sv', currency: 'USD' },
+    { prefix: '502', flag: 'gt', currency: 'USD' },
+    { prefix: '501', flag: 'bz', currency: 'USD' },
+    { prefix: '55',  flag: 'br', currency: 'BRL' },
+    { prefix: '57',  flag: 'co', currency: 'USD' },
+    { prefix: '56',  flag: 'cl', currency: 'USD' },
+    { prefix: '54',  flag: 'ar', currency: 'USD' },
+    { prefix: '52',  flag: 'mx', currency: 'USD' },
+    { prefix: '51',  flag: 'pe', currency: 'USD' },
+    { prefix: '58',  flag: 've', currency: 'USD' },
+    { prefix: '53',  flag: 'cu', currency: 'USD' },
+    { prefix: '50',  flag: '',   currency: 'USD' },
+  ];
+  for (const { prefix, flag, currency } of PREFIX_MAP) {
+    if (digits.startsWith(prefix)) return { flag, currency };
+  }
+  return { flag: '', currency: 'USD' };
+}
+
 // ── Convert ManualStudent → Student shape ────────────────────────────────────
 function manualToStudent(ms: ManualStudent): Student {
   // IMPORTANT: Postgres returns bigint/numeric as strings in JSON. Always Number() cast.
@@ -670,7 +707,9 @@ function manualToStudent(ms: ManualStudent): Student {
     name: ms.name, email: ms.email,
     entryDate:   Number(ms.entry_date), lastPayDate: lastPaid,
     turma: 'Manual', valor: instAmt, valorBRL: Number(ms.total_amount),
-    currency: 'BRL', flag: 'br', transaction: `MANUAL_${ms.id}`,
+    // Detect country + currency from phone prefix
+    ...(() => { const { flag, currency } = detectFlagAndCurrency(ms.phone || ''); return { currency, flag }; })(),
+    transaction: `MANUAL_${ms.id}`,
     phone: ms.phone, source: 'manual', manualId: ms.id,
     manualInstallments: dates,
     paymentType: ms.payment_type,
@@ -2861,7 +2900,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           return (
                             <>
                               <span className="text-[12px] font-bold" style={{ color: GOLD }}>
-                                R$ {Number(parcela).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                {fmtMoneyByCurrency(Number(parcela), s.currency)}
                               </span>
                               {bp.modelo && <span className="text-[9px] font-bold" style={{ color: SILVER }}>{bp.modelo}</span>}
                             </>
