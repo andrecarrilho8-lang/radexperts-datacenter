@@ -637,7 +637,7 @@ function generateXLS(
 }
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
-const GRID = '120px 1fr 320px 140px 160px 260px 64px';
+const GRID = 'minmax(100px,120px) minmax(160px,1fr) minmax(220px,280px) minmax(110px,140px) minmax(110px,140px) minmax(200px,260px) 60px';
 const COLS = [
   { key: 'entryDate', label: 'Entrada',        sortable: true  },
   { key: 'name',      label: 'Nome',            sortable: false },
@@ -2696,7 +2696,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
 
 
           {/* Table — no overflow:hidden so portaled tooltip renders above all elements */}
-          <div style={{ ...TABLE_STYLE, overflow: 'visible' }}>
+          <div style={{ overflowX: 'auto', borderRadius: 24 }}>
+          <div style={{ ...TABLE_STYLE, overflow: 'visible', minWidth: 900 }}>
             <div className="pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', borderRadius: '24px 24px 0 0', height: 4, marginBottom: -4 }} />
 
             {/* Top pagination bar */}
@@ -2973,6 +2974,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             )}
           </div>
 
+          </div>
           {/* Footer */}
           <div className="flex items-center justify-between mt-5 flex-wrap gap-3">
             <div className="flex items-center gap-2">
