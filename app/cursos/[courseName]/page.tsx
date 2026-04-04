@@ -354,6 +354,24 @@ const GRACE_DAYS_EXPORT = 15;
 const DAY_MS_EXPORT = 86_400_000;
 function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, any>> = {}): PayStatus {
   // Use BOTH sources: server-side JOIN (s.bpEmDia) + client-side async cache (bpCache)
+  const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
+  const rawEmDia = ((s as any).bpEmDia ?? cacheEntry.em_dia);
+
+  // If bp_em_dia is set, it is the authoritative source
+  if (rawEmDia != null && rawEmDia !== '') {
+    const up = String(rawEmDia).toUpperCase().trim();
+    if (up === 'SIM')     return 'ADIMPLENTE';
+    if (up === 'QUITADO') return 'QUITADO';
+    // Any other value (NAO, NÃO, ATRASADO, free text, etc.) = INADIMPLENTE
+    return 'INADIMPLENTE';
+  }
+
+  // No bp_em_dia: use Hotmart payment logic
+  const base = getPayStatus(s);
+  if ((s as any).source === 'manual') return 'ADIMPLENTE'; // manual without bp = default ADIMPLENTE
+  return base;
+}): PayStatus {
+  // Use BOTH sources: server-side JOIN (s.bpEmDia) + client-side async cache (bpCache)
   // This makes the function robust regardless of which source is available first.
   const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
   const emDia  = ((s as any).bpEmDia || cacheEntry.em_dia || '').trim();
@@ -2885,12 +2903,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                             {bp.pagamento && <span className="text-[11px] font-bold" style={{ color: 'white' }}>{bp.pagamento}</span>}
                             {emDia != null && (
                               <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
-                                background: emDia === 'SIM' ? 'rgba(74,222,128,0.12)' : 'rgba(239,68,68,0.12)',
-                                color:      emDia === 'SIM' ? GREEN : '#f87171',
-                                border:     `1px solid ${emDia === 'SIM' ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                                background: (emDia === 'SIM' || emDia?.toUpperCase() === 'QUITADO') ? 'rgba(74,222,128,0.12)' : 'rgba(239,68,68,0.12)',
+                                color:      (emDia === 'SIM' || emDia?.toUpperCase() === 'QUITADO') ? GREEN : '#f87171',
+                                border:     `1px solid ${(emDia === 'SIM' || emDia?.toUpperCase() === 'QUITADO') ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
                                 width: 'fit-content',
                               }}>
-                                {emDia === 'SIM' ? '✓ Em dia' : '✗ Atrasado'}
+                                {emDia === 'SIM' ? '✓ Em dia' : emDia?.toUpperCase() === 'QUITADO' ? '✓ Quitado' : '✗ Atrasado'}
                               </span>
                             )}
                             {bp.proximo_pagamento && (
