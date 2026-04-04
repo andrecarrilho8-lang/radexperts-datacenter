@@ -350,30 +350,31 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
 const GRACE_DAYS_EXPORT = 15;
 const DAY_MS_EXPORT = 86_400_000;
 function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, any>>): PayStatus {
+  const bp    = bpCache[(s.email || '').toLowerCase()] || {};
+  const emDia = (bp.em_dia || '').trim();          // 'SIM' | 'NÃO' | ''
+
+  // ── If bp_em_dia is explicitly set: it is the SOURCE OF TRUTH ──────────────
+  // This applies to ALL students (manual or Hotmart) who have bp_em_dia filled.
+  if (emDia) {
+    const isNao = emDia.toUpperCase() === 'NÃO' || emDia.toUpperCase() === 'NAO' || emDia === 'N\u00e3o';
+    const isSim = emDia.toUpperCase() === 'SIM';
+
+    if (isNao) {
+      // Only mark INADIMPLENTE if 15+ days past proximo_pagamento (or no date = trust field)
+      if (!bp.proximo_pagamento) return 'INADIMPLENTE';
+      const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
+      return d > GRACE_DAYS_EXPORT ? 'INADIMPLENTE' : 'ADIMPLENTE';
+    }
+    if (isSim) return 'ADIMPLENTE';
+    // Unknown value (e.g. partial text) — fall through to base
+  }
+
+  // ── No bp_em_dia: use Hotmart payment logic ─────────────────────────────────
   const base = getPayStatus(s);
-  const bp = bpCache[(s.email || "").toLowerCase()] || {};
-  const emDia = (bp.em_dia || "").toUpperCase().trim();
-  if ((s as any).source === "manual" && s.paymentHistory.length === 0) {
-    if (emDia === "NÃO" || emDia === "NAO") {
-      if (!bp.proximo_pagamento) return "INADIMPLENTE";
-      const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
-      return d > GRACE_DAYS_EXPORT ? "INADIMPLENTE" : "ADIMPLENTE";
-    }
-    return "ADIMPLENTE";
-  }
-  if (base === "QUITADO") {
-    if ((emDia === "NÃO" || emDia === "NAO") && bp.proximo_pagamento) {
-      const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
-      if (d > GRACE_DAYS_EXPORT) return "INADIMPLENTE";
-    }
-    return "QUITADO";
-  }
-  if (emDia === "NÃO" || emDia === "NAO") {
-    if (!bp.proximo_pagamento) return "INADIMPLENTE";
-    const d = (Date.now() - Number(bp.proximo_pagamento)) / DAY_MS_EXPORT;
-    return d > GRACE_DAYS_EXPORT ? "INADIMPLENTE" : "ADIMPLENTE";
-  }
-  if (emDia === "SIM") return base === "INADIMPLENTE" ? "ADIMPLENTE" : base;
+
+  // Manual students with no real payment history default to ADIMPLENTE
+  if ((s as any).source === 'manual') return 'ADIMPLENTE';
+
   return base;
 }
 
