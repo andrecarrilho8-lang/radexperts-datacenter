@@ -118,12 +118,20 @@ export default function AlunoPage() {
     setAttachments(prev => prev.filter(a => a.id !== attId));
   };
 
+  const [pdfState, setPdfState] = React.useState<'idle' | 'printing' | 'done'>('idle');
+
   const handlePDF = () => {
+    if (pdfState !== 'idle') return;
+    setPdfState('printing');
     const s = document.createElement('style');
     s.innerHTML = `@media print{.no-print{display:none!important}body{background:#fff!important;color:#000!important}}`;
     document.head.appendChild(s);
-    window.print();
-    setTimeout(() => document.head.removeChild(s), 1000);
+    setTimeout(() => {
+      window.print();
+      document.head.removeChild(s);
+      setPdfState('done');
+      setTimeout(() => setPdfState('idle'), 2500);
+    }, 300);
   };
 
   // Build timeline
@@ -164,10 +172,67 @@ export default function AlunoPage() {
               <span className="material-symbols-outlined text-[16px]">arrow_back</span>Voltar
             </button>
             {!loading && data && (
-              <button onClick={handlePDF}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest"
-                style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}>
-                <span className="material-symbols-outlined text-lg">picture_as_pdf</span>Salvar PDF
+              <button
+                onClick={handlePDF}
+                disabled={pdfState !== 'idle'}
+                className="no-print flex items-center gap-2.5 relative overflow-hidden"
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: 14,
+                  fontWeight: 900,
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  cursor: pdfState !== 'idle' ? 'default' : 'pointer',
+                  border: `1.5px solid ${
+                    pdfState === 'done' ? 'rgba(74,222,128,0.5)' :
+                    pdfState === 'printing' ? 'rgba(232,177,79,0.25)' :
+                    'rgba(232,177,79,0.4)'
+                  }`,
+                  background: pdfState === 'done'
+                    ? 'linear-gradient(135deg, rgba(74,222,128,0.15) 0%, rgba(16,185,129,0.1) 100%)'
+                    : 'linear-gradient(135deg, rgba(232,177,79,0.14) 0%, rgba(200,140,30,0.08) 100%)',
+                  color: pdfState === 'done' ? '#4ade80' : GOLD,
+                  boxShadow: pdfState === 'done'
+                    ? '0 0 18px rgba(74,222,128,0.18)'
+                    : '0 0 18px rgba(232,177,79,0.1)',
+                  transition: 'all 0.35s cubic-bezier(0.4,0,0.2,1)',
+                  minWidth: 148,
+                  justifyContent: 'center',
+                }}
+                onMouseEnter={e => { if (pdfState === 'idle') (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 28px rgba(232,177,79,0.28)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.boxShadow = pdfState === 'done' ? '0 0 18px rgba(74,222,128,0.18)' : '0 0 18px rgba(232,177,79,0.1)'; }}
+              >
+                {/* Shimmer overlay */}
+                {pdfState === 'idle' && (
+                  <span style={{
+                    position: 'absolute', inset: 0, borderRadius: 13,
+                    background: 'linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.08) 50%, transparent 65%)',
+                    backgroundSize: '250% 100%',
+                    animation: 'pdfShimmer 2.8s ease-in-out infinite',
+                    pointerEvents: 'none',
+                  }} />
+                )}
+                {/* Icon */}
+                {pdfState === 'printing' ? (
+                  <span style={{
+                    width: 17, height: 17, borderRadius: '50%',
+                    border: '2px solid rgba(232,177,79,0.3)',
+                    borderTopColor: GOLD,
+                    display: 'inline-block',
+                    animation: 'spin 0.75s linear infinite',
+                    flexShrink: 0,
+                  }} />
+                ) : pdfState === 'done' ? (
+                  <span className="material-symbols-outlined" style={{ fontSize: 17 }}>check_circle</span>
+                ) : (
+                  <span className="material-symbols-outlined" style={{ fontSize: 17 }}>picture_as_pdf</span>
+                )}
+                {pdfState === 'printing' ? 'Gerando...' : pdfState === 'done' ? 'Gerado!' : 'Salvar PDF'}
+                <style>{`
+                  @keyframes pdfShimmer { 0%,100%{background-position:100% 0} 50%{background-position:0% 0} }
+                  @keyframes spin { to{transform:rotate(360deg)} }
+                `}</style>
               </button>
             )}
           </div>
