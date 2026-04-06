@@ -84,13 +84,17 @@ export async function PATCH(request: Request) {
         updated_at          = ${now}
     `;
 
-    // 2. If manualId provided → also update manual_students.phone + name
+    // 2. If manualId provided → also update manual_students for name/phone/payment field changes
     if (manualId) {
       if (phone !== null) {
         await sql`UPDATE manual_students SET phone = ${phone}, updated_at = ${now} WHERE id = ${manualId}`;
       }
       if (name !== null) {
         await sql`UPDATE manual_students SET name = ${name}, updated_at = ${now} WHERE id = ${manualId}`;
+      }
+      // Bump updated_at when any payment-related field (VALOR TOTAL, EM DIA, ÚLTIMO/PRÓX. PAGAMENTO) changes
+      if (bpValor !== null || bpEmDia !== null || bpUltimoPagamento !== null || bpProximoPagamento !== null) {
+        await sql`UPDATE manual_students SET updated_at = ${now} WHERE id = ${manualId}`;
       }
     }
 

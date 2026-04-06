@@ -158,13 +158,142 @@ type Overdue = {
 };
 type Data = {
   totalTransactions: number; totalSubs: number;
-  recentTransactions: Transaction[];
+  hotmartEntries: Transaction[];
+  manualEntries: Transaction[];
   upcoming: Upcoming[];
   overdue: Overdue[];
   statusCounts: Record<string, number>;
 };
 
-/* ─── Page ──────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────
+   EntryTable — reusable table for Hotmart or Manual entries
+───────────────────────────────────────────────────────────────────── */
+function EntryTable({
+  title, subtitle, accent, entries, loading, router, isManual = false,
+}: {
+  title: string; subtitle: string; accent: string;
+  entries: Transaction[]; loading: boolean;
+  router: ReturnType<typeof useRouter>; isManual?: boolean;
+}) {
+  return (
+    <div style={{
+      background: `linear-gradient(160deg, ${accent}09 0%, ${accent}03 50%, rgba(0,10,30,0.7) 100%)`,
+      border: `1px solid ${accent}22`,
+      backdropFilter: 'blur(24px) saturate(180%)',
+      WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+      boxShadow: `0 1px 0 ${accent}18 inset, 0 24px 48px -12px rgba(0,0,0,0.5)`,
+      borderRadius: 24, overflow: 'hidden',
+    }}>
+      <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${accent}22` }}>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: `${accent}15`, border: `1px solid ${accent}35` }}>
+          <span className="material-symbols-outlined text-xl" style={{ color: accent }}>
+            {isManual ? 'edit_note' : 'payments'}
+          </span>
+        </div>
+        <div>
+          <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>{title}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{subtitle}</p>
+        </div>
+        <span className="ml-auto px-3 py-1 rounded-full text-[11px] font-black"
+          style={{ background: `${accent}18`, color: accent }}>
+          {loading ? '…' : entries.length}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: `${accent}08` }}>
+              <TH>Data / Hora</TH>
+              <TH right>Faturamento</TH>
+              <TH>Pagamento</TH>
+              <TH>Cliente</TH>
+              <TH>Produto</TH>
+            </tr>
+          </thead>
+          <tbody>
+            {loading
+              ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={5} accent={accent} />)
+              : entries.length === 0
+                ? <tr><td colSpan={5} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
+                    Nenhuma entrada encontrada.
+                  </td></tr>
+                : entries.map((t, idx) => {
+                    const dt = fmtDateTime(t.date);
+                    let installLabel = '', installStyle: React.CSSProperties = {};
+                    if (t.isSubscription) {
+                      installLabel = t.recurrencyNumber ? `Assinatura · Ciclo ${t.recurrencyNumber}` : 'Assinatura';
+                      installStyle = { background: 'rgba(56,189,248,0.12)', color: '#38bdf8' };
+                    } else if (t.installments > 1) {
+                      installLabel = t.recurrencyNumber
+                        ? `Parcela ${t.recurrencyNumber}/${t.installments}`
+                        : `${t.installments}× parcelado`;
+                      installStyle = { background: 'rgba(99,102,241,0.15)', color: '#818cf8' };
+                    } else {
+                      installLabel = 'À vista';
+                      installStyle = { background: 'rgba(34,197,94,0.08)', color: '#86efac' };
+                    }
+                    const rowBg = idx % 2 === 0 ? 'transparent' : `${accent}05`;
+                    return (
+                      <tr key={t.transaction || idx}
+                        style={{ background: rowBg, borderBottom: `1px solid ${accent}15` }}
+                        onMouseEnter={e => (e.currentTarget.style.background = `${accent}0d`)}
+                        onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-black text-white">{dt.date}</span>
+                            <span className="text-[10px] font-bold flex items-center gap-1 mt-0.5" style={{ color: SILVER }}>
+                              <span className="material-symbols-outlined text-[11px]">schedule</span>{dt.time}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="font-black text-xl" style={{ color: accent }}>
+                              {fmtLocalCurrency(t.amount, t.currency)}
+                            </span>
+                            {t.currency !== 'BRL' && t.amountBRL && (
+                              <span className="text-[10px] font-bold" style={{ color: SILVER }}>
+                                ≈ {fmtBRL(t.amountBRL)}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>{installLabel}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4"><PaymentBadge method={t.paymentType} /></td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              {!isManual && <Flag currency={t.currency} />}
+                              {t.buyer.email && t.buyer.email !== '—'
+                                ? <NameBtn name={t.buyer.name} email={t.buyer.email} router={router} />
+                                : <span className="text-[15px] font-black text-white uppercase">{t.buyer.name}</span>}
+                            </div>
+                            {t.buyer.email && t.buyer.email !== '—' && (
+                              <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{t.buyer.email}</span>
+                            )}
+                            {t.notes && (
+                              <span className="text-[9px] italic mt-0.5" style={{ color: SILVER }}>{t.notes}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
+                            {t.product.name}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Page ───────────────────────────────────────────────────────────────────── */
 export default function FinanceiroOverviewPage() {
   const router = useRouter();
   const [data,       setData]       = useState<Data | null>(null);
@@ -270,117 +399,29 @@ export default function FinanceiroOverviewPage() {
               TAB: ÚLTIMAS ENTRADAS
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'entradas' && (
-            <div style={tabStyle(tab.accent)}>
-              {/* Title bar */}
-              <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${tab.accent}22` }}>
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${tab.accent}15`, border: `1px solid ${tab.accent}35` }}>
-                  <span className="material-symbols-outlined text-xl" style={{ color: tab.accent }}>payments</span>
-                </div>
-                <div>
-                  <p style={{ fontSize: '20px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>Últimas Entradas</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
-                    20 entradas mais recentes · Hotmart + Manuais
-                  </p>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: `${tab.accent}08` }}>
-                      <TH>Data / Hora</TH>
-                      <TH right>Faturamento</TH>
-                      <TH>Pagamento</TH>
-                      <TH>Cliente</TH>
-                      <TH>Produto</TH>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={5} accent={tab.accent} />) :
-                      (data?.recentTransactions || []).length === 0 ? (
-                        <tr><td colSpan={5} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
-                          Nenhuma transação encontrada.
-                        </td></tr>
-                      ) : data!.recentTransactions.map((t, idx) => {
-                        const dt = fmtDateTime(t.date);
-                        const isManual = t.source === 'manual';
-                        let installLabel = '', installStyle: React.CSSProperties = {};
-                        if (t.isSubscription) {
-                          installLabel = t.recurrencyNumber ? `Assinatura · Ciclo ${t.recurrencyNumber}` : 'Assinatura';
-                          installStyle = { background: 'rgba(56,189,248,0.12)', color: '#38bdf8' };
-                        } else if (t.installments > 1) {
-                          installLabel = t.recurrencyNumber
-                            ? `Parcela ${t.recurrencyNumber}/${t.installments}`
-                            : `${t.installments}× parcelado`;
-                          installStyle = { background: 'rgba(99,102,241,0.15)', color: '#818cf8' };
-                        } else {
-                          installLabel = 'À vista';
-                          installStyle = { background: 'rgba(34,197,94,0.08)', color: '#86efac' };
-                        }
-                        const rowBg = idx % 2 === 0 ? 'transparent' : `${tab.accent}05`;
-                        return (
-                          <tr key={t.transaction || idx}
-                            style={{ background: rowBg, borderBottom: `1px solid ${tab.accent}15` }}
-                            onMouseEnter={e => (e.currentTarget.style.background = `${tab.accent}0d`)}
-                            onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                            <td className="py-3 px-4">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-black text-white">{dt.date}</span>
-                                <span className="text-[10px] font-bold flex items-center gap-1 mt-0.5" style={{ color: SILVER }}>
-                                  <span className="material-symbols-outlined text-[11px]">schedule</span>{dt.time}
-                                </span>
-                                {isManual && (
-                                  <span className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase"
-                                    style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
-                                    <span className="material-symbols-outlined text-[9px]">edit_note</span>Manual
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex flex-col items-end gap-1">
-                                <span className="font-black text-xl" style={{ color: tab.accent }}>
-                                  {/* Main: always local currency – never raw 150000 shown as BRL */}
-                                  {fmtLocalCurrency(t.amount, t.currency)}
-                                </span>
-                                {t.currency !== 'BRL' && t.amountBRL && (
-                                  <span className="text-[10px] font-bold" style={{ color: SILVER }}>
-                                    ≈ {fmtBRL(t.amountBRL)}
-                                  </span>
-                                )}
-                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>{installLabel}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4"><PaymentBadge method={t.paymentType} /></td>
-                            <td className="py-3 px-4">
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                  <Flag currency={t.currency} />
-                                  {/* All entries: link to student profile if email is available */}
-                                  {t.buyer.email && t.buyer.email !== '—'
-                                    ? <NameBtn name={t.buyer.name} email={t.buyer.email} router={router} />
-                                    : <span className="text-[15px] font-black text-white uppercase">{t.buyer.name}</span>}
-                                </div>
-                                {t.buyer.email && t.buyer.email !== '—' && (
-                                  <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{t.buyer.email}</span>
-                                )}
-                                {isManual && t.notes && (
-                                  <span className="text-[9px] italic mt-0.5" style={{ color: SILVER }}>{t.notes}</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
-                                {t.product.name}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    }
-                  </tbody>
-                </table>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* ─ HOTMART table ────────────────────────────────── */}
+              <EntryTable
+                title="💳 Últimas Entradas Hotmart"
+                subtitle="20 mais recentes · ordenado por data de aprovação"
+                accent="#4ade80"
+                entries={data?.hotmartEntries || []}
+                loading={loading}
+                router={router}
+              />
+
+              {/* ─ PIX MANUAL table ────────────────────────────── */}
+              <EntryTable
+                title="✎️ Últimas Entradas PIX Manual"
+                subtitle="20 mais recentes · ordenado por última edição"
+                accent={GOLD}
+                entries={data?.manualEntries || []}
+                loading={loading}
+                router={router}
+                isManual
+              />
+
             </div>
           )}
 
