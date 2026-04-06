@@ -2093,6 +2093,35 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   );
 }
 
+// ── Field helper for EditStudentModal (must be at module scope — NOT inside render) ──
+function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder?: string; icon: string; onEnter?: () => void;
+}) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+        textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <span className="material-symbols-outlined" style={{
+          position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 15, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>{icon}</span>
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && onEnter?.()}
+          placeholder={placeholder || ''}
+          style={{
+            width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, fontSize: 13,
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+            color: 'white', outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Edit Student Modal ────────────────────────────────────────────────────────
 function EditStudentModal({ student, onClose, onSaved }: {
   student: {
@@ -2184,32 +2213,6 @@ function EditStudentModal({ student, onClose, onSaved }: {
     } finally { setSaving(false); }
   };
 
-  const Field = ({ label, value, onChange, placeholder, icon }: {
-    label: string; value: string; onChange: (v: string) => void;
-    placeholder?: string; icon: string;
-  }) => (
-    <div style={{ marginBottom: 16 }}>
-      <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
-        textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>{label}</label>
-      <div style={{ position: 'relative' }}>
-        <span className="material-symbols-outlined" style={{
-          position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
-          fontSize: 15, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>{icon}</span>
-        <input
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSave()}
-          placeholder={placeholder || ''}
-          style={{
-            width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, fontSize: 13,
-            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-            color: 'white', outline: 'none', boxSizing: 'border-box',
-          }}
-        />
-      </div>
-    </div>
-  );
-
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', alignItems: 'center',
       justifyContent: 'center', padding: 16 }}
@@ -2242,18 +2245,18 @@ function EditStudentModal({ student, onClose, onSaved }: {
         {/* Section: Dados Pessoais */}
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
           color: TEAL, marginBottom: 12 }}>Dados Pessoais</p>
-        <Field label="Nome" icon="person" value={name} onChange={setName} placeholder="Nome completo" />
-        <Field label="Telefone" icon="phone" value={phone} onChange={setPhone} placeholder="(11) 99999-9999" />
-        <Field label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum} placeholder="000.000.000-00" />
+        <EditField label="Nome" icon="person" value={name} onChange={setName} onEnter={handleSave} placeholder="Nome completo" />
+        <EditField label="Telefone" icon="phone" value={phone} onChange={setPhone} onEnter={handleSave} placeholder="(11) 99999-9999" />
+        <EditField label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum} onEnter={handleSave} placeholder="000.000.000-00" />
 
         {/* Section: Buyer Persona */}
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
           color: GOLD, marginBottom: 12, marginTop: 20 }}>Buyer Persona</p>
-        <Field label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} placeholder="Nome do vendedor" />
-        <Field label="Valor Total (R$)" icon="payments" value={bpValor} onChange={setBpValor} placeholder="Ex: 30000" />
-        <Field label="Tipo de Pagamento" icon="account_balance" value={bpPag} onChange={setBpPag} placeholder="Ex: PIX, Hotmart 12x" />
-        <Field label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} placeholder="Ex: 12x, 1x" />
-        <Field label="Valor da Parcela (R$)" icon="receipt" value={bpParcela} onChange={setBpParcela} placeholder="Ex: 2500" />
+        <EditField label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} onEnter={handleSave} placeholder="Nome do vendedor" />
+        <EditField label="Valor Total (R$)" icon="payments" value={bpValor} onChange={setBpValor} onEnter={handleSave} placeholder="Ex: 30000" />
+        <EditField label="Tipo de Pagamento" icon="account_balance" value={bpPag} onChange={setBpPag} onEnter={handleSave} placeholder="Ex: PIX, Hotmart 12x" />
+        <EditField label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} onEnter={handleSave} placeholder="Ex: 12x, 1x" />
+        <EditField label="Valor da Parcela (R$)" icon="receipt" value={bpParcela} onChange={setBpParcela} onEnter={handleSave} placeholder="Ex: 2500" />
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
             textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Em Dia</label>
@@ -2278,9 +2281,9 @@ function EditStudentModal({ student, onClose, onSaved }: {
 
 
         {/* Date fields */}
-        <Field label="1ª Parcela (AAAA-MM-DD)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} placeholder="Ex: 2024-03-15" />
-        <Field label="Último Pagamento (AAAA-MM-DD)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} placeholder="Ex: 2024-12-01" />
-        <Field label="Próximo Pagamento (AAAA-MM-DD)" icon="schedule" value={bpProximo} onChange={setBpProximo} placeholder="Ex: 2025-01-01" />
+        <EditField label="1ª Parcela (AAAA-MM-DD)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} onEnter={handleSave} placeholder="Ex: 2024-03-15" />
+        <EditField label="Último Pagamento (AAAA-MM-DD)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} onEnter={handleSave} placeholder="Ex: 2024-12-01" />
+        <EditField label="Próximo Pagamento (AAAA-MM-DD)" icon="schedule" value={bpProximo} onChange={setBpProximo} onEnter={handleSave} placeholder="Ex: 2025-01-01" />
 
         {/* ── Anexos ── */}
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
