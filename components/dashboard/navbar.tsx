@@ -71,12 +71,14 @@ export function Navbar() {
   const navItems = topNavItems.filter(i => i.roles.includes(userRole));
 
   // Role-based visibility flags
-  const showTrafego    = true; // all roles see Trafego
+  const showTrafego    = true;
   const showCursos     = userRole === 'TOTAL' || userRole === 'NORMAL';
+  const showAlunos     = userRole === 'TOTAL' || userRole === 'NORMAL';
   const showFinanceiro = userRole === 'TOTAL';
   const showAdmin      = userRole === 'TOTAL';
 
   const isCursosActive = pathname.startsWith('/cursos');
+  const isAlunosActive = pathname === '/alunos';
 
   const navStyle: React.CSSProperties = {
     background: 'linear-gradient(90deg, rgba(0,10,28,0.97) 0%, rgba(0,26,53,0.97) 100%)',
@@ -172,6 +174,22 @@ export function Navbar() {
               >
                 Cursos
                 {isCursosActive && (
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
+                    style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                )}
+              </Link>
+            )}
+
+            {/* ALUNOS link */}
+            {showAlunos && (
+              <Link href="/alunos"
+                className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-5"
+                style={{ color: isAlunosActive ? GOLD : SILVER, background: isAlunosActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
+                onMouseEnter={e => { if (!isAlunosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
+                onMouseLeave={e => { if (!isAlunosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
+              >
+                Alunos
+                {isAlunosActive && (
                   <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
                     style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
                 )}

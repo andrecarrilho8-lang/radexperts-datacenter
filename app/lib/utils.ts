@@ -40,10 +40,10 @@ export type Preset = { label: string; from: string; to: string };
 export const buildPresets = (): Preset[] => {
   const t = new Date();
   return [
-    { label: 'Hoje',        from: toYMD(t),                                               to: toYMD(t) },
-    { label: '7 dias',      from: toYMD(new Date(t.getTime() - 6  * 86400_000)),          to: toYMD(t) },
-    { label: '30 dias',     from: toYMD(new Date(t.getTime() - 29 * 86400_000)),          to: toYMD(t) },
-    { label: 'Este Mês',   from: toYMD(new Date(t.getFullYear(), t.getMonth(), 1)),       to: toYMD(t) }];
+    { label: 'Hoje',    from: toYMD(t),                                            to: toYMD(t) },
+    { label: '7 dias',  from: toYMD(new Date(t.getTime() - 6  * 86400_000)),       to: toYMD(t) },
+    { label: '30 dias', from: toYMD(new Date(t.getTime() - 29 * 86400_000)),       to: toYMD(t) },
+  ];
 };
 
 export type ObjTab = 'GERAL' | 'VENDAS' | 'LEADS' | 'OUTROS';
