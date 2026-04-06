@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import * as XLSX from 'xlsx';
@@ -38,6 +39,11 @@ function slugify(name: string): string {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-');
+}
+
+function emailToId(email: string): string {
+  return btoa((email || '').toLowerCase().trim())
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 // ── Export helpers ────────────────────────────────────────────────────────────
@@ -105,6 +111,7 @@ function generateXLS(students: any[]) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AlunosPage() {
+  const router = useRouter();
   const [students,    setStudents]    = useState<any[]>([]);
   const [total,       setTotal]       = useState(0);
   const [allCourses,  setAllCourses]  = useState<string[]>([]);
@@ -245,8 +252,8 @@ export default function AlunosPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      {['#', 'Entrada', 'Nome', 'Email', 'Curso', 'Origem', 'Valor'].map(h => (
-                        <th key={h} style={{ padding: '14px 18px', textAlign: h === '#' || h === 'Valor' ? 'center' : 'left', fontSize: 9, fontWeight: 900, letterSpacing: '0.14em', textTransform: 'uppercase', color: SILVER, whiteSpace: 'nowrap', background: 'rgba(0,0,0,0.2)' }}>
+                      {['#', 'Entrada', 'Nome', 'Email', 'Curso', 'Origem'].map(h => (
+                        <th key={h} style={{ padding: '14px 18px', textAlign: 'left', fontSize: 9, fontWeight: 900, letterSpacing: '0.14em', textTransform: 'uppercase', color: SILVER, whiteSpace: 'nowrap', background: 'rgba(0,0,0,0.2)' }}>
                           {h}
                         </th>
                       ))}
@@ -272,11 +279,17 @@ export default function AlunosPage() {
                       </tr>
                     ) : (
                       students.map((s, i) => {
-                        const globalIdx = page * PAGE_SIZE + i + 1;
-                        const rowBg = i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent';
+                        const globalIdx  = page * PAGE_SIZE + i + 1;
+                        const rowBg      = i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent';
                         const courseSlug = slugify(s.courseName);
+                        const studentId  = emailToId(s.email);
                         return (
-                          <tr key={`${s.email}_${s.courseName}_${i}`} style={{ background: rowBg, animation: 'fadeIn 0.2s ease' }}>
+                          <tr key={`${s.email}_${s.courseName}_${i}`}
+                            onClick={() => router.push(`/alunos/${studentId}`)}
+                            style={{ background: rowBg, animation: 'fadeIn 0.2s ease', cursor: 'pointer', transition: 'background 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.06)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = rowBg)}
+                          >
                             <td style={{ padding: '14px 18px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
                               {globalIdx.toLocaleString('pt-BR')}
                             </td>
@@ -302,9 +315,6 @@ export default function AlunosPage() {
                               }}>
                                 {s.source === 'manual' ? 'Manual' : 'Hotmart'}
                               </span>
-                            </td>
-                            <td style={{ padding: '14px 18px', textAlign: 'center', fontSize: 13, fontWeight: 900, color: GREEN, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
-                              {s.valor ? fmtMoney(s.valor, s.currency) : '—'}
                             </td>
                           </tr>
                         );
