@@ -350,16 +350,17 @@ export default function AlunosPage() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 24 }}>
                 <button onClick={() => setPage(0)}         disabled={page === 0}             style={pagBtn(page === 0)}>«</button>
                 <button onClick={() => setPage(p => p-1)} disabled={page === 0}             style={pagBtn(page === 0)}>‹</button>
-                {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-                  const half = Math.floor(Math.min(7, totalPages) / 2);
-                  let p = page - half + i;
-                  p = Math.max(0, Math.min(totalPages - 1, p));
-                  return (
+                {(() => {
+                  const winSize = Math.min(7, totalPages);
+                  let winStart = Math.max(0, page - Math.floor(winSize / 2));
+                  // Slide left if window overflows the end
+                  if (winStart + winSize > totalPages) winStart = Math.max(0, totalPages - winSize);
+                  return Array.from({ length: winSize }, (_, i) => winStart + i).map(p => (
                     <button key={p} onClick={() => setPage(p)} style={pagBtn(false, page === p)}>
                       {p + 1}
                     </button>
-                  );
-                })}
+                  ));
+                })()}
                 <button onClick={() => setPage(p => p+1)} disabled={page >= totalPages-1} style={pagBtn(page >= totalPages-1)}>›</button>
                 <button onClick={() => setPage(totalPages-1)} disabled={page >= totalPages-1} style={pagBtn(page >= totalPages-1)}>»</button>
                 <span style={{ fontSize: 10, fontWeight: 700, color: SILVER, marginLeft: 8 }}>
