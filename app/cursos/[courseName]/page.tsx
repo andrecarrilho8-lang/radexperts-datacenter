@@ -1928,9 +1928,9 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           {/* Row 2: telefone + data */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
             <div>
-              <label style={LABEL}>Telefone</label>
+              <label style={LABEL}>Telefone *</label>
               <input style={INPUT} placeholder="(11) 99999-9999" value={form.phone}
-                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} required />
             </div>
             <div>
               <label style={LABEL}>Data de Entrada *</label>
@@ -2037,19 +2037,19 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
             <div>
-              <label style={LABEL}>Vendedor</label>
+              <label style={LABEL}>Vendedor *</label>
               <input style={INPUT} placeholder="Ex: Samuel" value={form.bp_vendedor}
-                onChange={e => setForm(f => ({ ...f, bp_vendedor: e.target.value }))} />
+                onChange={e => setForm(f => ({ ...f, bp_vendedor: e.target.value }))} required />
             </div>
             <div>
-              <label style={LABEL}>Modelo</label>
+              <label style={LABEL}>Modelo *</label>
               <input style={INPUT} placeholder="1x / Recorrência" value={form.bp_modelo}
-                onChange={e => setForm(f => ({ ...f, bp_modelo: e.target.value }))} />
+                onChange={e => setForm(f => ({ ...f, bp_modelo: e.target.value }))} required />
             </div>
             <div>
-              <label style={LABEL}>Status</label>
+              <label style={LABEL}>Status *</label>
               <input style={INPUT} placeholder="SIM / QUITO / NÃO" value={form.bp_em_dia}
-                onChange={e => setForm(f => ({ ...f, bp_em_dia: e.target.value }))} />
+                onChange={e => setForm(f => ({ ...f, bp_em_dia: e.target.value }))} required />
             </div>
           </div>
 
