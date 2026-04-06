@@ -812,7 +812,7 @@ export function AnalisePage() {
   const isViewing = viewingSaved !== null;
 
   return (
-    <div className="max-w-[1600px] mx-auto px-6 py-10">
+    <div className="max-w-[1600px] mx-auto px-3 sm:px-6 py-4 sm:py-10">
       {!isViewing && (
         <div className="mb-8 no-print">
           <p className="text-[11px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: GOLD }}>Tráfego · Análise</p>

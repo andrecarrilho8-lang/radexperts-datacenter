@@ -179,16 +179,16 @@ export default function AlunosPage() {
           <Navbar />
           <div className="h-[80px]" />
 
-          <main className="px-6 max-w-[1600px] mx-auto pt-8 pb-24">
+          <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-8 pb-24">
 
             {/* ── PAGE HEADER ── */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 52, height: 52, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.28)', flexShrink: 0 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 28, color: GOLD }}>school</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.28)', flexShrink: 0 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 24, color: GOLD }}>school</span>
                 </div>
                 <div>
-                  <h1 style={{ fontSize: 32, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                  <h1 style={{ fontSize: 'clamp(22px, 5vw, 32px)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
                     Todos os <span style={{ color: GOLD }}>Alunos</span>
                   </h1>
                   <p style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.2em', textTransform: 'uppercase', color: SILVER, marginTop: 4 }}>
@@ -201,17 +201,17 @@ export default function AlunosPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => generatePDF(students)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 12, background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD, fontSize: 11, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 12, background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD, fontSize: 11, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>picture_as_pdf</span>
-                  PDF
+                  <span className="hidden sm:inline">PDF</span>
                 </button>
                 <button
                   onClick={() => generateXLS(students)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 12, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', color: SKY, fontSize: 11, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 12, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)', color: SKY, fontSize: 11, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>table_view</span>
-                  Planilha
+                  <span className="hidden sm:inline">Planilha</span>
                 </button>
               </div>
             </div>

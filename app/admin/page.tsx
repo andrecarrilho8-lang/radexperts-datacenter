@@ -80,7 +80,7 @@ function AdminPanel() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f3f3] pt-[100px] px-6 pb-20 max-w-[900px] mx-auto">
+    <div className="min-h-screen bg-[#f3f3f3] pt-[80px] sm:pt-[100px] px-3 sm:px-6 pb-20 max-w-[900px] mx-auto">
       <div className="flex items-center gap-4 mb-8">
         <Link href="/resumo" className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-900 shadow-sm transition-all">
           <span className="material-symbols-outlined text-xl">arrow_back</span>

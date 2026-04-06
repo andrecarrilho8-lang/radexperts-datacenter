@@ -111,7 +111,7 @@ export default function ResumoPage() {
           <Navbar />
           <div className="h-[80px]" />
 
-          <main className="px-6 max-w-[1600px] mx-auto pb-20">
+          <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pb-20">
 
             {/* Period bar */}
             <div className="p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between text-xs font-semibold mt-[30px] mb-5 gap-3"

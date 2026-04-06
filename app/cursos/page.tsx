@@ -65,7 +65,7 @@ export default function CursosPage() {
       <div style={{ minHeight: '100vh' }}>
         <Navbar />
         <div className="h-[80px]" />
-        <main className="px-6 max-w-[1400px] mx-auto pt-10 pb-24">
+        <main className="px-3 sm:px-6 max-w-[1400px] mx-auto pt-6 sm:pt-10 pb-24">
 
           {/* ── Header ─────────────────────────────────── */}
           <div className="mb-8">
@@ -121,7 +121,7 @@ export default function CursosPage() {
           </div>
 
           {/* ── Search ─────────────────────────────────── */}
-          <div className="relative mb-8 max-w-[480px]">
+          <div className="relative mb-8 w-full sm:max-w-[480px]">
             <span className="material-symbols-outlined text-[18px] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: SILVER }}>search</span>
             <input
               type="text"

@@ -190,7 +190,7 @@ export default function FinanceiroOverviewPage() {
       <div className="min-h-screen pb-24">
         <Navbar />
         <div className="h-[80px]" />
-        <main className="px-6 max-w-[1600px] mx-auto pt-10">
+        <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10">
 
           {/* ── Header ────────────────────────────────────────────────────── */}
           <div className="flex items-center gap-5 mb-8">

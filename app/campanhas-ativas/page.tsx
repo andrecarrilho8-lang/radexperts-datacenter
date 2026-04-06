@@ -312,7 +312,7 @@ export default function CampanhasAtivasPage() {
           <Navbar />
           <div className="h-[80px]" />
 
-          <main className="px-6 max-w-[1600px] mx-auto pt-8 pb-24">
+          <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-8 pb-24">
 
           {/* ── PAGE HEADER ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 32 }}>

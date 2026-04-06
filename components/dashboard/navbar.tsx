@@ -323,9 +323,11 @@ export function Navbar() {
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed top-[80px] left-0 w-full z-40 border-b shadow-2xl animate-in slide-in-from-top-2 duration-200"
+        <div className="fixed top-[80px] left-0 w-full z-40 border-b shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-y-auto max-h-[calc(100vh-80px)]"
           style={{ background: '#001a35', borderColor: 'rgba(232,177,79,0.15)' }}>
           <div className="flex flex-col divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+
+            {/* Top nav items (Resumo, Hotmart) */}
             {navItems.map(item => {
               const isActive = pathname.startsWith(item.href);
               return (
@@ -337,20 +339,52 @@ export function Navbar() {
                 </Link>
               );
             })}
-            <div style={{ background: 'rgba(0,0,0,0.2)' }}>
-              <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Tráfego</p>
-              {TRAFEGO_ITEMS.map(item => {
-                const isActive = pathname.startsWith(item.href);
-                return (
-                  <Link key={item.href} href={item.href}
-                    className="px-8 py-3 text-sm font-black uppercase tracking-widest flex items-center gap-3"
-                    style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
-                    <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
+
+            {/* CURSOS */}
+            {showCursos && (() => {
+              const isActive = pathname.startsWith('/cursos');
+              return (
+                <Link href="/cursos"
+                  className="px-6 py-4 text-sm font-black uppercase tracking-widest flex items-center justify-between"
+                  style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
+                  Cursos
+                  {isActive && <span className="material-symbols-outlined text-lg" style={{ color: GOLD }}>arrow_forward</span>}
+                </Link>
+              );
+            })()}
+
+            {/* ALUNOS */}
+            {showAlunos && (() => {
+              const isActive = pathname.startsWith('/alunos');
+              return (
+                <Link href="/alunos"
+                  className="px-6 py-4 text-sm font-black uppercase tracking-widest flex items-center justify-between"
+                  style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
+                  Alunos
+                  {isActive && <span className="material-symbols-outlined text-lg" style={{ color: GOLD }}>arrow_forward</span>}
+                </Link>
+              );
+            })()}
+
+            {/* TRÁFEGO section */}
+            {showTrafego && (
+              <div style={{ background: 'rgba(0,0,0,0.2)' }}>
+                <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Tráfego</p>
+                {TRAFEGO_ITEMS.map(item => {
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link key={item.href} href={item.href}
+                      className="px-8 py-3 text-sm font-black uppercase tracking-widest flex items-center gap-3"
+                      style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
+                      <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* FINANCEIRO section */}
             {showFinanceiro && (
               <div style={{ background: 'rgba(0,0,0,0.15)' }}>
                 <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Financeiro</p>
@@ -368,6 +402,8 @@ export function Navbar() {
               </div>
             )}
           </div>
+
+          {/* Date presets */}
           <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
             <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: SILVER }}>Período</p>
             <div className="flex flex-wrap gap-2">
@@ -383,6 +419,8 @@ export function Navbar() {
               ))}
             </div>
           </div>
+
+          {/* User / logout */}
           <div className="px-4 pb-4 border-t flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
             <span className="text-[10px] font-black flex items-center gap-2" style={{ color: '#22c55e' }}>
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />

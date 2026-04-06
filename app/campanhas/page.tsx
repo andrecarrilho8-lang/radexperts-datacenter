@@ -66,7 +66,7 @@ export default function CampanhasPage() {
       <div style={{ minHeight: '100vh' }}>
         <Navbar />
         <div className="h-[80px]" />
-        <main className="px-6 max-w-[1600px] mx-auto pt-10 pb-24">
+        <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10 pb-24">
 
           {/* Consolidated Summary */}
           {selectedIds.size > 0 && (() => {

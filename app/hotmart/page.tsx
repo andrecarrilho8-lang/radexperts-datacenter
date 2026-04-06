@@ -227,14 +227,14 @@ export default function HotmartPage() {
       <div className="min-h-screen pb-20">
         <Navbar />
         <div className="h-[80px]" />
-        <main className="px-6 max-w-[1600px] mx-auto pt-10">
+        <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-6 sm:pt-10">
 
           {/* Header */}
-          <div className="flex items-center gap-5 mb-8">
-            <img src="/hotmart-logo.png" alt="Hotmart" style={{ height: 40, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
-            <div className="w-px h-10" style={{ background: 'rgba(255,255,255,0.12)' }} />
+          <div className="flex flex-wrap items-center gap-4 mb-6 sm:mb-8">
+            <img src="/hotmart-logo.png" alt="Hotmart" style={{ height: 32, objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+            <div className="w-px h-8 hidden sm:block" style={{ background: 'rgba(255,255,255,0.12)' }} />
             <div>
-              <h2 className="font-headline font-black text-3xl text-white leading-none">Gestão de Vendas</h2>
+              <h2 className="font-headline font-black text-2xl sm:text-3xl text-white leading-none">Gestão de Vendas</h2>
               <p className="text-[11px] font-black uppercase tracking-widest mt-1" style={{ color: SILVER }}>
                 Período: {D(dateFrom)} → {D(dateTo)}
               </p>
@@ -253,7 +253,7 @@ export default function HotmartPage() {
                     <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Faturamento Líquido BRL</p>
                   </div>
                   <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: SILVER }}>receita líquida em reais · após hotmart + co-produtores</p>
-                  <p className="font-headline font-black text-5xl text-white tracking-tighter leading-none mb-1">
+                  <p className="font-headline font-black text-3xl sm:text-5xl text-white tracking-tighter leading-none mb-1">
                     {R(brlNetRevenue)}
                   </p>
                   {/* Info tooltip BRL — portal */}
@@ -440,7 +440,7 @@ export default function HotmartPage() {
           <div className="rounded-[28px] overflow-hidden mb-12" style={{ ...glossy, padding: 0 }}>
 
             {/* Toolbar: Título | Busca + Paginação + PDF */}
-            <div className="p-5 flex flex-wrap items-center justify-between gap-4" style={{ borderBottom: `1px solid ${cardBorder}` }}>
+            <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-3" style={{ borderBottom: `1px solid ${cardBorder}` }}>
               <div>
                 <p className="font-black text-white text-base">Vendas Recentes</p>
                 <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>

@@ -542,7 +542,7 @@ export default function VendasPorOrigemPage() {
         <Navbar />
         <div style={{ height: 80 }} />
 
-        <main style={{ padding: '40px 24px 96px', maxWidth: 1900, margin: '0 auto' }}>
+        <main style={{ padding: 'clamp(16px, 3vw, 40px) clamp(12px, 3vw, 24px) 96px', maxWidth: 1900, margin: '0 auto' }}>
 
           {/* ── Header ── */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>

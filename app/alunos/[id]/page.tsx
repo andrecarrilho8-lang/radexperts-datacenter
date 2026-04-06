@@ -275,7 +275,7 @@ export default function AlunoPage() {
       <div className="min-h-screen pb-24">
         <Navbar />
         <div className="h-[80px]" />
-        <main className="px-6 max-w-[1400px] mx-auto pt-10">
+        <main className="px-3 sm:px-6 max-w-[1400px] mx-auto pt-4 sm:pt-10">
 
           {/* Toolbar */}
           <div className="flex items-center justify-between mb-8 no-print">
