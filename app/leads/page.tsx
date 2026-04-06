@@ -118,20 +118,6 @@ function ContactRow({ c, rank, router }: { c: Contact; rank?: number; router: Re
         {c.phone || '—'}
       </td>
 
-      {/* Aluno */}
-      <td style={{ padding: '12px 16px', verticalAlign: 'top' }}>
-        {c.isAluno ? (
-          <button onClick={() => router.push(`/alunos/${emailToId(c.email)}`)}
-            style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.35)',
-              color: GREEN, fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', padding: '4px 10px',
-              borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            ✓ VER ALUNO
-          </button>
-        ) : (
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.18)', fontWeight: 600 }}>—</span>
-        )}
-      </td>
-
       {/* Tags */}
       <td style={{ padding: '10px 16px', maxWidth: 300, verticalAlign: 'top' }}>
         {c.tags.length > 0 ? (
@@ -282,7 +268,7 @@ function LeadsPage() {
     );
   }
 
-  const colCount = tab === 'melhores' ? 7 : 6;
+  const colCount = tab === 'melhores' ? 6 : 5;
 
   return (
     <div className="min-h-screen" style={{
@@ -427,7 +413,6 @@ function LeadsPage() {
                   {tab === 'melhores' && <TH center>#</TH>}
                   <TH>Contato</TH>
                   <TH>Telefone</TH>
-                  <TH>É Aluno?</TH>
                   <TH>Tags</TH>
                   <TH center>Nº Tags</TH>
                   <TH>Cadastro</TH>
