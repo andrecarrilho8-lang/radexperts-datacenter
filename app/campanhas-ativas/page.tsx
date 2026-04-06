@@ -28,9 +28,9 @@ const card: React.CSSProperties = {
 // ── Metric chip ──────────────────────────────────────────────────────────────
 function Chip({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 56 }}>
-      <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER }}>{label}</span>
-      <span style={{ fontSize: 14, fontWeight: 900, color: accent || '#fff', lineHeight: 1 }}>{value}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 64 }}>
+      <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER }}>{label}</span>
+      <span style={{ fontSize: 17, fontWeight: 900, color: accent || '#fff', lineHeight: 1 }}>{value}</span>
     </div>
   );
 }
@@ -46,47 +46,68 @@ function AdRow({ ad, objective, rank }: { ad: any; objective: string; rank: numb
 
   return (
     <div style={{
-      display: 'flex', gap: 12, alignItems: 'flex-start',
-      padding: '14px 0',
+      display: 'flex', gap: 14, alignItems: 'flex-start',
+      padding: '16px 0',
       borderBottom: '1px solid rgba(255,255,255,0.05)',
     }}>
       {/* Rank */}
       <div style={{
-        flexShrink: 0, width: 24, height: 24, borderRadius: 8,
+        flexShrink: 0, width: 28, height: 28, borderRadius: 9,
         background: rank <= 3 ? 'rgba(232,177,79,0.12)' : 'rgba(255,255,255,0.04)',
         border: `1px solid ${rank <= 3 ? 'rgba(232,177,79,0.3)' : 'rgba(255,255,255,0.08)'}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 10, fontWeight: 900, color: rank <= 3 ? GOLD : SILVER,
+        fontSize: 11, fontWeight: 900, color: rank <= 3 ? GOLD : SILVER,
       }}>{rank}</div>
 
-      {/* Thumbnail */}
-      <div style={{ flexShrink: 0, width: 56, height: 56, borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-        {ad.thumbnailUrl
-          ? <img src={ad.thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 20, color: SILVER }}>image</span>
-            </div>
-        }
+      {/* Thumbnail with hover tooltip */}
+      <div style={{ flexShrink: 0, position: 'relative', width: 80, height: 80 }}
+        onMouseEnter={e => {
+          const tip = e.currentTarget.querySelector<HTMLElement>('.thumb-tip');
+          if (tip) tip.style.display = 'block';
+        }}
+        onMouseLeave={e => {
+          const tip = e.currentTarget.querySelector<HTMLElement>('.thumb-tip');
+          if (tip) tip.style.display = 'none';
+        }}>
+        <div style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'zoom-in' }}>
+          {ad.thumbnailUrl
+            ? <img src={ad.thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 28, color: SILVER }}>image</span>
+              </div>
+          }
+        </div>
+        {/* Tooltip enlarged image */}
+        {ad.thumbnailUrl && (
+          <div className="thumb-tip" style={{
+            display: 'none', position: 'fixed', zIndex: 99999,
+            width: 280, height: 280, borderRadius: 16, overflow: 'hidden',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)',
+            transform: 'translate(90px, -100px)',
+          }}>
+            <img src={ad.thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+          </div>
+        )}
       </div>
 
       {/* Name + metrics */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 11, fontWeight: 800, color: '#fff', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.03em' }} title={ad.name}>
+        <p style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.03em' }} title={ad.name}>
           {ad.name}
         </p>
         <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 8 }}>
-          <Chip label="Gasto"   value={R(ad.spend || 0)}         accent="#fff" />
-          <Chip label="CTR"     value={P(ad.ctr || 0)}           accent={SKY} />
-          <Chip label="Connect" value={P(ad.connectRate || 0)}   accent={(ad.connectRate || 0) > 70 ? GREEN : (ad.connectRate || 0) < 50 ? '#ef4444' : SILVER} />
+          <Chip label="Gasto"   value={R(ad.spend || 0)}          accent="#fff" />
+          <Chip label="CTR"     value={P(ad.ctr || 0)}            accent={SKY} />
+          <Chip label="Connect" value={P(ad.connectRate || 0)}    accent={(ad.connectRate || 0) > 70 ? GREEN : (ad.connectRate || 0) < 50 ? '#ef4444' : SILVER} />
           {isVendas ? (<>
-            <Chip label="Checkout" value={P(checkR)}                accent={SILVER} />
-            <Chip label="Purchase" value={P(purchR)}                accent={SILVER} />
-            <Chip label="Vendas"   value={N(ad.purchases || 0)}    accent={GREEN} />
-            <Chip label="CPA"      value={cpa > 0 ? R(cpa) : '—'} accent="#ef4444" />
+            <Chip label="Checkout" value={P(checkR)}                 accent={SILVER} />
+            <Chip label="Purchase" value={P(purchR)}                 accent={SILVER} />
+            <Chip label="Vendas"   value={N(ad.purchases || 0)}     accent={GREEN} />
+            <Chip label="CPA"      value={cpa > 0 ? R(cpa) : '—'}  accent="#ef4444" />
           </>) : (<>
-            <Chip label="Leads"    value={N(ad.leads || 0)}        accent={GOLD} />
-            <Chip label="CPL"      value={cpl > 0 ? R(cpl) : '—'} accent={GOLD} />
-            <Chip label="Taxa"     value={P(leadCV)}               accent={SILVER} />
+            <Chip label="Leads"    value={N(ad.leads || 0)}         accent={GOLD} />
+            <Chip label="CPL"      value={cpl > 0 ? R(cpl) : '—'}  accent={GOLD} />
+            <Chip label="Taxa"     value={P(leadCV)}                accent={SILVER} />
           </>)}
         </div>
       </div>
@@ -156,7 +177,7 @@ function CampaignCard({ camp, dateFrom, dateTo }: { camp: any; dateFrom: string;
         </div>
 
         {/* Campaign name */}
-        <h3 style={{ fontSize: 14, fontWeight: 900, color: '#fff', lineHeight: 1.3, letterSpacing: '-0.01em', marginBottom: 14, textTransform: 'uppercase', cursor: 'pointer' }} onClick={toggle}>
+        <h3 style={{ fontSize: 20, fontWeight: 900, color: '#fff', lineHeight: 1.25, letterSpacing: '-0.01em', marginBottom: 14, textTransform: 'uppercase', cursor: 'pointer' }} onClick={toggle}>
           {camp.name}
         </h3>
 
@@ -294,27 +315,32 @@ export default function CampanhasAtivasPage() {
           </div>
 
           {/* ── KPI CARDS ── */}
-          {!data.fastLoading && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-              {[
-                { label: 'Total Investido',   value: R(totalSpend),        accent: GOLD,    icon: 'paid' },
-                { label: 'Campanhas Ativas',  value: N(allActive.length),  accent: GREEN,   icon: 'campaign' },
-                { label: 'Vendas Meta',       value: N(totalPurchases),    accent: GREEN,   icon: 'shopping_cart' },
-                { label: 'Leads Captados',    value: N(totalLeads),        accent: GOLD,    icon: 'person_add' },
-              ].map((k, i) => (
-                <div key={i} style={{ ...card, padding: '20px 22px' }}>
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 40%)', borderRadius: 24, pointerEvents: 'none' }} />
-                  <div style={{ position: 'relative', zIndex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: 16, color: k.accent }}>{k.icon}</span>
-                      <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: SILVER }}>{k.label}</span>
+          {!data.fastLoading && (() => {
+            const dayCount = Math.max(1, Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400_000) + 1);
+            const avgDaily = totalSpend / dayCount;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                {[
+                  { label: 'Total Investido',  value: R(totalSpend),       sub: `Média/dia: ${R(avgDaily)}`, accent: GOLD,  icon: 'paid' },
+                  { label: 'Campanhas Ativas', value: N(allActive.length), sub: null,                         accent: GREEN, icon: 'campaign' },
+                  { label: 'Vendas Meta',      value: N(totalPurchases),   sub: null,                         accent: GREEN, icon: 'shopping_cart' },
+                  { label: 'Leads Captados',   value: N(totalLeads),       sub: null,                         accent: GOLD,  icon: 'person_add' },
+                ].map((k, i) => (
+                  <div key={i} style={{ ...card, padding: '20px 22px' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 40%)', borderRadius: 24, pointerEvents: 'none' }} />
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: k.accent }}>{k.icon}</span>
+                        <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: SILVER }}>{k.label}</span>
+                      </div>
+                      <p style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, letterSpacing: '-0.02em', marginBottom: k.sub ? 6 : 0 }}>{k.value}</p>
+                      {k.sub && <p style={{ fontSize: 10, fontWeight: 700, color: SILVER, marginTop: 4 }}>{k.sub}</p>}
                     </div>
-                    <p style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1, letterSpacing: '-0.02em' }}>{k.value}</p>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
 
           {/* ── CONTROLS: TABS + SEARCH ── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
