@@ -303,14 +303,11 @@ export default function AlunosPage() {
                               {s.name || '—'}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: 11, fontWeight: 700, color: SKY, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
-                              <a href={`mailto:${s.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>{s.email}</a>
+                              {s.email}
                             </td>
                             {/* Phone */}
                             <td style={{ padding: '14px 18px', fontSize: 11, fontWeight: 700, color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
-                              {s.phone
-                                ? <a href={`tel:${s.phone}`} onClick={e => e.stopPropagation()} style={{ color: SILVER, textDecoration: 'none' }}>{s.phone}</a>
-                                : '—'
-                              }
+                              {s.phone || '—'}
                             </td>
                             {/* Courses as badges */}
                             <td style={{ padding: '10px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', maxWidth: 380 }}>
