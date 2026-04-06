@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { readUsers, writeUsers, hashPassword, parseToken, persistUsersToGitHub } from '@/app/lib/users';
+import { getUserById, deleteUserById, updateUserPassword, hashPassword, parseToken } from '@/app/lib/users';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function isAdmin(request: Request): boolean {
   const auth = request.headers.get('Authorization') || '';
@@ -12,16 +15,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!isAdmin(request)) return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 });
 
   const { id } = await params;
-  const users = readUsers();
-  const target = users.find(u => u.id === id);
+  const target = await getUserById(id);
 
   if (!target) return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 });
-  if (target.username === 'adv10x') return NextResponse.json({ error: 'Não é possível remover o admin principal.' }, { status: 400 });
+  if (target.username === 'andre') return NextResponse.json({ error: 'Não é possível remover o admin principal.' }, { status: 400 });
 
-  const updated = users.filter(u => u.id !== id);
-  writeUsers(updated);
-  await persistUsersToGitHub(updated);
-
+  await deleteUserById(id);
   return NextResponse.json({ success: true });
 }
 
@@ -32,13 +31,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { password } = await request.json();
   if (!password) return NextResponse.json({ error: 'Senha obrigatória.' }, { status: 400 });
 
-  const users = readUsers();
-  const idx = users.findIndex(u => u.id === id);
-  if (idx === -1) return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 });
+  const target = await getUserById(id);
+  if (!target) return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 });
 
-  users[idx].password = hashPassword(password);
-  writeUsers(users);
-  await persistUsersToGitHub(users);
-
+  await updateUserPassword(id, hashPassword(password));
   return NextResponse.json({ success: true });
 }

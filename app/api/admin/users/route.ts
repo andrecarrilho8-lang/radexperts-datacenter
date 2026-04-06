@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
-import { readUsers, writeUsers, hashPassword, parseToken, persistUsersToGitHub } from '@/app/lib/users';
+import { getUsers, createUser, hashPassword, parseToken } from '@/app/lib/users';
 import { randomUUID } from 'crypto';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 function isAdmin(request: Request): boolean {
   const auth = request.headers.get('Authorization') || '';
@@ -11,8 +14,10 @@ function isAdmin(request: Request): boolean {
 
 export async function GET(request: Request) {
   if (!isAdmin(request)) return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 });
-  const users = readUsers().map(({ password: _, ...u }) => u);
-  return NextResponse.json({ users });
+
+  const users = await getUsers();
+  const safe = users.map(({ password: _, ...u }) => u);
+  return NextResponse.json({ users: safe });
 }
 
 export async function POST(request: Request) {
@@ -23,24 +28,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Campos obrigatórios faltando.' }, { status: 400 });
   }
 
-  const users = readUsers();
-  if (users.find(u => u.username === username)) {
+  // Check for duplicate username
+  const existing = await getUsers();
+  if (existing.find(u => u.username === username)) {
     return NextResponse.json({ error: 'Usuário já existe.' }, { status: 409 });
   }
 
-  const newUser = {
-    id: randomUUID(),
-    username,
-    password: hashPassword(password),
-    name,
-    role: role as 'TOTAL' | 'NORMAL',
-    createdAt: new Date().toISOString(),
-  };
+  try {
+    const newUser = await createUser({
+      id:       randomUUID(),
+      username,
+      password: hashPassword(password),
+      name,
+      role: role as 'TOTAL' | 'NORMAL' | 'TRAFEGO' | 'COMERCIAL',
+    });
 
-  const updated = [...users, newUser];
-  writeUsers(updated);
-  await persistUsersToGitHub(updated); // permanent commit to GitHub
-
-  const { password: _, ...safe } = newUser;
-  return NextResponse.json({ user: safe });
+    const { password: _, ...safe } = newUser;
+    return NextResponse.json({ user: safe });
+  } catch (e: any) {
+    if (e.message?.includes('duplicate') || e.message?.includes('unique')) {
+      return NextResponse.json({ error: 'Usuário já existe.' }, { status: 409 });
+    }
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
