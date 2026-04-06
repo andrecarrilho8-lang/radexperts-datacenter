@@ -4,16 +4,16 @@ import { getCache, setCache } from '@/app/lib/metaApi';
 import { getDb } from '@/app/lib/db';
 
 const ACTIVE_STATUSES = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_KEY = 'all_students_v4'; // bumped: Hotmart name priority fix
+const CACHE_KEY = 'all_students_v5'; // bumped: added phone field
 const CACHE_TTL = 30 * 60 * 1000;   // 30 min
 
-// One record per unique email — courses aggregated as an array
 type StudentRow = {
   email:      string;
   name:       string;
-  courses:    string[];           // all courses this student is enrolled in
-  firstEntry: number | null;      // earliest enrollment date
-  lastEntry:  number | null;      // most recent enrollment date
+  phone:      string;               // best phone found across sources
+  courses:    string[];           
+  firstEntry: number | null;      
+  lastEntry:  number | null;      
   sources:    ('hotmart'|'manual')[];
 };
 
@@ -30,20 +30,38 @@ export async function GET(req: NextRequest) {
     let allStudents: StudentRow[] = hit?.expires_at > Date.now() ? hit.data : null;
 
     if (!allStudents) {
-      const [sales, manualRows] = await Promise.all([
+      const [sales, manualRows, profileRows] = await Promise.all([
         getCachedAllSales(),
         (async () => {
           try {
             const sql = getDb();
             return await sql`
               SELECT DISTINCT ON (email, course_name)
-                course_name, name, email, entry_date, payment_type, created_at
+                course_name, name, email, phone, entry_date, created_at
               FROM manual_students
               ORDER BY email, course_name, created_at DESC
             ` as any[];
           } catch { return []; }
         })(),
+        (async () => {
+          try {
+            const sql = getDb();
+            return await sql`
+              SELECT email, phone FROM buyer_profiles
+              WHERE phone IS NOT NULL AND phone <> ''
+            ` as any[];
+          } catch { return []; }
+        })(),
       ]);
+
+      // Phone lookup: manual_students phone first, buyer_profiles as fallback
+      const phoneMap = new Map<string, string>();
+      for (const r of profileRows) {
+        if (r.email && r.phone) phoneMap.set(r.email.toLowerCase(), r.phone);
+      }
+      for (const ms of manualRows) {
+        if (ms.email && ms.phone) phoneMap.set(ms.email.toLowerCase(), ms.phone); // manual overrides
+      }
 
       // ── Build per-email map ──
       // Process Hotmart FIRST so its names take priority.
@@ -64,6 +82,7 @@ export async function GET(req: NextRequest) {
           map.set(email, {
             email,
             name:       cleanName,
+            phone:      phoneMap.get(email) || '',
             courses:    courseName ? [courseName] : [],
             firstEntry: ts,
             lastEntry:  ts,

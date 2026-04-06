@@ -50,14 +50,16 @@ function emailToId(email: string): string {
 function generatePDF(students: any[]) {
   const rows = students.map((s, i) => {
     const bg = i % 2 === 0 ? '#f8faff' : '#fff';
+    const courses = (s.courses || []).join(' · ') || '—';
+    const sources = (s.sources || []).map((src: string) => src === 'manual' ? 'Manual' : 'Hotmart').join(' + ');
     return `<tr style="background:${bg}">
       <td style="color:#888;text-align:center">${i + 1}</td>
-      <td><strong>${s.name}</strong></td>
+      <td><strong>${s.name || '—'}</strong></td>
       <td style="font-size:11px;color:#374151">${s.email}</td>
-      <td>${s.courseName}</td>
-      <td>${fmtDate(s.entryDate)}</td>
-      <td style="color:#b45309;font-weight:700">${s.source === 'manual' ? 'Manual' : 'Hotmart'}</td>
-      <td>${fmtMoney(s.valor, s.currency)}</td>
+      <td style="font-size:10px;color:#374151">${s.phone || '—'}</td>
+      <td>${fmtDate(s.lastEntry)}</td>
+      <td style="font-size:10px">${courses}</td>
+      <td style="color:#b45309;font-weight:700">${sources}</td>
     </tr>`;
   }).join('');
 
@@ -78,7 +80,7 @@ function generatePDF(students: any[]) {
   <div class="meta">Gerado em ${new Date().toLocaleString('pt-BR')} · ${students.length} aluno(s)</div>
   <table>
     <thead><tr>
-      <th>#</th><th>Nome</th><th>Email</th><th>Curso</th><th>Entrada</th><th>Origem</th><th>Valor</th>
+      <th>#</th><th>Nome</th><th>Email</th><th>Telefone</th><th>Última Entrada</th><th>Cursos</th><th>Origem</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>
@@ -89,20 +91,20 @@ function generatePDF(students: any[]) {
 
 function generateXLS(students: any[]) {
   const wb = XLSX.utils.book_new();
-  const headers = ['#', 'NOME', 'EMAIL', 'CURSO', 'DATA ENTRADA', 'ORIGEM', 'VALOR', 'MOEDA'];
+  const headers = ['#', 'NOME', 'EMAIL', 'TELEFONE', 'ÚLTIMA ENTRADA', 'PRIMEIRA ENTRADA', 'CURSOS', 'ORIGEM'];
   const data = students.map((s, i) => [
     i + 1,
-    s.name,
+    s.name || '',
     s.email,
-    s.courseName,
-    s.entryDate ? new Date(Number(s.entryDate)).toLocaleDateString('pt-BR') : '',
-    s.source === 'manual' ? 'Manual' : 'Hotmart',
-    s.valor || 0,
-    s.currency || 'BRL',
+    s.phone || '',
+    s.lastEntry  ? new Date(Number(s.lastEntry)).toLocaleDateString('pt-BR')  : '',
+    s.firstEntry ? new Date(Number(s.firstEntry)).toLocaleDateString('pt-BR') : '',
+    (s.courses  || []).join(' | '),
+    (s.sources  || []).map((src: string) => src === 'manual' ? 'Manual' : 'Hotmart').join(' + '),
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
   ws['!cols'] = [
-    { wch: 4 }, { wch: 40 }, { wch: 36 }, { wch: 50 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 8 },
+    { wch: 4 }, { wch: 40 }, { wch: 36 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 60 }, { wch: 16 },
   ];
   ws['!freeze'] = { xSplit: 0, ySplit: 1 };
   XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
