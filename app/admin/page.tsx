@@ -9,7 +9,7 @@ interface UserRow {
   id: string;
   username: string;
   name: string;
-  role: 'TOTAL' | 'NORMAL';
+  role: 'TOTAL' | 'NORMAL' | 'TRAFEGO';
   createdAt: string;
 }
 
@@ -92,20 +92,27 @@ function AdminPanel() {
       </div>
 
       {/* Permissões info */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <span className="w-3 h-3 rounded-full bg-emerald-500" />
             <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Total</p>
           </div>
-          <p className="text-xs text-slate-500 font-bold">Meta Ads + Hotmart + Histórico + Admin</p>
+          <p className="text-xs text-slate-500 font-bold">Meta Ads + Hotmart + Cursos + Financeiro + Admin</p>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <span className="w-3 h-3 rounded-full bg-blue-500" />
             <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Normal</p>
           </div>
-          <p className="text-xs text-slate-500 font-bold">Meta Ads apenas (Resumo + Campanhas)</p>
+          <p className="text-xs text-slate-500 font-bold">Resumo + Tráfego + Cursos (sem Hotmart/Financeiro)</p>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="w-3 h-3 rounded-full bg-violet-500" />
+            <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Tráfego</p>
+          </div>
+          <p className="text-xs text-slate-500 font-bold">Somente área de Tráfego Pago (Campanhas + Análise + Histórico)</p>
         </div>
       </div>
 
@@ -135,8 +142,9 @@ function AdminPanel() {
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Permissão</label>
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm outline-none focus:border-violet-400 transition-all">
-              <option value="NORMAL">Acesso Normal (só Meta)</option>
-              <option value="TOTAL">Acesso Total (Meta + Hotmart)</option>
+              <option value="TRAFEGO">Acesso Tráfego (somente Tráfego Pago)</option>
+              <option value="NORMAL">Acesso Normal (Resumo + Tráfego + Cursos)</option>
+              <option value="TOTAL">Acesso Total (tudo)</option>
             </select>
           </div>
           <div className="col-span-2 flex items-center justify-between">
@@ -180,9 +188,11 @@ function AdminPanel() {
                       <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
                         u.role === 'TOTAL'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-blue-50 text-blue-700 border-blue-100'
+                          : u.role === 'TRAFEGO'
+                            ? 'bg-violet-50 text-violet-700 border-violet-200'
+                            : 'bg-blue-50 text-blue-700 border-blue-100'
                       }`}>
-                        {u.role === 'TOTAL' ? 'Total' : 'Normal'}
+                        {u.role === 'TOTAL' ? 'Total' : u.role === 'TRAFEGO' ? 'Tráfego' : 'Normal'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-400 font-bold">

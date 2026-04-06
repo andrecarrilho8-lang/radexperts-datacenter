@@ -10,7 +10,7 @@ const GH_OWNER = 'andrecarrilho8-lang';
 const GH_REPO  = 'radexperts-datacenter';
 const GH_PATH  = 'data/users.json';
 
-export type UserRole = 'TOTAL' | 'NORMAL';
+export type UserRole = 'TOTAL' | 'NORMAL' | 'TRAFEGO';
 
 export interface User {
   id: string;

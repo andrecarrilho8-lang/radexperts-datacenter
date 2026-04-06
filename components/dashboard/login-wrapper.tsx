@@ -1,20 +1,34 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useDashboard } from '@/app/lib/context';
 import { LoginScreen } from '@/components/ui/auth-and-cards';
 
+// Pages accessible to TRAFEGO role
+const TRAFEGO_ALLOWED = ['/campanhas', '/trafego', '/historico'];
+
 export function LoginWrapper({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, setIsAuthenticated, checkingAuth } = useDashboard();
+  const { isAuthenticated, setIsAuthenticated, checkingAuth, userRole } = useDashboard();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (checkingAuth || !isAuthenticated) return;
+    if (userRole === 'TRAFEGO') {
+      const allowed = TRAFEGO_ALLOWED.some(p => pathname.startsWith(p));
+      if (!allowed) {
+        router.replace('/campanhas');
+      }
+    }
+  }, [checkingAuth, isAuthenticated, userRole, pathname]);
 
   if (checkingAuth) return null;
   if (!isAuthenticated) {
     return (
       <LoginScreen
         onLogin={(token, role, name) => {
-          // Context reads token from localStorage on next render
           setIsAuthenticated(true);
-          // Force reload so context re-reads token
           window.location.reload();
         }}
       />

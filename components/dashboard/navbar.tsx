@@ -69,6 +69,12 @@ export function Navbar() {
 
   const navItems = topNavItems.filter(i => i.roles.includes(userRole));
 
+  // Role-based visibility flags
+  const showTrafego    = true; // all roles see Trafego
+  const showCursos     = userRole === 'TOTAL' || userRole === 'NORMAL';
+  const showFinanceiro = userRole === 'TOTAL';
+  const showAdmin      = userRole === 'TOTAL';
+
   const isCursosActive = pathname.startsWith('/cursos');
 
   const navStyle: React.CSSProperties = {
@@ -156,21 +162,23 @@ export function Navbar() {
             </div>
 
             {/* CURSOS link */}
-            <Link href="/cursos"
-              className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-5"
-              style={{ color: isCursosActive ? GOLD : SILVER, background: isCursosActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
-              onMouseEnter={e => { if (!isCursosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
-              onMouseLeave={e => { if (!isCursosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
-            >
-              Cursos
-              {isCursosActive && (
-                <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
-                  style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
-              )}
-            </Link>
+            {showCursos && (
+              <Link href="/cursos"
+                className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-5"
+                style={{ color: isCursosActive ? GOLD : SILVER, background: isCursosActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
+                onMouseEnter={e => { if (!isCursosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
+                onMouseLeave={e => { if (!isCursosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
+              >
+                Cursos
+                {isCursosActive && (
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
+                    style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                )}
+              </Link>
+            )}
 
             {/* FINANCEIRO dropdown (TOTAL only) */}
-            {userRole === 'TOTAL' && (
+            {showFinanceiro && (
               <div className="relative h-full flex items-center" ref={financeiroRef}>
                 <button
                   onMouseEnter={() => setFinanceiroOpen(true)}
@@ -271,7 +279,7 @@ export function Navbar() {
                 {userName || 'Usuário'}
               </span>
             </div>
-            {userRole === 'TOTAL' && (
+            {showAdmin && (
               <Link href="/admin" title="Gerenciar Usuários"
                 className="w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer border"
                 style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', color: SILVER }}>
@@ -324,7 +332,7 @@ export function Navbar() {
                 );
               })}
             </div>
-            {userRole === 'TOTAL' && (
+            {showFinanceiro && (
               <div style={{ background: 'rgba(0,0,0,0.15)' }}>
                 <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Financeiro</p>
                 {FINANCEIRO_ITEMS.map(item => {
@@ -362,7 +370,7 @@ export function Navbar() {
               {userName || 'Usuário'}
             </span>
             <div className="flex items-center gap-2">
-              {userRole === 'TOTAL' && (
+              {showAdmin && (
                 <Link href="/admin" className="w-10 h-10 rounded-full flex items-center justify-center border"
                   style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', color: SILVER }}>
                   <span className="material-symbols-outlined text-xl">manage_accounts</span>
