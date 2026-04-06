@@ -2093,6 +2093,67 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   );
 }
 
+// ── Date format helpers ──────────────────────────────────────────────────────
+// YYYY-MM-DD  →  DD/MM/AAAA  (for display inside the modal)
+function isoToDMY(iso: string): string {
+  if (!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // already in DD/MM/YYYY?
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(iso)) return iso;
+  return iso;
+}
+// DD/MM/AAAA  →  YYYY-MM-DD  (for the backend API)
+function dmyToISO(dmy: string): string {
+  const m = dmy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return dmy; // if incomplete, return as-is (backend will ignore)
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+// ── Date field with auto-mask DD/MM/AAAA ─────────────────────────────────────
+function EditDateField({ label, value, onChange, icon }: {
+  label: string; value: string; onChange: (v: string) => void; icon: string;
+}) {
+  const handleChange = (raw: string) => {
+    // Strip everything except digits
+    const digits = raw.replace(/\D/g, '');
+    // Rebuild: DD / MM / YYYY
+    let masked = '';
+    if (digits.length <= 2) {
+      masked = digits;
+    } else if (digits.length <= 4) {
+      masked = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    } else {
+      masked = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+    }
+    onChange(masked);
+  };
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+        textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <span className="material-symbols-outlined" style={{
+          position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 15, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>{icon}</span>
+        <input
+          value={value}
+          onChange={e => handleChange(e.target.value)}
+          maxLength={10}
+          placeholder="DD/MM/AAAA"
+          inputMode="numeric"
+          style={{
+            width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, fontSize: 13,
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+            color: 'white', outline: 'none', boxSizing: 'border-box',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Field helper for EditStudentModal (must be at module scope — NOT inside render) ──
 function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
   label: string; value: string; onChange: (v: string) => void;
@@ -2142,9 +2203,9 @@ function EditStudentModal({ student, onClose, onSaved }: {
   const [bpModelo,   setBpModelo]   = React.useState(student.bp_modelo  || '');
   const [bpParcela,  setBpParcela]  = React.useState(student.bp_parcela || '');
   const [bpEmDia,    setBpEmDia]    = React.useState(student.bp_em_dia  || '');
-  const [bpPrimeira, setBpPrimeira] = React.useState(student.bp_primeira_parcela || '');
-  const [bpUltimo,   setBpUltimo]   = React.useState(student.bp_ultimo_pagamento || '');
-  const [bpProximo,  setBpProximo]  = React.useState(student.bp_proximo_pagamento || '');
+  const [bpPrimeira, setBpPrimeira] = React.useState(isoToDMY(student.bp_primeira_parcela || ''));
+  const [bpUltimo,   setBpUltimo]   = React.useState(isoToDMY(student.bp_ultimo_pagamento  || ''));
+  const [bpProximo,  setBpProximo]  = React.useState(isoToDMY(student.bp_proximo_pagamento || ''));
   // attachments
   const [attachments,    setAttachments]    = React.useState<any[]>([]);
   const [uploading,      setUploading]      = React.useState(false);
@@ -2200,9 +2261,9 @@ function EditStudentModal({ student, onClose, onSaved }: {
           bp_modelo:    bpModelo.trim()  || null,
           bp_parcela:   bpParcela.trim() || null,
           bp_em_dia:    bpEmDia.trim()   || null,
-          bp_primeira_parcela:  bpPrimeira.trim() || null,
-          bp_ultimo_pagamento:  bpUltimo.trim()   || null,
-          bp_proximo_pagamento: bpProximo.trim()  || null,
+          bp_primeira_parcela:  dmyToISO(bpPrimeira.trim()) || null,
+          bp_ultimo_pagamento:  dmyToISO(bpUltimo.trim())   || null,
+          bp_proximo_pagamento: dmyToISO(bpProximo.trim())  || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
@@ -2281,9 +2342,9 @@ function EditStudentModal({ student, onClose, onSaved }: {
 
 
         {/* Date fields */}
-        <EditField label="1ª Parcela (AAAA-MM-DD)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} onEnter={handleSave} placeholder="Ex: 2024-03-15" />
-        <EditField label="Último Pagamento (AAAA-MM-DD)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} onEnter={handleSave} placeholder="Ex: 2024-12-01" />
-        <EditField label="Próximo Pagamento (AAAA-MM-DD)" icon="schedule" value={bpProximo} onChange={setBpProximo} onEnter={handleSave} placeholder="Ex: 2025-01-01" />
+        <EditDateField label="1ª Parcela (DD/MM/AAAA)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} />
+        <EditDateField label="Último Pagamento (DD/MM/AAAA)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} />
+        <EditDateField label="Próximo Pagamento (DD/MM/AAAA)" icon="schedule" value={bpProximo} onChange={setBpProximo} />
 
         {/* ── Anexos ── */}
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
