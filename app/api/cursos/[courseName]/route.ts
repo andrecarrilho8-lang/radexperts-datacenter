@@ -67,11 +67,11 @@ export async function GET(
 ) {
   const { courseName: rawParam } = await params;
   const { searchParams } = new URL(req.url);
-  const courseName = decodeURIComponent(rawParam);
-  const turma      = searchParams.get('turma') || '';
+  const decoded = decodeURIComponent(rawParam).trim();
+  const turma   = searchParams.get('turma') || '';
 
   // v10: offer-aware payment mode detection
-  const CACHE_KEY = `curso_v13_${courseName}`;
+  const CACHE_KEY = `curso_v13_${decoded}`;
   const hit = getCache(CACHE_KEY);
   if (hit?.expires_at > Date.now()) {
     const result = hit.data;
@@ -83,8 +83,33 @@ export async function GET(
   try {
     const sales = await getCachedAllSales();
 
+    // ── Resolve slug → real product name ──────────────────────────────────────
+    // Collect all unique product names from sales data
+    const allProductNames = Array.from(
+      new Set(sales.map((s: any) => (s.product?.name || '').trim()).filter(Boolean))
+    ) as string[];
+
+    // Helper: same slug logic as app/lib/slug.ts slugify()
+    function slugify(name: string): string {
+      return name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/-{2,}/g, '-');
+    }
+
+    // Try exact match first, then slug match
+    let courseName = decoded;
+    if (!allProductNames.includes(decoded)) {
+      const slugMatch = allProductNames.find(n => slugify(n) === slugify(decoded));
+      if (slugMatch) courseName = slugMatch;
+    }
+    // ── End resolution ────────────────────────────────────────────────────────
+
     const filtered = sales.filter((s: any) =>
-      ACTIVE_STATUSES.has(s.purchase?.status) && (s.product?.name || '') === courseName
+      ACTIVE_STATUSES.has(s.purchase?.status) && (s.product?.name || '').trim() === courseName
     );
 
     const turmasSet = new Set<string>();
