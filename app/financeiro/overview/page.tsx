@@ -356,11 +356,14 @@ export default function FinanceiroOverviewPage() {
                               <div className="flex flex-col">
                                 <div className="flex items-center gap-2">
                                   <Flag currency={t.currency} />
-                                  {isManual
-                                    ? <span className="text-[15px] font-black text-white uppercase">{t.buyer.name}</span>
-                                    : <NameBtn name={t.buyer.name} email={t.buyer.email} router={router} />}
+                                  {/* All entries: link to student profile if email is available */}
+                                  {t.buyer.email && t.buyer.email !== '—'
+                                    ? <NameBtn name={t.buyer.name} email={t.buyer.email} router={router} />
+                                    : <span className="text-[15px] font-black text-white uppercase">{t.buyer.name}</span>}
                                 </div>
-                                <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{t.buyer.email}</span>
+                                {t.buyer.email && t.buyer.email !== '—' && (
+                                  <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{t.buyer.email}</span>
+                                )}
                                 {isManual && t.notes && (
                                   <span className="text-[9px] italic mt-0.5" style={{ color: SILVER }}>{t.notes}</span>
                                 )}

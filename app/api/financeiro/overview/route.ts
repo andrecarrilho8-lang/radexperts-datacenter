@@ -99,6 +99,7 @@ export async function GET() {
         SELECT id, name, email, course_name, entry_date, payment_type,
                total_amount, installments, installment_amount, installment_dates, notes
         FROM manual_students
+        WHERE COALESCE(total_amount, 0) > 0
         ORDER BY entry_date DESC
         LIMIT 500
       ` as any[];
