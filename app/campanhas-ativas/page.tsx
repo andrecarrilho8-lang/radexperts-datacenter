@@ -28,9 +28,9 @@ const card: React.CSSProperties = {
 // ── Metric chip ──────────────────────────────────────────────────────────────
 function Chip({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 56 }}>
       <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 900, color: accent || '#fff', lineHeight: 1 }}>{value}</span>
+      <span style={{ fontSize: 14, fontWeight: 900, color: accent || '#fff', lineHeight: 1 }}>{value}</span>
     </div>
   );
 }
@@ -74,19 +74,19 @@ function AdRow({ ad, objective, rank }: { ad: any; objective: string; rank: numb
         <p style={{ fontSize: 11, fontWeight: 800, color: '#fff', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.03em' }} title={ad.name}>
           {ad.name}
         </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
+        <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 8 }}>
           <Chip label="Gasto"   value={R(ad.spend || 0)}         accent="#fff" />
           <Chip label="CTR"     value={P(ad.ctr || 0)}           accent={SKY} />
           <Chip label="Connect" value={P(ad.connectRate || 0)}   accent={(ad.connectRate || 0) > 70 ? GREEN : (ad.connectRate || 0) < 50 ? '#ef4444' : SILVER} />
           {isVendas ? (<>
-            <Chip label="Checkout" value={P(checkR)}      accent={SILVER} />
-            <Chip label="Purchase" value={P(purchR)}      accent={SILVER} />
-            <Chip label="Vendas"   value={N(ad.purchases || 0)} accent={GREEN} />
+            <Chip label="Checkout" value={P(checkR)}                accent={SILVER} />
+            <Chip label="Purchase" value={P(purchR)}                accent={SILVER} />
+            <Chip label="Vendas"   value={N(ad.purchases || 0)}    accent={GREEN} />
             <Chip label="CPA"      value={cpa > 0 ? R(cpa) : '—'} accent="#ef4444" />
           </>) : (<>
-            <Chip label="Leads"    value={N(ad.leads || 0)}      accent={GOLD} />
+            <Chip label="Leads"    value={N(ad.leads || 0)}        accent={GOLD} />
             <Chip label="CPL"      value={cpl > 0 ? R(cpl) : '—'} accent={GOLD} />
-            <Chip label="Taxa"     value={P(leadCV)}             accent={SILVER} />
+            <Chip label="Taxa"     value={P(leadCV)}               accent={SILVER} />
           </>)}
         </div>
       </div>
@@ -161,17 +161,17 @@ function CampaignCard({ camp, dateFrom, dateTo }: { camp: any; dateFrom: string;
         </h3>
 
         {/* Metrics row */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 8, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
           <Chip label="Gasto"   value={R(camp.spend || 0)}         accent="#fff" />
           <Chip label="CTR"     value={P(camp.ctr || 0)}           accent={SKY} />
           <Chip label="Connect" value={P(camp.connectRate || 0)}   accent={(camp.connectRate || 0) > 70 ? GREEN : (camp.connectRate || 0) < 50 ? '#ef4444' : SILVER} />
           {isVendas ? (<>
-            <Chip label="Checkout" value={P(checkR)}                accent={SILVER} />
-            <Chip label="Vendas"   value={N(camp.purchases || 0)}   accent={GREEN} />
-            <Chip label="CPA"      value={cpa > 0 ? R(cpa) : '—'}  accent="#ef4444" />
+            <Chip label="Checkout" value={P(checkR)}                 accent={SILVER} />
+            <Chip label="Vendas"   value={N(camp.purchases || 0)}    accent={GREEN} />
+            <Chip label="CPA"      value={cpa > 0 ? R(cpa) : '—'}   accent="#ef4444" />
           </>) : (<>
-            <Chip label="Leads"    value={N(camp.leads || 0)}       accent={GOLD} />
-            <Chip label="CPL"      value={cpl > 0 ? R(cpl) : '—'}  accent={GOLD} />
+            <Chip label="Leads"    value={N(camp.leads || 0)}        accent={GOLD} />
+            <Chip label="CPL"      value={cpl > 0 ? R(cpl) : '—'}   accent={GOLD} />
           </>)}
           <Chip label="Criada" value={camp.createdTime ? D(camp.createdTime) : '—'} />
         </div>
