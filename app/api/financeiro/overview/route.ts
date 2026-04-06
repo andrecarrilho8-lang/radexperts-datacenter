@@ -3,6 +3,7 @@ import https from 'https';
 import { getHotmartToken } from '@/app/lib/hotmartApi';
 import { getCachedAllSales } from '@/app/lib/salesCache';
 import { getAllRates, getConvertedValue } from '@/app/lib/currency';
+import { getDb, ensureSchema } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -67,12 +68,12 @@ export async function GET() {
     const nowMs    = Date.now();
     const approved = allSales.filter((s: any) => APPROVED_STATUS.has(s.purchase?.status));
 
-    /* ── 1. Recent Transactions — last 10 ───────────────────────────────── */
+    /* ── 1. Recent Transactions — Hotmart top 20 ───────────────────────── */
     const sortedAll = [...approved].sort((a: any, b: any) =>
       new Date(b.purchase?.approved_date || b.purchase?.order_date || 0).getTime() -
       new Date(a.purchase?.approved_date || a.purchase?.order_date || 0).getTime()
     );
-    const recentRaw = sortedAll.slice(0, 10).map((s: any) => ({
+    const recentRaw = sortedAll.slice(0, 40).map((s: any) => ({
       transaction:      s.purchase?.transaction,
       date:             s.purchase?.approved_date || s.purchase?.order_date,
       buyer:            { name: s.buyer?.name || '—', email: s.buyer?.email || '—' },
@@ -86,7 +87,93 @@ export async function GET() {
                         (s.purchase?.offer?.payment_mode || '').toUpperCase() === 'SUBSCRIPTION',
       installments:     s.purchase?.payment?.installments_number || 1,
       recurrencyNumber: s.purchase?.recurrency_number || null,
+      source:           'hotmart' as const,
     }));
+
+    /* ── 1b. Manual entries (paid installments / PIX) ──────────────────── */
+    const manualEntries: any[] = [];
+    try {
+      await ensureSchema();
+      const db = getDb();
+      const manualRows = await db`
+        SELECT id, name, email, course_name, entry_date, payment_type,
+               total_amount, installments, installment_amount, installment_dates, notes
+        FROM manual_students
+        ORDER BY entry_date DESC
+        LIMIT 500
+      ` as any[];
+
+      for (const row of manualRows) {
+        const name       = (row.name || '—').toUpperCase();
+        const email      = (row.email || '').toLowerCase().trim();
+        const product    = row.course_name || '—';
+        const ptype      = (row.payment_type || 'PIX').toUpperCase();
+        const instAmt    = Number(row.installment_amount) || Number(row.total_amount) || 0;
+        const installments = Number(row.installments) || 1;
+
+        // Build installment_dates array from JSON
+        let instDates: { due_ms: number; paid: boolean; paid_ms: number | null }[] = [];
+        try {
+          const raw = typeof row.installment_dates === 'string'
+            ? JSON.parse(row.installment_dates)
+            : (row.installment_dates || []);
+          if (Array.isArray(raw)) instDates = raw;
+        } catch { /* ignore */ }
+
+        if (installments === 1 || instDates.length === 0) {
+          // PIX / single payment — one entry at entry_date
+          const ts = Number(row.entry_date);
+          if (ts > 0) {
+            manualEntries.push({
+              transaction:      `manual-${row.id}`,
+              date:             new Date(ts).toISOString(),
+              buyer:            { name, email },
+              product:          { name: product },
+              amount:           Number(row.total_amount) || 0,
+              currency:         'BRL',
+              amountBRL:        null,
+              paymentType:      ptype,
+              status:           'APPROVED',
+              isSubscription:   false,
+              installments:     1,
+              recurrencyNumber: null,
+              source:           'manual' as const,
+              notes:            row.notes || '',
+            });
+          }
+        } else {
+          // Credit card with installments — one entry per PAID installment
+          instDates.forEach((inst, idx) => {
+            if (!inst.paid) return;
+            const ts = Number(inst.paid_ms) || Number(row.entry_date);
+            if (ts <= 0) return;
+            manualEntries.push({
+              transaction:      `manual-${row.id}-inst${idx + 1}`,
+              date:             new Date(ts).toISOString(),
+              buyer:            { name, email },
+              product:          { name: product },
+              amount:           instAmt,
+              currency:         'BRL',
+              amountBRL:        null,
+              paymentType:      ptype,
+              status:           'APPROVED',
+              isSubscription:   false,
+              installments,
+              recurrencyNumber: idx + 1,
+              source:           'manual' as const,
+              notes:            row.notes || '',
+            });
+          });
+        }
+      }
+    } catch (e: any) {
+      console.warn('[financeiro] manual_students fetch failed:', e.message);
+    }
+
+    /* ── 1c. Merge Hotmart + Manual, sort by date desc, take 20 ────────── */
+    const allEntries = [...recentRaw, ...manualEntries].sort((a, b) =>
+      new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()
+    );
 
     /* ── 2. Inadimplentes — sales-based, deduplicated by email×product ─── */
     type AggKey = string;
@@ -156,12 +243,12 @@ export async function GET() {
 
     // Collect all LATAM currencies for batch rate fetch
     const allCurrencies = new Set<string>();
-    recentRaw.forEach(t => { if (t.currency !== 'BRL' && !t.amountBRL) allCurrencies.add(t.currency); });
+    allEntries.forEach((t: any) => { if (t.currency !== 'BRL' && !t.amountBRL) allCurrencies.add(t.currency); });
     subMap.forEach(e => { if (e.currency !== 'BRL') allCurrencies.add(e.currency); });
     if (allCurrencies.size > 0) await getAllRates(Array.from(allCurrencies));
 
-    // Enrich recent transactions with BRL conversion if missing
-    const recentTransactions = recentRaw.map(t => ({
+    // Enrich with BRL conversion if missing
+    const recentTransactions = allEntries.slice(0, 20).map((t: any) => ({
       ...t,
       amountBRL: t.amountBRL ?? (t.currency !== 'BRL' ? getConvertedValue(t.amount, t.currency) : null),
     }));

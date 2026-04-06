@@ -134,6 +134,8 @@ type Transaction = {
   amount: number; currency: string; amountBRL: number | null;
   paymentType: string; status: string;
   isSubscription: boolean; installments: number; recurrencyNumber: number | null;
+  source?: 'hotmart' | 'manual';
+  notes?: string;
 };
 type Upcoming = {
   subscriberCode: string;
@@ -278,7 +280,7 @@ export default function FinanceiroOverviewPage() {
                 <div>
                   <p style={{ fontSize: '20px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>Últimas Entradas</p>
                   <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
-                    10 transações aprovadas mais recentes · todos os tempos
+                    20 entradas mais recentes · Hotmart + Manuais
                   </p>
                 </div>
               </div>
@@ -301,12 +303,15 @@ export default function FinanceiroOverviewPage() {
                         </td></tr>
                       ) : data!.recentTransactions.map((t, idx) => {
                         const dt = fmtDateTime(t.date);
+                        const isManual = t.source === 'manual';
                         let installLabel = '', installStyle: React.CSSProperties = {};
                         if (t.isSubscription) {
                           installLabel = t.recurrencyNumber ? `Assinatura · Ciclo ${t.recurrencyNumber}` : 'Assinatura';
                           installStyle = { background: 'rgba(56,189,248,0.12)', color: '#38bdf8' };
                         } else if (t.installments > 1) {
-                          installLabel = `${t.installments}× parcelado`;
+                          installLabel = t.recurrencyNumber
+                            ? `Parcela ${t.recurrencyNumber}/${t.installments}`
+                            : `${t.installments}× parcelado`;
                           installStyle = { background: 'rgba(99,102,241,0.15)', color: '#818cf8' };
                         } else {
                           installLabel = 'À vista';
@@ -324,6 +329,12 @@ export default function FinanceiroOverviewPage() {
                                 <span className="text-[10px] font-bold flex items-center gap-1 mt-0.5" style={{ color: SILVER }}>
                                   <span className="material-symbols-outlined text-[11px]">schedule</span>{dt.time}
                                 </span>
+                                {isManual && (
+                                  <span className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase"
+                                    style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)' }}>
+                                    <span className="material-symbols-outlined text-[9px]">edit_note</span>Manual
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="py-3 px-4 text-right">
@@ -345,9 +356,14 @@ export default function FinanceiroOverviewPage() {
                               <div className="flex flex-col">
                                 <div className="flex items-center gap-2">
                                   <Flag currency={t.currency} />
-                                  <NameBtn name={t.buyer.name} email={t.buyer.email} router={router} />
+                                  {isManual
+                                    ? <span className="text-[15px] font-black text-white uppercase">{t.buyer.name}</span>
+                                    : <NameBtn name={t.buyer.name} email={t.buyer.email} router={router} />}
                                 </div>
                                 <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{t.buyer.email}</span>
+                                {isManual && t.notes && (
+                                  <span className="text-[9px] italic mt-0.5" style={{ color: SILVER }}>{t.notes}</span>
+                                )}
                               </div>
                             </td>
                             <td className="py-3 px-4">
