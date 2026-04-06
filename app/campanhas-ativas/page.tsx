@@ -35,82 +35,108 @@ function Chip({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-// ── Single Ad Row inside accordion ──────────────────────────────────────────
-function AdRow({ ad, objective, rank }: { ad: any; objective: string; rank: number }) {
+// ── Ads table inside accordion ───────────────────────────────────────────────
+const TD: React.CSSProperties = {
+  padding: '14px 16px 14px 0', verticalAlign: 'middle',
+  borderBottom: '1px solid rgba(255,255,255,0.05)',
+  fontSize: 16, fontWeight: 900, color: '#fff',
+  whiteSpace: 'nowrap',
+};
+const TH: React.CSSProperties = {
+  padding: '0 16px 10px 0', verticalAlign: 'bottom',
+  fontSize: 9, fontWeight: 900, letterSpacing: '0.13em',
+  textTransform: 'uppercase', color: SILVER, whiteSpace: 'nowrap',
+};
+
+function AdsTable({ ads, objective }: { ads: any[]; objective: string }) {
   const isVendas = objective === 'VENDAS';
-  const checkR   = ad.checkoutRate ?? (ad.landingPageViews > 0 ? (ad.checkouts / ad.landingPageViews * 100) : 0);
-  const purchR   = ad.checkouts > 0 ? (ad.purchases / ad.checkouts * 100) : 0;
-  const leadCV   = ad.landingPageViews > 0 ? (ad.leads / ad.landingPageViews * 100) : 0;
-  const cpa      = ad.spend > 0 && (ad.purchases || 0) > 0 ? ad.spend / ad.purchases : 0;
-  const cpl      = ad.spend > 0 && (ad.leads || 0) > 0    ? ad.spend / ad.leads    : 0;
-
   return (
-    <div style={{
-      display: 'flex', gap: 14, alignItems: 'flex-start',
-      padding: '16px 0',
-      borderBottom: '1px solid rgba(255,255,255,0.05)',
-    }}>
-      {/* Rank */}
-      <div style={{
-        flexShrink: 0, width: 28, height: 28, borderRadius: 9,
-        background: rank <= 3 ? 'rgba(232,177,79,0.12)' : 'rgba(255,255,255,0.04)',
-        border: `1px solid ${rank <= 3 ? 'rgba(232,177,79,0.3)' : 'rgba(255,255,255,0.08)'}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 900, color: rank <= 3 ? GOLD : SILVER,
-      }}>{rank}</div>
-
-      {/* Thumbnail with hover tooltip */}
-      <div style={{ flexShrink: 0, position: 'relative', width: 80, height: 80 }}
-        onMouseEnter={e => {
-          const tip = e.currentTarget.querySelector<HTMLElement>('.thumb-tip');
-          if (tip) tip.style.display = 'block';
-        }}
-        onMouseLeave={e => {
-          const tip = e.currentTarget.querySelector<HTMLElement>('.thumb-tip');
-          if (tip) tip.style.display = 'none';
-        }}>
-        <div style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'zoom-in' }}>
-          {ad.thumbnailUrl
-            ? <img src={ad.thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 28, color: SILVER }}>image</span>
-              </div>
-          }
-        </div>
-        {/* Tooltip enlarged image */}
-        {ad.thumbnailUrl && (
-          <div className="thumb-tip" style={{
-            display: 'none', position: 'fixed', zIndex: 99999,
-            width: 280, height: 280, borderRadius: 16, overflow: 'hidden',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)',
-            transform: 'translate(90px, -100px)',
-          }}>
-            <img src={ad.thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-          </div>
-        )}
-      </div>
-
-      {/* Name + metrics */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 800, color: '#fff', marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.03em' }} title={ad.name}>
-          {ad.name}
-        </p>
-        <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', gap: 8 }}>
-          <Chip label="Gasto"   value={R(ad.spend || 0)}          accent="#fff" />
-          <Chip label="CTR"     value={P(ad.ctr || 0)}            accent={SKY} />
-          <Chip label="Connect" value={P(ad.connectRate || 0)}    accent={(ad.connectRate || 0) > 70 ? GREEN : (ad.connectRate || 0) < 50 ? '#ef4444' : SILVER} />
-          {isVendas ? (<>
-            <Chip label="Checkout" value={P(checkR)}                 accent={SILVER} />
-            <Chip label="Purchase" value={P(purchR)}                 accent={SILVER} />
-            <Chip label="Vendas"   value={N(ad.purchases || 0)}     accent={GREEN} />
-            <Chip label="CPA"      value={cpa > 0 ? R(cpa) : '—'}  accent="#ef4444" />
-          </>) : (<>
-            <Chip label="Leads"    value={N(ad.leads || 0)}         accent={GOLD} />
-            <Chip label="CPL"      value={cpl > 0 ? R(cpl) : '—'}  accent={GOLD} />
-            <Chip label="Taxa"     value={P(leadCV)}                accent={SILVER} />
-          </>)}
-        </div>
-      </div>
+    <div style={{ overflowX: 'auto', width: '100%' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+            <th style={{ ...TH, width: 28 }}>#</th>
+            <th style={{ ...TH, width: 80 }}></th>
+            <th style={{ ...TH, minWidth: 200, textAlign: 'left' }}>Anúncio</th>
+            <th style={{ ...TH, textAlign: 'right' }}>Gasto</th>
+            <th style={{ ...TH, textAlign: 'right' }}>CTR</th>
+            <th style={{ ...TH, textAlign: 'right' }}>Connect</th>
+            {isVendas ? (<>
+              <th style={{ ...TH, textAlign: 'right' }}>Checkout</th>
+              <th style={{ ...TH, textAlign: 'right' }}>Purchase</th>
+              <th style={{ ...TH, textAlign: 'right' }}>Vendas</th>
+              <th style={{ ...TH, textAlign: 'right' }}>CPA</th>
+            </>) : (<>
+              <th style={{ ...TH, textAlign: 'right' }}>Leads</th>
+              <th style={{ ...TH, textAlign: 'right' }}>CPL</th>
+              <th style={{ ...TH, textAlign: 'right' }}>Taxa Conv.</th>
+            </>)}
+          </tr>
+        </thead>
+        <tbody>
+          {ads.slice(0, 10).map((ad, i) => {
+            const rank    = i + 1;
+            const checkR  = ad.checkoutRate ?? (ad.landingPageViews > 0 ? (ad.checkouts / ad.landingPageViews * 100) : 0);
+            const purchR  = ad.checkouts > 0 ? (ad.purchases / ad.checkouts * 100) : 0;
+            const leadCV  = ad.landingPageViews > 0 ? (ad.leads / ad.landingPageViews * 100) : 0;
+            const cpa     = ad.spend > 0 && (ad.purchases || 0) > 0 ? ad.spend / ad.purchases : 0;
+            const cpl     = ad.spend > 0 && (ad.leads || 0) > 0    ? ad.spend / ad.leads    : 0;
+            const connClr = (ad.connectRate || 0) > 70 ? GREEN : (ad.connectRate || 0) < 50 ? '#ef4444' : SILVER;
+            return (
+              <tr key={ad.id || i}>
+                {/* Rank */}
+                <td style={{ ...TD, paddingLeft: 0 }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: rank <= 3 ? 'rgba(232,177,79,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${rank <= 3 ? 'rgba(232,177,79,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                    fontSize: 11, fontWeight: 900, color: rank <= 3 ? GOLD : SILVER,
+                  }}>{rank}</div>
+                </td>
+                {/* Thumb */}
+                <td style={{ ...TD }}>
+                  <div style={{ position: 'relative', width: 80, height: 80, display: 'inline-block' }}
+                    onMouseEnter={e => { const t = e.currentTarget.querySelector<HTMLElement>('.thumb-tip'); if (t) t.style.display = 'block'; }}
+                    onMouseLeave={e => { const t = e.currentTarget.querySelector<HTMLElement>('.thumb-tip'); if (t) t.style.display = 'none'; }}>
+                    <div style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', cursor: 'zoom-in' }}>
+                      {ad.thumbnailUrl
+                        ? <img src={ad.thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: 28, color: SILVER }}>image</span>
+                          </div>}
+                    </div>
+                    {ad.thumbnailUrl && (
+                      <div className="thumb-tip" style={{ display: 'none', position: 'fixed', zIndex: 99999, width: 280, height: 280, borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.85)', border: '1px solid rgba(255,255,255,0.15)', transform: 'translate(90px,-100px)' }}>
+                        <img src={ad.thumbnailUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                      </div>
+                    )}
+                  </div>
+                </td>
+                {/* Name */}
+                <td style={{ ...TD, maxWidth: 260 }}>
+                  <p style={{ fontSize: 12, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.03em', maxWidth: 260 }} title={ad.name}>{ad.name}</p>
+                </td>
+                {/* Gasto */}
+                <td style={{ ...TD, textAlign: 'right', color: '#fff' }}>{R(ad.spend || 0)}</td>
+                {/* CTR */}
+                <td style={{ ...TD, textAlign: 'right', color: SKY }}>{P(ad.ctr || 0)}</td>
+                {/* Connect */}
+                <td style={{ ...TD, textAlign: 'right', color: connClr }}>{P(ad.connectRate || 0)}</td>
+                {isVendas ? (<>
+                  <td style={{ ...TD, textAlign: 'right', color: SILVER }}>{P(checkR)}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: SILVER }}>{P(purchR)}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: GREEN }}>{N(ad.purchases || 0)}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: '#ef4444' }}>{cpa > 0 ? R(cpa) : '—'}</td>
+                </>) : (<>
+                  <td style={{ ...TD, textAlign: 'right', color: GOLD }}>{N(ad.leads || 0)}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: GOLD }}>{cpl > 0 ? R(cpl) : '—'}</td>
+                  <td style={{ ...TD, textAlign: 'right', color: SILVER }}>{P(leadCV)}</td>
+                </>)}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -225,11 +251,7 @@ function CampaignCard({ camp, dateFrom, dateTo }: { camp: any; dateFrom: string;
                 Nenhum anúncio encontrado no período.
               </div>
             ) : (
-              <div>
-                {ads.slice(0, 8).map((ad, i) => (
-                  <AdRow key={ad.id || i} ad={ad} objective={camp.objective} rank={i + 1} />
-                ))}
-              </div>
+              <AdsTable ads={ads} objective={camp.objective} />
             )}
           </div>
         )}
