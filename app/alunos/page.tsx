@@ -254,7 +254,7 @@ export default function AlunosPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      {['#', 'Última Entrada', 'Nome', 'Email', 'Cursos', 'Origem'].map(h => (
+                      {['#', 'Última Entrada', 'Nome', 'Email', 'Telefone', 'Cursos', 'Origem'].map(h => (
                         <th key={h} style={{ padding: '14px 18px', textAlign: 'left', fontSize: 9, fontWeight: 900, letterSpacing: '0.14em', textTransform: 'uppercase', color: SILVER, whiteSpace: 'nowrap', background: 'rgba(0,0,0,0.2)' }}>
                           {h}
                         </th>
@@ -304,6 +304,13 @@ export default function AlunosPage() {
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: 11, fontWeight: 700, color: SKY, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
                               <a href={`mailto:${s.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>{s.email}</a>
+                            </td>
+                            {/* Phone */}
+                            <td style={{ padding: '14px 18px', fontSize: 11, fontWeight: 700, color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
+                              {s.phone
+                                ? <a href={`tel:${s.phone}`} onClick={e => e.stopPropagation()} style={{ color: SILVER, textDecoration: 'none' }}>{s.phone}</a>
+                                : '—'
+                              }
                             </td>
                             {/* Courses as badges */}
                             <td style={{ padding: '10px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', maxWidth: 380 }}>
