@@ -8,7 +8,7 @@ import { LoginScreen } from '@/components/ui/auth-and-cards';
 // Pages accessible to TRAFEGO role
 const TRAFEGO_ALLOWED  = ['/campanhas', '/trafego', '/historico'];
 // Pages accessible to COMERCIAL role
-const COMERCIAL_ALLOWED = ['/hotmart', '/cursos', '/alunos'];
+const COMERCIAL_ALLOWED = ['/hotmart', '/cursos', '/alunos', '/leads'];
 
 export function LoginWrapper({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, setIsAuthenticated, checkingAuth, userRole } = useDashboard();

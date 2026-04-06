@@ -74,6 +74,7 @@ export function Navbar() {
   const showTrafego    = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'TRAFEGO';
   const showCursos     = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'COMERCIAL';
   const showAlunos     = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'COMERCIAL';
+  const showLeads      = userRole === 'TOTAL' || userRole === 'COMERCIAL';
   const showFinanceiro = userRole === 'TOTAL';
   const showAdmin      = userRole === 'TOTAL';
 
@@ -182,7 +183,7 @@ export function Navbar() {
             {/* CURSOS link */}
             {showCursos && (
               <Link href="/cursos"
-                className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-5"
+                className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative h-full flex items-center px-4"
                 style={{ color: isCursosActive ? GOLD : SILVER, background: isCursosActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
                 onMouseEnter={e => { if (!isCursosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
                 onMouseLeave={e => { if (!isCursosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
@@ -198,7 +199,7 @@ export function Navbar() {
             {/* ALUNOS link */}
             {showAlunos && (
               <Link href="/alunos"
-                className="text-[12px] font-black uppercase tracking-[0.2em] transition-all relative h-full flex items-center px-5"
+                className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative h-full flex items-center px-4"
                 style={{ color: isAlunosActive ? GOLD : SILVER, background: isAlunosActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
                 onMouseEnter={e => { if (!isAlunosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
                 onMouseLeave={e => { if (!isAlunosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
@@ -211,7 +212,24 @@ export function Navbar() {
               </Link>
             )}
 
-            {/* FINANCEIRO dropdown (TOTAL only) */}
+            {/* LEADS link — TOTAL + COMERCIAL */}
+            {showLeads && (() => {
+              const isActive = pathname.startsWith('/leads');
+              return (
+                <Link href="/leads"
+                  className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative h-full flex items-center px-4"
+                  style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.07)' : 'transparent' }}
+                  onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; } }}
+                  onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; } }}
+                >
+                  Leads
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full"
+                      style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
+                  )}
+                </Link>
+              );
+            })()}
             {showFinanceiro && (
               <div className="relative h-full flex items-center" ref={financeiroRef}
                 onMouseLeave={() => setFinanceiroOpen(false)}>
@@ -376,6 +394,19 @@ export function Navbar() {
                   className="px-6 py-4 text-sm font-black uppercase tracking-widest flex items-center justify-between"
                   style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
                   Alunos
+                  {isActive && <span className="material-symbols-outlined text-lg" style={{ color: GOLD }}>arrow_forward</span>}
+                </Link>
+              );
+            })()}
+
+            {/* LEADS */}
+            {showLeads && (() => {
+              const isActive = pathname.startsWith('/leads');
+              return (
+                <Link href="/leads"
+                  className="px-6 py-4 text-sm font-black uppercase tracking-widest flex items-center justify-between"
+                  style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
+                  Leads
                   {isActive && <span className="material-symbols-outlined text-lg" style={{ color: GOLD }}>arrow_forward</span>}
                 </Link>
               );
