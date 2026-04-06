@@ -4,7 +4,7 @@ import { getCache, setCache } from '@/app/lib/metaApi';
 import { getDb } from '@/app/lib/db';
 
 const ACTIVE_STATUSES = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_KEY = 'all_students_v3'; // bumped: now keyed by email (one row per student)
+const CACHE_KEY = 'all_students_v4'; // bumped: Hotmart name priority fix
 const CACHE_TTL = 30 * 60 * 1000;   // 30 min
 
 // One record per unique email — courses aggregated as an array
@@ -46,22 +46,38 @@ export async function GET(req: NextRequest) {
       ]);
 
       // ── Build per-email map ──
+      // Process Hotmart FIRST so its names take priority.
+      // Manual imports only fill the name when Hotmart didn't provide one.
       const map = new Map<string, StudentRow>();
+      const hotmartNameEmails = new Set<string>(); // emails where Hotmart gave us a real name
 
-      const upsert = (email: string, name: string, courseName: string, ts: number | null, source: 'hotmart' | 'manual') => {
-        const existing = map.get(email);
+      const upsert = (
+        email: string,
+        name: string,
+        courseName: string,
+        ts: number | null,
+        source: 'hotmart' | 'manual',
+      ) => {
+        const cleanName = (name || '').trim().toUpperCase();
+        const existing  = map.get(email);
         if (!existing) {
           map.set(email, {
             email,
-            name:       name.toUpperCase(),
+            name:       cleanName,
             courses:    courseName ? [courseName] : [],
             firstEntry: ts,
             lastEntry:  ts,
             sources:    [source],
           });
+          if (source === 'hotmart' && cleanName) hotmartNameEmails.add(email);
         } else {
-          // Keep the "best" name (prefer non-empty, prefer longer)
-          if (name && name.length > existing.name.length) existing.name = name.toUpperCase();
+          // Name: Hotmart always wins. Manual only fills an empty slot.
+          if (source === 'hotmart' && cleanName) {
+            existing.name = cleanName;
+            hotmartNameEmails.add(email);
+          } else if (source === 'manual' && cleanName && !hotmartNameEmails.has(email) && !existing.name) {
+            existing.name = cleanName;
+          }
           // Add course if not already present
           if (courseName && !existing.courses.includes(courseName)) existing.courses.push(courseName);
           // Update date range
