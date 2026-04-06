@@ -247,15 +247,41 @@ export async function GET(
       };
     }).sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
 
-    // LTV = sum of all APPROVED grossValue in BRL (converted)
-    const ltv = rawSales.reduce((acc: number, s: any) => {
+    // LTV = sum of all APPROVED grossValue. For non-BRL: use converted_value when available,
+    // otherwise keep the raw value in its own currency and track separately.
+    const ltvBRL = { BRL: 0 } as Record<string, number>;
+    for (const s of rawSales) {
       const p = s.purchase || {};
       const st = (p.status || '').toUpperCase();
-      if (!APPROVED.has(st)) return acc;
+      if (!APPROVED.has(st)) continue;
       const cur = (p.price?.currency_code || 'BRL').toUpperCase();
-      if (cur === 'BRL') return acc + (p.price?.value ?? 0);
-      return acc + (p.price?.converted_value ?? p.producer_net_brl ?? 0);
-    }, 0);
+      const converted = p.price?.converted_value || p.producer_net_brl || 0;
+      const gross     = p.price?.value ?? 0;
+      if (cur === 'BRL') {
+        ltvBRL['BRL'] += gross;
+      } else if (converted > 0) {
+        ltvBRL['BRL'] += converted;            // use BRL-converted value
+      } else {
+        // No conversion available — track in original currency
+        ltvBRL[cur] = (ltvBRL[cur] || 0) + gross;
+      }
+    }
+
+    // Add manual student totals (total_amount is in BRL always)
+    try {
+      const sql = getDb();
+      const manualRows = await sql`
+        SELECT COALESCE(total_amount, 0) AS total_amount
+        FROM manual_students
+        WHERE LOWER(email) = ${email}
+      ` as any[];
+      for (const row of manualRows) {
+        ltvBRL['BRL'] += Number(row.total_amount) || 0;
+      }
+    } catch { /* non-fatal */ }
+
+    // Primary LTV = BRL total (most common); expose breakdown for UI
+    const ltv = ltvBRL['BRL'] || 0;
 
     const uniqueProducts = [...new Set(
       rawSales
@@ -300,6 +326,7 @@ export async function GET(
       phone: mergedBuyerPersona?.phone || acPhone || null,
       document: mergedBuyerPersona?.document || null,
       ltv,
+      ltvByCurrency: ltvBRL,
       purchases,
       uniqueProducts,
       buyerPersona: mergedBuyerPersona,

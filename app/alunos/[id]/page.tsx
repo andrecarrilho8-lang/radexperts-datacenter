@@ -418,8 +418,24 @@ export default function AlunoPage() {
                   </div>
                   {/* KPIs */}
                   <div className="grid grid-cols-3 gap-3 flex-shrink-0 w-full md:w-auto">
+                    {/* LTV card — special: shows breakdown for mixed currencies */}
+                    <div className="text-center rounded-2xl px-4 py-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <span className="material-symbols-outlined text-[20px] block mb-1" style={{ color: '#4ade80' }}>trending_up</span>
+                      <p className="font-black text-lg leading-none" style={{ color: '#4ade80' }}>
+                        {R(data.ltv || 0)}
+                      </p>
+                      {/* Extra currencies when no BRL conversion was available */}
+                      {data.ltvByCurrency && Object.entries(data.ltvByCurrency as Record<string, number>)
+                        .filter(([cur, val]) => cur !== 'BRL' && val > 0)
+                        .map(([cur, val]) => (
+                          <p key={cur} className="text-[9px] font-black mt-0.5" style={{ color: '#86efac' }}>
+                            + {cur} {val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                        ))
+                      }
+                      <p className="text-[9px] font-black uppercase tracking-widest mt-1" style={{ color: SILVER }}>LTV Total</p>
+                    </div>
                     {[
-                      { label: 'LTV Total', value: R(data.ltv || 0), color: '#4ade80', icon: 'trending_up' },
                       { label: 'Compras OK', value: String(approvedCount), color: GOLD, icon: 'shopping_cart' },
                       { label: 'Produtos', value: String(data.uniqueProducts?.length || 0), color: '#818cf8', icon: 'school' },
                     ].map(k => (
