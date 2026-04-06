@@ -2102,7 +2102,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
     bp_parcela?: string; bp_em_dia?: string; bp_primeira_parcela?: string; bp_ultimo_pagamento?: string; bp_proximo_pagamento?: string;
   };
   onClose: () => void;
-  onSaved: (updated: { phone: string; name: string; document: string }) => void;
+  onSaved: (updated: { phone: string; name: string; document: string; vendedor: string; bp_modelo: string; bp_em_dia: string }) => void;
 }) {
   const [phone,      setPhone]      = React.useState(student.phone      || '');
   const [name,       setName]       = React.useState(student.name       || '');
@@ -2177,7 +2177,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
-      onSaved({ phone: phone.trim(), name: name.trim(), document: docNum.trim() });
+      onSaved({ phone: phone.trim(), name: name.trim(), document: docNum.trim(), vendedor: vendedor.trim(), bp_modelo: bpModelo.trim(), bp_em_dia: bpEmDia.trim() });
       onClose();
     } catch (e: any) {
       setError(e.message);
@@ -3159,16 +3159,32 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         <EditStudentModal
           student={editTarget}
           onClose={() => setEditTarget(null)}
-          onSaved={({ phone, document }) => {
+          onSaved={({ phone, name, document, vendedor, bp_modelo, bp_em_dia }) => {
             const emailKey = (editTarget.email || '').toLowerCase();
             // Update phoneCache for Hotmart students
             if (phone) setPhoneCache(prev => ({ ...prev, [emailKey]: phone }));
-            // Update manual_students phone for manual students
+            // Update documentCache
+            if (document) setDocumentCache(prev => ({ ...prev, [emailKey]: document }));
+            // Update manual_students for manual students
             if (editTarget.manualId) {
               setManualStudents(prev => prev.map(ms =>
-                ms.id === editTarget.manualId ? { ...ms, phone } : ms
+                ms.id === editTarget.manualId
+                  ? { ...ms, phone, name: name || ms.name }
+                  : ms
               ));
             }
+            // Update buyerPersonaCache so the table row reflects new values immediately without reload
+            setBuyerPersonaCache(prev => ({
+              ...prev,
+              [emailKey]: {
+                ...(prev?.[emailKey] || {}),
+                phone:     phone    || prev?.[emailKey]?.phone,
+                document:  document || prev?.[emailKey]?.document,
+                vendedor:  vendedor  || prev?.[emailKey]?.vendedor,
+                modelo:    bp_modelo || prev?.[emailKey]?.modelo,
+                em_dia:    bp_em_dia || prev?.[emailKey]?.em_dia,
+              },
+            }));
             setEditTarget(null);
           }}
         />

@@ -264,19 +264,45 @@ export async function GET(
         .filter(Boolean)
     )];
 
-    // Hotmart buyer name from first approved sale
-    const hotmartName = rawSales.find((s: any) => s.buyer?.name)?.buyer?.name || null;
+    // Hotmart buyer name/phone/document from first sale with buyer data
+    const hotmartBuyer    = rawSales.find((s: any) => s.buyer?.name || s.buyer?.phone)?.buyer || null;
+    const hotmartName     = hotmartBuyer?.name || null;
+    const hotmartPhone    = hotmartBuyer?.phone || hotmartBuyer?.checkout_phone || null;
+    const hotmartDocument = hotmartBuyer?.document || hotmartBuyer?.cpf || null;
+    const hotmartCountry  = hotmartBuyer?.address?.country || null;
+
+    // Merge: buyer_profiles (manual edits) takes priority; Hotmart buyer data is fallback
+    const mergedBuyerPersona = buyerPersona ? {
+      ...buyerPersona,
+      phone:    buyerPersona.phone    || hotmartPhone,
+      document: buyerPersona.document || hotmartDocument,
+      name:     buyerPersona.name     || hotmartName,
+    } : (hotmartPhone || hotmartDocument ? {
+      name:               hotmartName,
+      phone:              hotmartPhone,
+      document:           hotmartDocument,
+      country:            hotmartCountry,
+      vendedor:           null,
+      valor:              null,
+      pagamento:          null,
+      modelo:             null,
+      parcela:            null,
+      primeira_parcela:   null,
+      ultimo_pagamento:   null,
+      proximo_pagamento:  null,
+      em_dia:             null,
+    } : null);
 
     return NextResponse.json({
       email,
-      name: [acFirstName, acLastName].filter(Boolean).join(' ') || buyerPersona?.name || hotmartName || null,
+      name: [acFirstName, acLastName].filter(Boolean).join(' ') || mergedBuyerPersona?.name || hotmartName || null,
       hotmartName,
-      phone: buyerPersona?.phone || acPhone || null,
-      document: buyerPersona?.document || null,
+      phone: mergedBuyerPersona?.phone || acPhone || null,
+      document: mergedBuyerPersona?.document || null,
       ltv,
       purchases,
       uniqueProducts,
-      buyerPersona,
+      buyerPersona: mergedBuyerPersona,
       ac: acId ? {
         id:          acId,
         firstName:   acFirstName,
