@@ -126,7 +126,8 @@ export function Navbar() {
               );
             })}
 
-            {/* TRÁFEGO dropdown */}
+            {/* TRÁFEGO dropdown — only visible to roles with showTrafego */}
+            {showTrafego && (
             <div className="relative h-full flex items-center" ref={trafegoRef}
               onMouseLeave={() => setTrafegoOpen(false)}>
               <button
@@ -163,6 +164,7 @@ export function Navbar() {
                 </div>
               )}
             </div>
+            )}
 
             {/* CURSOS link */}
             {showCursos && (
