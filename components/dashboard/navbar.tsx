@@ -80,6 +80,19 @@ export function Navbar() {
   const isCursosActive = pathname.startsWith('/cursos');
   const isAlunosActive = pathname === '/alunos';
 
+  // Home page per role (where the logo click goes)
+  const homePage =
+    userRole === 'TRAFEGO'   ? '/campanhas' :
+    userRole === 'COMERCIAL' ? '/hotmart' :
+    '/resumo';
+
+  // Date range picker is only useful for pages that consume dateFrom/dateTo
+  // COMERCIAL only sees Hotmart + Cursos + Alunos which all rely on dates too,
+  // but hide it to keep the interface focused.
+  // Actually keep it visible for all since Hotmart uses it.
+  // Only hide for COMERCIAL if Hotmart stops using dates — for now always show.
+  const showDatePicker = true;
+
   const navStyle: React.CSSProperties = {
     background: 'linear-gradient(90deg, rgba(0,10,28,0.97) 0%, rgba(0,26,53,0.97) 100%)',
     borderBottom: '1px solid rgba(232,177,79,0.18)',
@@ -95,7 +108,7 @@ export function Navbar() {
           {/* Logo */}
           <div className="px-6 md:px-8 flex flex-col items-center justify-center border-r min-w-[160px] md:min-w-[220px]"
             style={{ borderColor: 'rgba(232,177,79,0.15)', background: 'rgba(0,0,0,0.2)' }}>
-            <Link href="/resumo" className="flex flex-col items-center group cursor-pointer transition-transform hover:scale-105">
+            <Link href={homePage} className="flex flex-col items-center group cursor-pointer transition-transform hover:scale-105">
               <img src="/logo_radexperts.png" alt="RadExperts" className="h-8 object-contain mb-1.5" />
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: GOLD }} />
