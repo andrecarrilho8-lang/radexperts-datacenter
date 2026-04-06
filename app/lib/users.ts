@@ -7,7 +7,7 @@ const BUNDLE_FILE = path.join(process.cwd(), 'data', 'users.json');
 
 // GitHub repo info (for permanent commits)
 const GH_OWNER = 'andrecarrilho8-lang';
-const GH_REPO  = '10x-dashboard';
+const GH_REPO  = 'radexperts-datacenter';
 const GH_PATH  = 'data/users.json';
 
 export type UserRole = 'TOTAL' | 'NORMAL';
