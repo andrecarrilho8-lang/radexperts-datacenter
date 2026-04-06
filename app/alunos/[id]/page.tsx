@@ -76,6 +76,7 @@ export default function AlunoPage() {
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
   const [attachments, setAttachments] = useState<any[]>([]);
+  const [acTags,      setAcTags]      = useState<{ name: string; date: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading,   setUploading]   = useState(false);
   const [uploadErr,   setUploadErr]   = useState('');
@@ -95,6 +96,15 @@ export default function AlunoPage() {
     fetch(`/api/alunos/attachments?email=${encodeURIComponent(data.email)}`)
       .then(r => r.json())
       .then(d => setAttachments(d.attachments || []))
+      .catch(() => {});
+  }, [data?.email]);
+
+  // Load Active Campaign tags
+  useEffect(() => {
+    if (!data?.email) return;
+    fetch(`/api/leads/contact-by-email?email=${encodeURIComponent(data.email)}`)
+      .then(r => r.json())
+      .then(d => setAcTags(d.tags || []))
       .catch(() => {});
   }, [data?.email]);
 
@@ -679,6 +689,46 @@ export default function AlunoPage() {
                   </div>
                 </div>
               </div>
+
+              {/* ── Active Campaign Tags ─────────────────────────────── */}
+              {acTags.length > 0 && (
+                <div style={{ ...card, padding: 0 }}>
+                  <div className="px-7 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: '#a78bfa' }}>
+                      <span className="material-symbols-outlined text-sm">tag</span>
+                      Tags Active Campaign · {acTags.length} interações
+                    </p>
+                  </div>
+                  <div style={{ padding: '24px 28px' }}>
+                    {/* Timeline */}
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ position: 'absolute', left: 9, top: 0, bottom: 0,
+                        width: 1, background: 'rgba(167,139,250,0.15)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {acTags.map((tag, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                            <div style={{ width: 18, height: 18, borderRadius: 6, flexShrink: 0,
+                              background: 'rgba(167,139,250,0.2)', border: '1px solid rgba(167,139,250,0.4)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: 3, background: '#a78bfa' }} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <span style={{ fontSize: 11, fontWeight: 900, color: '#fff',
+                                letterSpacing: '0.03em' }}>{tag.name}</span>
+                              {tag.date && (
+                                <span style={{ fontSize: 9, fontWeight: 700, color: SILVER,
+                                  marginLeft: 10, letterSpacing: '0.08em' }}>
+                                  {new Date(tag.date).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' })}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ── Histórico completo de compras ─────────────────────── */}
               <div style={{ ...card, padding: 0 }}>
