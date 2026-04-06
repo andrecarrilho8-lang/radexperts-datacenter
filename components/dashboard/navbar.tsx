@@ -64,7 +64,7 @@ export function Navbar() {
   const isFinanceiroActive = FINANCEIRO_ITEMS.some(i => pathname.startsWith(i.href));
 
   const topNavItems = [
-    { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL'] },
+    { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL', 'TRAFEGO'] },
     { label: 'Hotmart', href: '/hotmart', roles: ['TOTAL', 'COMERCIAL'] },
   ];
 

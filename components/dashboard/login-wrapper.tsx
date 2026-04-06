@@ -23,7 +23,7 @@ export function LoginWrapper({ children }: { children: React.ReactNode }) {
     }
     if (userRole === 'COMERCIAL') {
       const allowed = COMERCIAL_ALLOWED.some(p => pathname.startsWith(p));
-      if (!allowed) router.replace('/hotmart');
+      if (!allowed) router.replace('/cursos');
     }
   }, [checkingAuth, isAuthenticated, userRole, pathname]);
 
