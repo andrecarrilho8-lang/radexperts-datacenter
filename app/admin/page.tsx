@@ -130,19 +130,19 @@ function AdminPanel() {
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Nome</label>
             <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm outline-none focus:border-violet-400 transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-violet-400 transition-all"
               placeholder="Nome completo" />
           </div>
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Usuário (login)</label>
             <input required value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm outline-none focus:border-violet-400 transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-violet-400 transition-all"
               placeholder="nome_usuario" />
           </div>
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Senha</label>
             <input required type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm outline-none focus:border-violet-400 transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-violet-400 transition-all"
               placeholder="••••••••" />
           </div>
           <div>
