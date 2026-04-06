@@ -252,7 +252,7 @@ export default function AlunosPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 820 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                      {['#', 'Entrada', 'Nome', 'Email', 'Curso', 'Origem'].map(h => (
+                      {['#', 'Última Entrada', 'Nome', 'Email', 'Cursos', 'Origem'].map(h => (
                         <th key={h} style={{ padding: '14px 18px', textAlign: 'left', fontSize: 9, fontWeight: 900, letterSpacing: '0.14em', textTransform: 'uppercase', color: SILVER, whiteSpace: 'nowrap', background: 'rgba(0,0,0,0.2)' }}>
                           {h}
                         </th>
@@ -279,12 +279,13 @@ export default function AlunosPage() {
                       </tr>
                     ) : (
                       students.map((s, i) => {
-                        const globalIdx  = page * PAGE_SIZE + i + 1;
-                        const rowBg      = i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent';
-                        const courseSlug = slugify(s.courseName);
-                        const studentId  = emailToId(s.email);
+                        const globalIdx = page * PAGE_SIZE + i + 1;
+                        const rowBg     = i % 2 === 0 ? 'rgba(255,255,255,0.015)' : 'transparent';
+                        const studentId = emailToId(s.email);
+                        const isHotmart = (s.sources || []).includes('hotmart');
+                        const isManual  = (s.sources || []).includes('manual');
                         return (
-                          <tr key={`${s.email}_${s.courseName}_${i}`}
+                          <tr key={s.email}
                             onClick={() => router.push(`/alunos/${studentId}`)}
                             style={{ background: rowBg, animation: 'fadeIn 0.2s ease', cursor: 'pointer', transition: 'background 0.15s' }}
                             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.06)')}
@@ -294,27 +295,40 @@ export default function AlunosPage() {
                               {globalIdx.toLocaleString('pt-BR')}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: 12, fontWeight: 700, color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
-                              {fmtDate(s.entryDate)}
+                              {fmtDate(s.lastEntry)}
                             </td>
-                            <td style={{ padding: '14px 18px', fontSize: 13, fontWeight: 900, color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <td style={{ padding: '14px 18px', fontSize: 13, fontWeight: 900, color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {s.name || '—'}
                             </td>
                             <td style={{ padding: '14px 18px', fontSize: 11, fontWeight: 700, color: SKY, borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
                               <a href={`mailto:${s.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>{s.email}</a>
                             </td>
-                            <td style={{ padding: '14px 18px', fontSize: 11, fontWeight: 700, color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.04)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <Link href={`/cursos/${courseSlug}`} style={{ color: GOLD, textDecoration: 'none', fontWeight: 800 }} title={s.courseName}>
-                                {s.courseName}
-                              </Link>
+                            {/* Courses as badges */}
+                            <td style={{ padding: '10px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', maxWidth: 380 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {(s.courses || []).map((c: string) => (
+                                  <Link
+                                    key={c}
+                                    href={`/cursos/${slugify(c)}`}
+                                    onClick={e => e.stopPropagation()}
+                                    title={c}
+                                    style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.08em', padding: '3px 8px', borderRadius: 6, background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)', color: GOLD, textDecoration: 'none', whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                                  >
+                                    {c}
+                                  </Link>
+                                ))}
+                              </div>
                             </td>
-                            <td style={{ padding: '14px 18px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                              <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', padding: '3px 8px', borderRadius: 6,
-                                background: s.source === 'manual' ? 'rgba(232,177,79,0.12)' : 'rgba(56,189,248,0.1)',
-                                border: s.source === 'manual' ? '1px solid rgba(232,177,79,0.3)' : '1px solid rgba(56,189,248,0.2)',
-                                color: s.source === 'manual' ? GOLD : SKY,
-                              }}>
-                                {s.source === 'manual' ? 'Manual' : 'Hotmart'}
-                              </span>
+                            {/* Sources */}
+                            <td style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {isHotmart && (
+                                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', padding: '3px 8px', borderRadius: 6, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.2)', color: SKY }}>Hotmart</span>
+                                )}
+                                {isManual && (
+                                  <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.1em', padding: '3px 8px', borderRadius: 6, background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}>Manual</span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
