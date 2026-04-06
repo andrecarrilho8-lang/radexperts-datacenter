@@ -9,7 +9,7 @@ interface UserRow {
   id: string;
   username: string;
   name: string;
-  role: 'TOTAL' | 'NORMAL' | 'TRAFEGO';
+  role: 'TOTAL' | 'NORMAL' | 'TRAFEGO' | 'COMERCIAL';
   createdAt: string;
 }
 
@@ -92,7 +92,7 @@ function AdminPanel() {
       </div>
 
       {/* Permissões info */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <span className="w-3 h-3 rounded-full bg-emerald-500" />
@@ -113,6 +113,13 @@ function AdminPanel() {
             <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Tráfego</p>
           </div>
           <p className="text-xs text-slate-500 font-bold">Somente área de Tráfego Pago (Campanhas + Análise + Histórico)</p>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="w-3 h-3 rounded-full bg-orange-500" />
+            <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Comercial</p>
+          </div>
+          <p className="text-xs text-slate-500 font-bold">Hotmart + Cursos + Alunos (sem Resumo/Tráfego/Financeiro)</p>
         </div>
       </div>
 
@@ -141,10 +148,11 @@ function AdminPanel() {
           <div>
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Permissão</label>
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm outline-none focus:border-violet-400 transition-all">
-              <option value="TRAFEGO">Acesso Tráfego (somente Tráfego Pago)</option>
-              <option value="NORMAL">Acesso Normal (Resumo + Tráfego + Cursos)</option>
-              <option value="TOTAL">Acesso Total (tudo)</option>
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm text-slate-900 outline-none focus:border-violet-400 transition-all">
+              <option value="COMERCIAL" className="text-slate-900">Acesso Comercial (Hotmart + Cursos + Alunos)</option>
+              <option value="TRAFEGO"   className="text-slate-900">Acesso Tráfego (somente Tráfego Pago)</option>
+              <option value="NORMAL"    className="text-slate-900">Acesso Normal (Resumo + Tráfego + Cursos)</option>
+              <option value="TOTAL"     className="text-slate-900">Acesso Total (tudo)</option>
             </select>
           </div>
           <div className="col-span-2 flex items-center justify-between">
@@ -185,15 +193,14 @@ function AdminPanel() {
                     <td className="px-6 py-4 font-black text-sm text-slate-900">{u.name}</td>
                     <td className="px-6 py-4 font-bold text-sm text-slate-500 font-mono">{u.username}</td>
                     <td className="px-6 py-4">
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
-                        u.role === 'TOTAL'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : u.role === 'TRAFEGO'
-                            ? 'bg-violet-50 text-violet-700 border-violet-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-100'
-                      }`}>
-                        {u.role === 'TOTAL' ? 'Total' : u.role === 'TRAFEGO' ? 'Tráfego' : 'Normal'}
-                      </span>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                          u.role === 'TOTAL'     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : u.role === 'TRAFEGO' ? 'bg-violet-50 text-violet-700 border-violet-200'
+                          : u.role === 'COMERCIAL' ? 'bg-orange-50 text-orange-700 border-orange-200'
+                          : 'bg-blue-50 text-blue-700 border-blue-100'
+                        }`}>
+                          {u.role === 'TOTAL' ? 'Total' : u.role === 'TRAFEGO' ? 'Tráfego' : u.role === 'COMERCIAL' ? 'Comercial' : 'Normal'}
+                        </span>
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-400 font-bold">
                       {new Date(u.createdAt).toLocaleDateString('pt-BR')}
