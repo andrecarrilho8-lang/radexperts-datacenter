@@ -222,10 +222,14 @@ export default function CampanhasAtivasPage() {
   const { dateFrom, dateTo } = useDashboard();
   const data  = useDashboardData();
   const [tab, setTab] = useState<'GERAL' | 'VENDAS' | 'LEADS'>('GERAL');
+  const [search, setSearch] = useState('');
 
   // Filter: only ACTIVE campaigns
   const allActive = data.tableData.filter((c: any) => (c.status || '').toUpperCase() === 'ACTIVE');
-  const filtered  = tab === 'GERAL' ? allActive : allActive.filter((c: any) => c.objective === tab);
+  const byTab     = tab === 'GERAL' ? allActive : allActive.filter((c: any) => c.objective === tab);
+  const filtered  = search.trim()
+    ? byTab.filter((c: any) => c.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : byTab;
 
   // KPI totals
   const totalSpend    = allActive.reduce((s: number, c: any) => s + (c.spend || 0), 0);
@@ -252,7 +256,7 @@ export default function CampanhasAtivasPage() {
         <Navbar />
         <div className="h-[80px]" />
 
-        <main className="px-6 max-w-[1600px] mx-auto pt-8 pb-24">
+        <main className="px-6 max-w-[1100px] mx-auto pt-8 pb-24">
 
           {/* ── PAGE HEADER ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 32 }}>
@@ -299,8 +303,9 @@ export default function CampanhasAtivasPage() {
             </div>
           )}
 
-          {/* ── OBJECTIVE TABS ── */}
+          {/* ── CONTROLS: TABS + SEARCH ── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            {/* Tabs */}
             <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 14, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
               {tabs.map(t => (
                 <button key={t.key} onClick={() => setTab(t.key)}
@@ -314,26 +319,49 @@ export default function CampanhasAtivasPage() {
                 </button>
               ))}
             </div>
-            <p style={{ fontSize: 10, fontWeight: 700, color: SILVER }}>
-              {filtered.length} campanha{filtered.length !== 1 ? 's' : ''} · clique para ver anúncios
-            </p>
+
+            {/* Search + count */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ position: 'relative' }}>
+                <span className="material-symbols-outlined" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16, color: SILVER, pointerEvents: 'none' }}>search</span>
+                <input
+                  type="text"
+                  placeholder="Buscar campanha..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  style={{
+                    paddingLeft: 36, paddingRight: 14, paddingTop: 9, paddingBottom: 9,
+                    borderRadius: 12, fontSize: 12, fontWeight: 700,
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#fff', outline: 'none', width: 260,
+                    textTransform: 'uppercase', letterSpacing: '0.04em',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={e => (e.target.style.borderColor = GOLD)}
+                  onBlur={e  => (e.target.style.borderColor = 'rgba(255,255,255,0.12)')}
+                />
+              </div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: SILVER, whiteSpace: 'nowrap' }}>
+                {filtered.length} campanha{filtered.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
 
-          {/* ── CAMPAIGN CARDS GRID ── */}
+          {/* ── CAMPAIGN CARDS ── */}
           {data.fastLoading ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} style={{ ...card, height: 170 }} className="animate-pulse" />
+            <div className="flex flex-col gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ ...card, height: 140 }} className="animate-pulse" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '80px 0' }}>
               <span className="material-symbols-outlined" style={{ fontSize: 56, color: SILVER, display: 'block', marginBottom: 16 }}>signal_disconnected</span>
-              <p style={{ fontSize: 16, fontWeight: 900, color: SILVER }}>Nenhuma campanha ativa{tab !== 'GERAL' ? ` do tipo ${tab}` : ''}</p>
+              <p style={{ fontSize: 16, fontWeight: 900, color: SILVER }}>Nenhuma campanha{search ? ` encontrada para "${search}"` : ` ativa${tab !== 'GERAL' ? ` do tipo ${tab}` : ''}`}</p>
               <p style={{ fontSize: 12, fontWeight: 700, color: SILVER, opacity: 0.6, marginTop: 6 }}>no período {D(dateFrom)} → {D(dateTo)}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-4">
               {filtered
                 .sort((a: any, b: any) => (b.spend || 0) - (a.spend || 0))
                 .map((camp: any) => (
