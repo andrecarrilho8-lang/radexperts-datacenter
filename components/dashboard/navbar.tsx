@@ -65,15 +65,15 @@ export function Navbar() {
 
   const topNavItems = [
     { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL'] },
-    { label: 'Hotmart', href: '/hotmart', roles: ['TOTAL'] },
+    { label: 'Hotmart', href: '/hotmart', roles: ['TOTAL', 'COMERCIAL'] },
   ];
 
   const navItems = topNavItems.filter(i => i.roles.includes(userRole));
 
   // Role-based visibility flags
-  const showTrafego    = true;
-  const showCursos     = userRole === 'TOTAL' || userRole === 'NORMAL';
-  const showAlunos     = userRole === 'TOTAL' || userRole === 'NORMAL';
+  const showTrafego    = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'TRAFEGO';
+  const showCursos     = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'COMERCIAL';
+  const showAlunos     = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'COMERCIAL';
   const showFinanceiro = userRole === 'TOTAL';
   const showAdmin      = userRole === 'TOTAL';
 

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { today, def30, buildPresets, Preset } from './utils';
 
-export type UserRole = 'TOTAL' | 'NORMAL' | 'TRAFEGO';
+export type UserRole = 'TOTAL' | 'NORMAL' | 'TRAFEGO' | 'COMERCIAL';
 
 type DashboardContextType = {
   dateFrom: string;

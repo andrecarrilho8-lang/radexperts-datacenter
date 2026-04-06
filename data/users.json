@@ -14,5 +14,13 @@
     "name": "Carrilho",
     "role": "NORMAL",
     "createdAt": "2026-03-27T16:58:56.719Z"
+  },
+  {
+    "id": "comercial-001",
+    "username": "comercial",
+    "password": "e7fe30c4c1efcaeeacfc35ffbebdc95989cea70c1a9867e57f23edd87f0f89e8",
+    "name": "Comercial",
+    "role": "COMERCIAL",
+    "createdAt": "2026-04-06T13:56:35.000Z"
   }
 ]

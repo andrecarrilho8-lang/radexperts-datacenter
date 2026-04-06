@@ -6,7 +6,9 @@ import { useDashboard } from '@/app/lib/context';
 import { LoginScreen } from '@/components/ui/auth-and-cards';
 
 // Pages accessible to TRAFEGO role
-const TRAFEGO_ALLOWED = ['/campanhas', '/trafego', '/historico'];
+const TRAFEGO_ALLOWED  = ['/campanhas', '/trafego', '/historico'];
+// Pages accessible to COMERCIAL role
+const COMERCIAL_ALLOWED = ['/hotmart', '/cursos', '/alunos'];
 
 export function LoginWrapper({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, setIsAuthenticated, checkingAuth, userRole } = useDashboard();
@@ -17,9 +19,11 @@ export function LoginWrapper({ children }: { children: React.ReactNode }) {
     if (checkingAuth || !isAuthenticated) return;
     if (userRole === 'TRAFEGO') {
       const allowed = TRAFEGO_ALLOWED.some(p => pathname.startsWith(p));
-      if (!allowed) {
-        router.replace('/campanhas');
-      }
+      if (!allowed) router.replace('/campanhas');
+    }
+    if (userRole === 'COMERCIAL') {
+      const allowed = COMERCIAL_ALLOWED.some(p => pathname.startsWith(p));
+      if (!allowed) router.replace('/hotmart');
     }
   }, [checkingAuth, isAuthenticated, userRole, pathname]);
 
