@@ -252,11 +252,24 @@ export default function CampanhasAtivasPage() {
         @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(1.4); } }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #000e28 0%, #001535 60%, #000e28 100%)' }}>
-        <Navbar />
-        <div className="h-[80px]" />
+      <div style={{ position: 'relative', minHeight: '100vh' }}>
+        {/* Fixed background — same as all other pages */}
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, height: '100vh',
+          backgroundImage: 'url(/rad.jpg)', backgroundSize: 'cover',
+          backgroundPosition: 'top center', backgroundRepeat: 'no-repeat',
+          pointerEvents: 'none', zIndex: 0,
+        }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 50%, #001a35 95%)', pointerEvents: 'none' }} />
+        </div>
 
-        <main className="px-6 max-w-[1100px] mx-auto pt-8 pb-24">
+        {/* Content above background */}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <Navbar />
+          <div className="h-[80px]" />
+
+          <main className="px-6 max-w-[1600px] mx-auto pt-8 pb-24">
 
           {/* ── PAGE HEADER ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 32 }}>
@@ -369,7 +382,8 @@ export default function CampanhasAtivasPage() {
                 ))}
             </div>
           )}
-        </main>
+          </main>
+        </div>
       </div>
     </LoginWrapper>
   );
