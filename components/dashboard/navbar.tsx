@@ -125,7 +125,8 @@ export function Navbar() {
             })}
 
             {/* TRÁFEGO dropdown */}
-            <div className="relative h-full flex items-center" ref={trafegoRef}>
+            <div className="relative h-full flex items-center" ref={trafegoRef}
+              onMouseLeave={() => setTrafegoOpen(false)}>
               <button
                 onMouseEnter={() => setTrafegoOpen(true)}
                 onClick={() => setTrafegoOpen(o => !o)}
@@ -141,7 +142,6 @@ export function Navbar() {
 
               {trafegoOpen && (
                 <div
-                  onMouseLeave={() => setTrafegoOpen(false)}
                   className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl"
                   style={{ background: 'linear-gradient(160deg, rgba(0,16,40,0.99) 0%, rgba(0,10,28,0.99) 100%)', border: '1px solid rgba(232,177,79,0.15)', backdropFilter: 'blur(24px)', marginTop: 0 }}>
                   {TRAFEGO_ITEMS.map(item => {
@@ -180,7 +180,8 @@ export function Navbar() {
 
             {/* FINANCEIRO dropdown (TOTAL only) */}
             {showFinanceiro && (
-              <div className="relative h-full flex items-center" ref={financeiroRef}>
+              <div className="relative h-full flex items-center" ref={financeiroRef}
+                onMouseLeave={() => setFinanceiroOpen(false)}>
                 <button
                   onMouseEnter={() => setFinanceiroOpen(true)}
                   onClick={() => setFinanceiroOpen(o => !o)}
@@ -196,7 +197,6 @@ export function Navbar() {
 
                 {financeiroOpen && (
                   <div
-                    onMouseLeave={() => setFinanceiroOpen(false)}
                     className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl"
                     style={{ background: 'linear-gradient(160deg, rgba(0,16,40,0.99) 0%, rgba(0,10,28,0.99) 100%)', border: '1px solid rgba(232,177,79,0.15)', backdropFilter: 'blur(24px)', marginTop: 0 }}>
                     {FINANCEIRO_ITEMS.map(item => {
