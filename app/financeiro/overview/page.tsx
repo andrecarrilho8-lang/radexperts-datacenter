@@ -214,30 +214,14 @@ function Paginator({ page, total, perPage, onPage, accent }: {
 const PAGE_SIZE = 15;
 function EntryTable({
   title, subtitle, accent, entries, loading, router, isManual = false,
-  onDeleteManual,
 }: {
   title: string; subtitle: string; accent: string;
   entries: Transaction[]; loading: boolean;
   router: ReturnType<typeof useRouter>; isManual?: boolean;
-  onDeleteManual?: (txId: string) => void;
 }) {
   const [search, setSearch] = React.useState('');
   const [page, setPage]     = React.useState(0);
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
   React.useEffect(() => { setPage(0); }, [search]);
-
-  async function handleDelete(t: Transaction) {
-    if (!onDeleteManual) return;
-    const idMatch = t.transaction?.match(/^manual-(\d+)/);
-    if (!idMatch) return;
-    const id = idMatch[1];
-    if (!confirm(`Excluir ${t.buyer.name}?`)) return;
-    setDeletingId(t.transaction);
-    try {
-      const res = await fetch(`/api/alunos/manual/${id}`, { method: 'DELETE' });
-      if (res.ok) onDeleteManual(t.transaction);
-    } finally { setDeletingId(null); }
-  }
   const filtered    = search.trim()
     ? entries.filter(e =>
         e.buyer.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -286,7 +270,6 @@ function EntryTable({
             <col style={{ width: 148 }} />
             <col />
             <col style={{ width: 360 }} />
-            {isManual && <col style={{ width: 44 }} />}
           </colgroup>
           <thead>
             <tr style={{ background: `${accent}08` }}>
@@ -295,14 +278,13 @@ function EntryTable({
               <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Pagamento</th>
               <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Cliente</th>
               <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
-              {isManual && <th style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', width: 44 }} />}
             </tr>
           </thead>
           <tbody>
             {loading
-              ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={isManual ? 6 : 5} accent={accent} />)
+              ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={5} accent={accent} />)
               : pageEntries.length === 0
-                ? <tr><td colSpan={isManual ? 6 : 5} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
+                ? <tr><td colSpan={5} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
                     {search ? `Nenhum resultado para "${search}"` : 'Nenhuma entrada encontrada.'}
                   </td></tr>
                 : pageEntries.map((t, idx) => {
@@ -321,10 +303,9 @@ function EntryTable({
                       installStyle = { background: 'rgba(34,197,94,0.08)', color: '#86efac' };
                     }
                     const rowBg = idx % 2 === 0 ? 'transparent' : `${accent}05`;
-                    const isDeleting = deletingId === t.transaction;
                     return (
                       <tr key={t.transaction || idx}
-                        style={{ background: rowBg, borderBottom: `1px solid ${accent}15`, opacity: isDeleting ? 0.4 : 1 }}
+                        style={{ background: rowBg, borderBottom: `1px solid ${accent}15` }}
                         onMouseEnter={e => (e.currentTarget.style.background = `${accent}0d`)}
                         onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
                         <td className="py-3 px-4">
@@ -370,21 +351,6 @@ function EntryTable({
                             {t.product.name}
                           </span>
                         </td>
-                        {isManual && (
-                          <td className="py-2 px-1 text-center">
-                            <button
-                              title="Excluir este registro"
-                              disabled={isDeleting}
-                              onClick={() => handleDelete(t)}
-                              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                                borderRadius: 6, width: 28, height: 28, cursor: 'pointer', color: '#f87171',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: 'auto' }}
-                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.2)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}>
-                              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
-                            </button>
-                          </td>
-                        )}
                       </tr>
                     );
                   })
@@ -525,11 +491,10 @@ export default function FinanceiroOverviewPage() {
                 title="✎️ Últimas Entradas PIX Manual"
                 subtitle="20 mais recentes · ordenado por última edição"
                 accent={GOLD}
-                entries={(data?.manualEntries || []).filter(e => !deletedIds.has(e.transaction))}
+                entries={(data?.manualEntries || [])}
                 loading={loading}
                 router={router}
                 isManual
-                onDeleteManual={txId => setDeletedIds(prev => new Set([...prev, txId]))}
               />
 
             </div>
