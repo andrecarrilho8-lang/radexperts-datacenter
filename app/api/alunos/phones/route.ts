@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       SELECT
         email, phone, document,
         vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela,
-        bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia
+        bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia, notes
       FROM buyer_profiles
       WHERE email = ANY(${emails}::text[])
     `) as any[];
@@ -81,6 +81,7 @@ export async function POST(request: Request) {
       if (row.bp_ultimo_pagamento)  bp.ultimo_pagamento   = Number(row.bp_ultimo_pagamento);
       if (row.bp_proximo_pagamento) bp.proximo_pagamento  = Number(row.bp_proximo_pagamento);
       if (row.bp_em_dia != null)    bp.em_dia             = row.bp_em_dia;
+      if (row.notes != null)        bp.notes              = row.notes;
 
       if (Object.keys(bp).length > 0) buyerPersona[em] = bp;
     }

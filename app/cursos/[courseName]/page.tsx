@@ -2242,12 +2242,24 @@ function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
 }
 
 // ── Edit Student Modal ────────────────────────────────────────────────────────
+// Normalise legacy SIM/NÃO values → canonical Adimplente/Inadimplente/Quitado
+function normaliseEmDia(v?: string): string {
+  const raw = (v || '').trim();
+  const u = raw.toUpperCase();
+  if (u === 'SIM') return 'Adimplente';
+  if (u === 'NÃO' || u === 'NAO' || u === 'NÂO') return 'Inadimplente';
+  if (u === 'QUITADO') return 'Quitado';
+  if (['Adimplente', 'Inadimplente', 'Quitado'].includes(raw)) return raw;
+  return 'Adimplente';
+}
+
 function EditStudentModal({ student, onClose, onSaved }: {
   student: {
     name: string; email: string; phone: string; document: string; manualId?: string;
     // buyer_persona fields
     vendedor?: string; bp_valor?: string; bp_pagamento?: string; bp_modelo?: string;
     bp_parcela?: string; bp_em_dia?: string; bp_primeira_parcela?: string; bp_ultimo_pagamento?: string; bp_proximo_pagamento?: string;
+    notes?: string;
   };
   onClose: () => void;
   onSaved: (updated: { phone: string; name: string; document: string; vendedor: string; bp_modelo: string; bp_em_dia: string }) => void;
@@ -2260,10 +2272,11 @@ function EditStudentModal({ student, onClose, onSaved }: {
   const [bpPag,      setBpPag]      = React.useState(student.bp_pagamento || '');
   const [bpModelo,   setBpModelo]   = React.useState(student.bp_modelo  || '');
   const [bpParcela,  setBpParcela]  = React.useState(student.bp_parcela || '');
-  const [bpEmDia,    setBpEmDia]    = React.useState(student.bp_em_dia  || '');
+  const [bpEmDia,    setBpEmDia]    = React.useState(normaliseEmDia(student.bp_em_dia));
   const [bpPrimeira, setBpPrimeira] = React.useState(isoToDMY(student.bp_primeira_parcela || ''));
   const [bpUltimo,   setBpUltimo]   = React.useState(isoToDMY(student.bp_ultimo_pagamento  || ''));
   const [bpProximo,  setBpProximo]  = React.useState(isoToDMY(student.bp_proximo_pagamento || ''));
+  const [notes,      setNotes]      = React.useState(student.notes || '');
   // attachments
   const [attachments,    setAttachments]    = React.useState<any[]>([]);
   const [uploading,      setUploading]      = React.useState(false);
@@ -2312,20 +2325,21 @@ function EditStudentModal({ student, onClose, onSaved }: {
           name:         name.trim()     || null,
           document:     docNum.trim()   || null,
           manualId:     student.manualId || null,
+          notes:        notes.trim()    || null,
           // buyer_persona
           vendedor:     vendedor.trim()  || null,
           bp_valor:     bpValor.trim()   || null,
           bp_pagamento: bpPag.trim()     || null,
           bp_modelo:    bpModelo.trim()  || null,
           bp_parcela:   bpParcela.trim() || null,
-          bp_em_dia:    bpEmDia.trim()   || null,
+          bp_em_dia:    bpEmDia || null,
           bp_primeira_parcela:  dmyToISO(bpPrimeira.trim()) || null,
           bp_ultimo_pagamento:  dmyToISO(bpUltimo.trim())   || null,
           bp_proximo_pagamento: dmyToISO(bpProximo.trim())  || null,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
-      onSaved({ phone: phone.trim(), name: name.trim(), document: docNum.trim(), vendedor: vendedor.trim(), bp_modelo: bpModelo.trim(), bp_em_dia: bpEmDia.trim() });
+      onSaved({ phone: phone.trim(), name: name.trim(), document: docNum.trim(), vendedor: vendedor.trim(), bp_modelo: bpModelo.trim(), bp_em_dia: bpEmDia });
       onClose();
     } catch (e: any) {
       setError(e.message);
@@ -2378,33 +2392,44 @@ function EditStudentModal({ student, onClose, onSaved }: {
         <EditField label="Valor da Parcela (R$)" icon="receipt" value={bpParcela} onChange={setBpParcela} onEnter={handleSave} placeholder="Ex: 2500" />
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
-            textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Em Dia</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['SIM', 'NÃO', ''] as string[]).map(v => (
-              <button key={v} type="button"
-                onClick={() => setBpEmDia(v)}
-                style={{ flex: 1, padding: '8px 0', borderRadius: 10, fontWeight: 800, fontSize: 11,
-                  cursor: 'pointer', transition: 'all 0.15s',
-                  background: bpEmDia === v
-                    ? (v === 'SIM' ? 'rgba(74,222,128,0.18)' : v === 'NÃO' ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.1)')
-                    : 'rgba(255,255,255,0.05)',
-                  border: `1px solid ${bpEmDia === v
-                    ? (v === 'SIM' ? '#4ade80' : v === 'NÃO' ? '#f87171' : 'rgba(255,255,255,0.3)')
-                    : 'rgba(255,255,255,0.1)'}`,
-                  color: bpEmDia === v ? (v === 'SIM' ? '#4ade80' : v === 'NÃO' ? '#f87171' : SILVER) : SILVER }}>
-                {v === '' ? '— Não def.' : v}
-              </button>
-            ))}
-          </div>
+            textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Status</label>
+          <select
+            value={bpEmDia}
+            onChange={e => setBpEmDia(e.target.value)}
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+              color: 'white', outline: 'none', boxSizing: 'border-box', cursor: 'pointer',
+            }}
+          >
+            <option value="Adimplente" style={{ background: NAVY, color: 'white' }}>Adimplente</option>
+            <option value="Inadimplente" style={{ background: NAVY, color: 'white' }}>Inadimplente</option>
+            <option value="Quitado" style={{ background: NAVY, color: 'white' }}>Quitado</option>
+          </select>
         </div>
-
 
         {/* Date fields */}
         <EditDateField label="1ª Parcela (DD/MM/AAAA)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} />
         <EditDateField label="Último Pagamento (DD/MM/AAAA)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} />
         <EditDateField label="Próximo Pagamento (DD/MM/AAAA)" icon="schedule" value={bpProximo} onChange={setBpProximo} />
 
-        {/* ── Anexos ── */}
+        {/* Observações */}
+        <div style={{ marginBottom: 16, marginTop: 4 }}>
+          <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+            textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Observações</label>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Anotações extras..."
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+              color: 'white', outline: 'none', boxSizing: 'border-box', resize: 'vertical', minHeight: 60,
+            }}
+          />
+        </div>
+
+        {/* ── Arquivos Anexos ── */}
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
           color: '#a78bfa', marginBottom: 12, marginTop: 20 }}>Arquivos Anexos</p>
         <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }}
@@ -2560,7 +2585,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [showCSVModal,   setShowCSVModal]   = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
-  const [editTarget,     setEditTarget]     = useState<{ name: string; email: string; phone: string; document: string; manualId?: string } | null>(null);
+  const [editTarget,     setEditTarget]     = useState<{ name: string; email: string; phone: string; document: string; manualId?: string; vendedor?: string; bp_valor?: string; bp_pagamento?: string; bp_modelo?: string; bp_parcela?: string; bp_em_dia?: string; bp_primeira_parcela?: string; bp_ultimo_pagamento?: string; bp_proximo_pagamento?: string; notes?: string } | null>(null);
   const [turmas,         setTurmas]         = useState<string[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [turmaFilter,  setTurmaFilter]  = useState('');
@@ -3169,6 +3194,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                               bp_modelo:     bp.modelo       || '',
                               bp_parcela:    bp.parcela   != null ? String(bp.parcela) : '',
                               bp_em_dia:     bp.em_dia       || '',
+                              notes:         bp.notes        || '',
               bp_primeira_parcela:  bp.primeira_parcela  ? new Date(Number(bp.primeira_parcela)).toISOString().slice(0,10)  : '',
               bp_ultimo_pagamento:  bp.ultimo_pagamento  ? new Date(Number(bp.ultimo_pagamento)).toISOString().slice(0,10)  : '',
               bp_proximo_pagamento: bp.proximo_pagamento ? new Date(Number(bp.proximo_pagamento)).toISOString().slice(0,10) : '',

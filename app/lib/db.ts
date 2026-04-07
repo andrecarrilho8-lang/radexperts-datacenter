@@ -110,6 +110,7 @@ export async function ensureWebhookSchema() {
       bp_ultimo_pagamento BIGINT,
       bp_proximo_pagamento BIGINT,
       bp_em_dia          TEXT,
+      notes              TEXT,
       -- timestamps
       created_at         BIGINT NOT NULL,
       updated_at         BIGINT NOT NULL
@@ -132,4 +133,5 @@ export async function ensureBuyerPersonaColumns() {
   try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_ultimo_pagamento BIGINT`; } catch {}
   try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_proximo_pagamento BIGINT`; } catch {}
   try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS bp_em_dia          TEXT`; } catch {}
+  try { await sql`ALTER TABLE buyer_profiles ADD COLUMN IF NOT EXISTS notes              TEXT`; } catch {}
 }

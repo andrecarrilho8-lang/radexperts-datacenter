@@ -45,6 +45,7 @@ export async function PATCH(request: Request) {
   const bpPrimeiraParcela  = parseDate(body.bp_primeira_parcela);
   const bpUltimoPagamento  = parseDate(body.bp_ultimo_pagamento);
   const bpProximoPagamento = parseDate(body.bp_proximo_pagamento);
+  const notes              = (body.notes ?? null) as string | null;
 
   if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 });
 
@@ -58,13 +59,13 @@ export async function PATCH(request: Request) {
       INSERT INTO buyer_profiles (
         email, name, phone, document, country,
         vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela, bp_em_dia,
-        bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento,
+        bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, notes,
         purchase_count, created_at, updated_at
       ) VALUES (
         ${email},
         ${name || null}, ${phone || null}, ${document || null}, ${country || null},
         ${vendedor}, ${bpValor}, ${bpPagamento}, ${bpModelo}, ${bpParcela}, ${bpEmDia},
-        ${bpPrimeiraParcela}, ${bpUltimoPagamento}, ${bpProximoPagamento},
+        ${bpPrimeiraParcela}, ${bpUltimoPagamento}, ${bpProximoPagamento}, ${notes},
         0, ${now}, ${now}
       )
       ON CONFLICT (email) DO UPDATE SET
@@ -81,6 +82,7 @@ export async function PATCH(request: Request) {
         bp_primeira_parcela = CASE WHEN ${bpPrimeiraParcela}::bigint IS NOT NULL THEN ${bpPrimeiraParcela} ELSE buyer_profiles.bp_primeira_parcela END,
         bp_ultimo_pagamento = CASE WHEN ${bpUltimoPagamento}::bigint IS NOT NULL THEN ${bpUltimoPagamento} ELSE buyer_profiles.bp_ultimo_pagamento END,
         bp_proximo_pagamento= CASE WHEN ${bpProximoPagamento}::bigint IS NOT NULL THEN ${bpProximoPagamento} ELSE buyer_profiles.bp_proximo_pagamento END,
+        notes               = CASE WHEN ${notes}::text            IS NOT NULL THEN ${notes}               ELSE buyer_profiles.notes               END,
         updated_at          = ${now}
     `;
 
