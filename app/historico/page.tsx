@@ -25,25 +25,33 @@ const MENU_ITEMS = [
 ] as const;
 
 export default function HistoricoPage() {
-  const [tab, setTab] = useState<HistTab>('MENU');
-  const [data, setData] = useState<any[]>([]);
+  const [tab, setTab]       = useState<HistTab>('MENU');
+  const [data, setData]     = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [year, setYear] = useState('2026');
+  const [year, setYear]     = useState('2026');
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const fetchHistorico = useCallback((type: HistTab, force = false, targetYear?: string) => {
-    if (type === 'MENU') { setData([]); setTab('MENU'); return; }
+    if (type === 'MENU') { setData([]); setTab('MENU'); setApiError(null); return; }
     const currentYear = targetYear || year;
     setTab(type);
     setLoading(true);
     setData([]);
+    setApiError(null);
     const fp = force ? '1' : '0';
     let url = `/api/meta/historico?type=${type}&force=${fp}`;
     if (type === 'EXTRATO')     url = `/api/meta/historico/mensal?year=${currentYear}&force=${fp}`;
     if (type === 'RECORRENCIA') url = `/api/hotmart/historico/recorrencia?force=${fp}`;
     fetch(url)
       .then(r => r.json())
-      .then(j => { setData(j.results || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(j => {
+        setData(j.results || []);
+        // Surface API-level errors as warnings
+        const errs = [j.metaError, j.hotmartError, j.error].filter(Boolean);
+        if (errs.length > 0) setApiError(errs.join(' | '));
+        setLoading(false);
+      })
+      .catch(e => { setApiError(e.message); setLoading(false); });
   }, [year]);
 
   const tabMeta = MENU_ITEMS.find(m => m.type === tab);
@@ -143,9 +151,30 @@ export default function HistoricoPage() {
                     <div className="w-12 h-12 border-[3px] border-t-transparent rounded-full animate-spin"
                       style={{ borderColor: `${GOLD} transparent transparent transparent` }} />
                     <p className="font-bold uppercase tracking-widest text-[10px]" style={{ color: SILVER }}>Analisando Data Lake...</p>
+                    {tab === 'EXTRATO' && (
+                      <p className="text-[10px]" style={{ color: SILVER }}>Buscando Meta + Hotmart — pode levar ~30s</p>
+                    )}
+                  </div>
+                ) : apiError && data.length === 0 ? (
+                  <div className="text-center py-12">
+                    <p className="text-[12px] font-bold mb-4" style={{ color: '#f87171' }}>⚠ Erro ao buscar dados:</p>
+                    <p className="text-[11px] font-mono mb-6 max-w-lg mx-auto" style={{ color: SILVER }}>{apiError}</p>
+                    <button onClick={() => fetchHistorico(tab, true, year)}
+                      className="px-6 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest"
+                      style={{ background: GOLD, color: NAVY }}>
+                      Tentar novamente
+                    </button>
                   </div>
                 ) : data.length === 0 ? (
-                  <div className="text-center py-16 font-bold" style={{ color: SILVER }}>Nenhum dado encontrado no semestre.</div>
+                  <div className="text-center py-16 flex flex-col items-center gap-4" style={{ color: SILVER }}>
+                    <p className="font-bold">Nenhum dado encontrado.</p>
+                    <button onClick={() => fetchHistorico(tab, true, year)}
+                      className="px-5 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                      style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}>
+                      ↺ Forçar Atualização
+                    </button>
+                    {apiError && <p className="text-[10px] font-mono" style={{ color: '#f87171' }}>{apiError}</p>}
+                  </div>
                 ) : (
                   <div className={`grid grid-cols-1 ${tab === 'EXTRATO' || tab === 'RECORRENCIA' ? '' : 'lg:grid-cols-2'} gap-3`}>
                     {data.map((item, i) => (
