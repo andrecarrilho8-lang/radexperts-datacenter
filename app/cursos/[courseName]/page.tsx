@@ -19,7 +19,7 @@ function emailToId(email: string): string {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
-// ── Flag image — exactly how Hotmart page does it ─────────────────────────────
+// â”€â”€ Flag image â€” exactly how Hotmart page does it â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CURRENCY_TO_ISO: Record<string, string> = {
   BRL: 'br', USD: 'us', EUR: 'eu', COP: 'co', MXN: 'mx',
   ARS: 'ar', PEN: 'pe', CLP: 'cl', PYG: 'py', BOB: 'bo',
@@ -38,13 +38,13 @@ function getFlagImg(iso: string, size = 18) {
   );
 }
 // Direct flag from ISO code (stored in s.flag by backend)
-// s.flag is 'br','co','ar','' etc — empty string = unknown = no flag
+// s.flag is 'br','co','ar','' etc â€” empty string = unknown = no flag
 function getStudentFlag(flag: string, size = 18) {
   if (!flag) return null;
   return getFlagImg(flag, size);
 }
 
-// ── Manual student type (from DB) ───────────────────────────────────────────
+// â”€â”€ Manual student type (from DB) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type InstallmentDate = { due_ms: number; paid: boolean; paid_ms: number | null };
 type ManualStudent = {
   id: string;
@@ -65,7 +65,7 @@ type ManualStudent = {
   bp_proximo_pagamento?:  string | number | null;
 };
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type SubStatus = 'ACTIVE' | 'OVERDUE' | 'CANCELLED';
 type PayHist   = { date: number; valor: number; recurrencyNumber: number; index: number };
 type Student   = {
@@ -94,31 +94,31 @@ type Student   = {
   bpProximoPagamento?: number;  // epoch ms
 };
 
-// ── Glossy table style ────────────────────────────────────────────────────────
+// â”€â”€ Glossy table style â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const TABLE_STYLE: React.CSSProperties = {
   background: 'linear-gradient(160deg, rgba(0,22,55,0.96) 0%, rgba(0,15,40,0.93) 100%)',
   border: '1px solid rgba(255,255,255,0.10)',
   boxShadow: '0 1px 0 rgba(255,255,255,0.08) inset, 0 20px 40px -8px rgba(0,0,0,0.55)',
   borderRadius: 24,
-  // NOTE: no backdropFilter here — it creates a stacking context that traps fixed-position children
+  // NOTE: no backdropFilter here â€” it creates a stacking context that traps fixed-position children
 };
 const HEADER_STYLE: React.CSSProperties = {
   background: 'linear-gradient(90deg, rgba(255,255,255,0.07) 0%, rgba(180,195,220,0.05) 100%)',
   borderBottom: '1px solid rgba(255,255,255,0.09)',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function fmtDate(ts: number | null): string {
-  if (!ts) return '—';
+  if (!ts) return 'â€”';
   return new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 function fmtMoney(val: number): string {
-  if (!val) return '—';
+  if (!val) return 'â€”';
   return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 }
 // For LATAM: show value in original currency when not BRL
 function fmtMoneyByCurrency(val: number, currency: string): string {
-  if (!val || val === 0) return '—';
+  if (!val || val === 0) return 'â€”';
   const cur = (currency || 'BRL').toUpperCase();
   if (cur === 'BRL') {
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
@@ -138,16 +138,16 @@ function addMonths(ts: number, n: number): number {
   return d.getTime();
 }
 
-// ── Payment Status ─────────────────────────────────────────────────────────────
+// â”€â”€ Payment Status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Simple logic: ADIMPLENTE | INADIMPLENTE | QUITADO
 type PayStatus = 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO';
 
 function getPayStatus(s: Student): PayStatus {
-  // 0. Manual-only student (no Hotmart history) → base = ADIMPLENTE so bp_em_dia controls it
+  // 0. Manual-only student (no Hotmart history) â†’ base = ADIMPLENTE so bp_em_dia controls it
   if ((s as any).source === 'manual' && s.paymentHistory.length === 0) return 'ADIMPLENTE';
-  // 1. ONE_TIME (PIX, Boleto, card à vista) → QUITADO
+  // 1. ONE_TIME (PIX, Boleto, card Ã  vista) â†’ QUITADO
   if (!s.paymentIsSub && !s.paymentIsSmartInstall && s.paymentInstallments <= 1) return 'QUITADO';
-  // 2. Standard bank card installments → QUITADO (Hotmart received full amount, bank splits)
+  // 2. Standard bank card installments â†’ QUITADO (Hotmart received full amount, bank splits)
   if (s.paymentIsCardInstall) return 'QUITADO';
   // 3. Smart Installments: track actual paid vs total
   if (s.paymentIsSmartInstall) {
@@ -174,11 +174,11 @@ function PaymentCell({ s, statusOverride }: { s: Student; statusOverride?: 'ADIM
   const leftover     = inst - paidSoFar;
 
   const modeInfo = s.paymentIsSub
-    ? `Assinatura · Ciclo ${s.paymentRecurrency}`
+    ? `Assinatura Â· Ciclo ${s.paymentRecurrency}`
     : s.paymentIsSmartInstall
-      ? `Parcelamento · ${paid}/${inst}`
+      ? `Parcelamento Â· ${paid}/${inst}`
       : s.paymentIsCardInstall
-        ? `${method} · ${inst}× (banco)`
+        ? `${method} Â· ${inst}Ã— (banco)`
         : method;
 
   if (status === 'INADIMPLENTE') return (
@@ -201,7 +201,7 @@ function PaymentCell({ s, statusOverride }: { s: Student; statusOverride?: 'ADIM
         {s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'Quitado'}
       </span>
       <span className="text-[9px] uppercase tracking-wider" style={{ color: SILVER }}>
-        {s.paymentIsSmartInstall ? `${inst}/${inst} parcelas` : s.paymentIsCardInstall ? `${method} · ${inst}×` : method}
+        {s.paymentIsSmartInstall ? `${inst}/${inst} parcelas` : s.paymentIsCardInstall ? `${method} Â· ${inst}Ã—` : method}
       </span>
     </div>
   );
@@ -231,7 +231,7 @@ function PaymentCell({ s, statusOverride }: { s: Student; statusOverride?: 'ADIM
 }
 
 
-// ── Tooltip ─────────────────────────────────────────────────────
+// â”€â”€ Tooltip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function NameTooltip({ s, onHoverIn, onHoverOut }: {
   s: Student;
   onHoverIn: () => void;
@@ -249,7 +249,7 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
     for (let i = 1; i <= (isSub ? 3 : inst - actualPaid); i++) {
       upcoming.push({
         date: addMonths(s.lastPayDate, i),
-        label: isSub ? 'Mês estimado' : `Parcela ${actualPaid + i}/${inst}`,
+        label: isSub ? 'MÃªs estimado' : `Parcela ${actualPaid + i}/${inst}`,
       });
     }
   }
@@ -257,9 +257,9 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
   const statusColor = status === 'INADIMPLENTE' ? '#f87171' : status === 'QUITADO' ? '#4ade80' : '#38bdf8';
   const statusLabel = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'Quitado') : 'Adimplente';
   const offerLabel = s.offerCode && s.offerCode !== 'default' ? `Oferta: ${s.offerCode}` : '';
-  const modeLabel = s.paymentIsSub ? `Assinatura · Ciclo ${s.paymentRecurrency}`
+  const modeLabel = s.paymentIsSub ? `Assinatura Â· Ciclo ${s.paymentRecurrency}`
     : isSmartInstall ? `Parcel. Inteligente ${actualPaid}/${inst}`
-    : s.paymentIsCardInstall ? `${s.paymentLabel} · ${inst}×`
+    : s.paymentIsCardInstall ? `${s.paymentLabel} Â· ${inst}Ã—`
     : s.paymentLabel || s.paymentType;
 
   return (
@@ -301,14 +301,14 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
       {/* Paid */}
       <div className="px-5 py-3" style={{ borderBottom: upcoming.length > 0 ? '1px solid rgba(255,255,255,0.07)' : undefined, maxHeight: 240, overflowY: 'auto' }}>
         <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>
-          ✓ Já Pagou ({paid.length})
+          âœ“ JÃ¡ Pagou ({paid.length})
         </p>
         {paid.length === 0
           ? <p className="text-[10px]" style={{ color: SILVER }}>Sem registros</p>
           : paid.map((p, i) => {
-              // Use p.index (sequential position) for label — avoids duplicate "Parcela 1/Parcela 1"
+              // Use p.index (sequential position) for label â€” avoids duplicate "Parcela 1/Parcela 1"
               // when recurrencyNumber is 1 for multiple separate transactions
-              const label = isSub ? `Mês ${p.index}` : inst > 1 ? `Parcela ${p.index}` : 'Pago';
+              const label = isSub ? `MÃªs ${p.index}` : inst > 1 ? `Parcela ${p.index}` : 'Pago';
               return (
                 <div key={i} className="flex items-center justify-between py-1.5"
                   style={{ borderBottom: i < paid.length - 1 ? '1px solid rgba(255,255,255,0.04)' : undefined }}>
@@ -330,7 +330,7 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
       {upcoming.length > 0 && (
         <div className="px-5 py-3">
           <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: SILVER }}>
-            ◷ Falta Pagar ({upcoming.length})
+            â—· Falta Pagar ({upcoming.length})
           </p>
           {upcoming.slice(0, 6).map((u, i) => (
             <div key={i} className="flex items-center justify-between py-1.5"
@@ -351,7 +351,7 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
   );
 }
 
-// ── PDF ───────────────────────────────────────────────────────────────────────
+// â”€â”€ PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Standalone status helper used by PDF / CSV / XLS exports
 const GRACE_DAYS_EXPORT = 15;
 const DAY_MS_EXPORT = 86_400_000;
@@ -365,7 +365,7 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
     const up = String(rawEmDia).toUpperCase().trim();
     if (up === 'SIM')     return 'ADIMPLENTE';
     if (up === 'QUITADO') return 'QUITADO';
-    // Any other value (NAO, NÃO, ATRASADO, free text, etc.) = INADIMPLENTE
+    // Any other value (NAO, NÃƒO, ATRASADO, free text, etc.) = INADIMPLENTE
     return 'INADIMPLENTE';
   }
 
@@ -384,7 +384,7 @@ function generatePDF(
 ) {
   const rows = students.map((s, i) => {
     const status = effectiveStatusFor(s, bpCache);
-    const stLabel = status === 'INADIMPLENTE' ? '⚠ INADIMPLENTE' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : '✓ QUITADO') : '● ADIMPLENTE';
+    const stLabel = status === 'INADIMPLENTE' ? 'âš  INADIMPLENTE' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : 'âœ“ QUITADO') : 'â— ADIMPLENTE';
     const stColor = status === 'INADIMPLENTE' ? '#dc2626' : status === 'QUITADO' ? '#16a34a' : '#0ea5e9';
     const inst = s.paymentInstallments;
     const paid = s.paymentRecurrency;
@@ -392,24 +392,24 @@ function generatePDF(
     const paidCard = !s.paymentIsSub && inst > 1 ? Math.min(monthsSince + 1, inst) : 0;
     const vParcela = s.paymentIsSub ? s.valor : inst > 1 ? s.valor / inst : s.valor;
     const vTotal   = s.paymentIsSub ? s.valor * paid : s.valor;
-    const method   = s.paymentIsSub ? `Assinatura · ${paid} pgtos` : inst > 1 ? `Cartão ${inst}× · ${paidCard}/${inst}` : 'Pago';
+    const method   = s.paymentIsSub ? `Assinatura Â· ${paid} pgtos` : inst > 1 ? `CartÃ£o ${inst}Ã— Â· ${paidCard}/${inst}` : 'Pago';
     const rowBg = status === 'INADIMPLENTE' ? '#fff0f0' : i % 2 === 0 ? '#f8faff' : '#fff';
     const emailKey = (s.email || '').toLowerCase();
     const phone = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCache[emailKey] || '');
     const cpf = documentCache[emailKey] || (s as any).document || '';
-    // Buyer persona — from cache (works for Hotmart + manual)
+    // Buyer persona â€” from cache (works for Hotmart + manual)
     const bp = bpCache[emailKey] || {};
     const vendedor  = bp.vendedor || '';
     const bpPag    = bp.pagamento || (s as any).source === 'manual' ? (bp.pagamento || '') : '';
     const bpModelo = bp.modelo || '';
     const bpParcela = bp.parcela != null ? fmtMoney(Number(bp.parcela)) : bp.valor != null ? fmtMoney(Number(bp.valor)) : '';
-    const emDia    = bp.em_dia ? (bp.em_dia === 'SIM' ? '✓ Em Dia' : '✗ Atrasado') : '';
+    const emDia    = bp.em_dia ? (bp.em_dia === 'SIM' ? 'âœ“ Em Dia' : 'âœ— Atrasado') : '';
     const dadosPessoais = [
       `<b>${s.email}</b>`,
-      phone ? `<span style="color:#16a34a">📞 ${phone}</span>` : '',
-      cpf   ? `<span style="color:#0369a1">🪪 ${cpf}</span>`  : '',
+      phone ? `<span style="color:#16a34a">ðŸ“ž ${phone}</span>` : '',
+      cpf   ? `<span style="color:#0369a1">ðŸªª ${cpf}</span>`  : '',
     ].filter(Boolean).join('<br/>');
-    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${bpPag}${bpModelo ? ` · ${bpModelo}` : ''}</td><td style="font-weight:700">${bpParcela || fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#888">${emDia}</td><td style="color:#555">${method}</td></tr>`;
+    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${bpPag}${bpModelo ? ` Â· ${bpModelo}` : ''}</td><td style="font-weight:700">${bpParcela || fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#888">${emDia}</td><td style="color:#555">${method}</td></tr>`;
   }).join('');
 
   const active    = students.filter(s => effectiveStatusFor(s, bpCache) === 'ADIMPLENTE').length;
@@ -417,7 +417,7 @@ function generatePDF(
   const quitado   = students.filter(s => effectiveStatusFor(s, bpCache) === 'QUITADO').length;
   const win = window.open('', '_blank');
   if (!win) return;
-  win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>${courseName} — Alunos</title>
+  win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>${courseName} â€” Alunos</title>
 <style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
 *{margin:0;padding:0;box-sizing:border-box}body{font-family:'Inter',sans-serif;color:#1a2035;background:#fff;padding:32px;font-size:11px}
 .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:16px;border-bottom:3px solid #E8B14F}
@@ -436,12 +436,12 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top;line-height:1
 <div class="stat" style="background:#f0fff4;border:1px solid #86efac"><div class="num" style="color:#16a34a">${quitado}</div><div class="lbl">Quitados</div></div>
 </div>
 <table><thead><tr><th>#</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Vendedor</th><th>Pagamento</th><th>Valor/Parcela</th><th>Total Pago</th><th>Status</th><th>Em Dia</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
-<div class="ftr">RadExperts Data Center · Dados vitalícios</div>
+<div class="ftr">RadExperts Data Center Â· Dados vitalÃ­cios</div>
 <script>window.onload=()=>window.print()</script></body></html>`);
   win.document.close();
 }
 
-// ── CSV Export ────────────────────────────────────────────────────────────────────────
+// â”€â”€ CSV Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function generateCSV(
   courseName: string,
   students: Student[],
@@ -453,11 +453,11 @@ function generateCSV(
     '#','NOME','EMAIL','TELEFONE','CPF',
     'DATA ENTRADA','STATUS','ORIGEM',
     'FORMA PAGAMENTO','VALOR PARCELA (R$)','TOTAL PAGO (R$)',
-    'Nº PARCELAS','PAGAS','RESTANTES',
+    'NÂº PARCELAS','PAGAS','RESTANTES',
     'MOEDA','TURMA',
     // Buyer Persona
     'VENDEDOR','BP VALOR TOTAL','BP PAGAMENTO','BP MODELO','BP PARCELA',
-    '1ª PARCELA','Últ. PAGAMENTO','PRÓX. PAGAMENTO','EM DIA',
+    '1Âª PARCELA','Ãšlt. PAGAMENTO','PRÃ“X. PAGAMENTO','EM DIA',
   ];
   const rows = students.map((s, i) => {
     const status   = effectiveStatusFor(s, bpCacheArg);
@@ -511,7 +511,7 @@ function generateCSV(
   a.click(); URL.revokeObjectURL(url);
 }
 
-// ── XLS Export (SheetJS) ────────────────────────────────────────────────────
+// â”€â”€ XLS Export (SheetJS) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function generateXLS(
   courseName: string,
   students: Student[],
@@ -521,16 +521,16 @@ function generateXLS(
 ) {
   const wb = XLSX.utils.book_new();
 
-  /* ── Sheet 1: Alunos ────────────────── */
+  /* â”€â”€ Sheet 1: Alunos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const headers = [
     '#', 'NOME', 'EMAIL', 'TELEFONE', 'CPF',
     'DATA ENTRADA', 'STATUS', 'ORIGEM', 'FORMA PAGAMENTO',
     'VALOR PARCELA (R$)', 'TOTAL PAGO (R$)',
-    'Nº PARCELAS', 'PAGAS', 'RESTANTES',
+    'NÂº PARCELAS', 'PAGAS', 'RESTANTES',
     'MOEDA', 'TURMA',
     // Buyer Persona
     'VENDEDOR', 'BP VALOR TOTAL', 'BP PAGAMENTO', 'BP MODELO', 'BP PARCELA',
-    '1ª PARCELA', 'ÜLT. PAGAMENTO', 'PRÓX. PAGAMENTO', 'EM DIA',
+    '1Âª PARCELA', 'ÃœLT. PAGAMENTO', 'PRÃ“X. PAGAMENTO', 'EM DIA',
   ];
 
   const data = students.map((s, i) => {
@@ -561,7 +561,7 @@ function generateXLS(
       bp.pagamento || (
         s.paymentIsSub        ? `Assinatura (ciclo ${s.paymentRecurrency})` :
         s.paymentIsSmartInstall ? 'Parcelamento Inteligente' :
-        s.paymentIsCardInstall  ? `Cartão (${inst}x banco)` :
+        s.paymentIsCardInstall  ? `CartÃ£o (${inst}x banco)` :
         (s.paymentLabel || s.paymentType || '')
       ),
       +vParc.toFixed(2),
@@ -598,7 +598,7 @@ function generateXLS(
   ws['!freeze'] = { xSplit: 0, ySplit: 1 };
   XLSX.utils.book_append_sheet(wb, ws, 'Alunos');
 
-  /* ── Sheet 2: Resumo ───────────────── */
+  /* â”€â”€ Sheet 2: Resumo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const adim      = students.filter(s => effectiveStatusFor(s, bpCacheArg) === 'ADIMPLENTE').length;
   const inadim    = students.filter(s => effectiveStatusFor(s, bpCacheArg) === 'INADIMPLENTE').length;
   const quit      = students.filter(s => effectiveStatusFor(s, bpCacheArg) === 'QUITADO').length;
@@ -623,7 +623,7 @@ function generateXLS(
     ['Inadimplentes', inadim],
     ['Quitados / Encerrados', quit],
     [],
-    ['Total Pago (histórico)', +totalPago.toFixed(2)],
+    ['Total Pago (histÃ³rico)', +totalPago.toFixed(2)],
     ['Alunos com Telefone', comPhone],
     ['Alunos sem Telefone', students.length - comPhone],
   ];
@@ -632,11 +632,11 @@ function generateXLS(
   wsRes['!cols'] = [{ wch: 26 }, { wch: 30 }];
   XLSX.utils.book_append_sheet(wb, wsRes, 'Resumo');
 
-  /* ── Download ── */
+  /* â”€â”€ Download â”€â”€ */
   XLSX.writeFile(wb, `${courseName.replace(/[^a-z0-9]/gi, '_')}_alunos.xlsx`);
 }
 
-// ── Grid ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const GRID = 'minmax(100px,120px) minmax(160px,1fr) minmax(220px,280px) minmax(110px,140px) minmax(110px,140px) minmax(200px,260px) 60px';
 const COLS = [
   { key: 'entryDate', label: 'Entrada',        sortable: true  },
@@ -648,7 +648,7 @@ const COLS = [
   { key: 'actions',   label: '',                sortable: false },
 ];
 
-// ── Detect country flag + currency from phone prefix ────────────────────────
+// â”€â”€ Detect country flag + currency from phone prefix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function detectFlagAndCurrency(phone: string): { flag: string; currency: string } {
   const digits = (phone || '').replace(/\\D/g, '');
   const PREFIX_MAP: Array<{ prefix: string; flag: string; currency: string }> = [
@@ -686,7 +686,7 @@ function detectFlagAndCurrency(phone: string): { flag: string; currency: string 
   return { flag: 'br', currency: 'BRL' };
 }
 
-// ── Convert ManualStudent → Student shape ────────────────────────────────────
+// â”€â”€ Convert ManualStudent â†’ Student shape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function manualToStudent(ms: ManualStudent): Student {
   // IMPORTANT: Postgres returns bigint/numeric as strings in JSON. Always Number() cast.
   const dates   = (ms.installment_dates || []).map(d => ({
@@ -714,8 +714,8 @@ function manualToStudent(ms: ManualStudent): Student {
     phone: ms.phone, source: 'manual', manualId: ms.id,
     manualInstallments: dates,
     paymentType: ms.payment_type,
-    paymentMethod: ms.payment_type === 'PIX' ? 'PIX' : 'Cartão',
-    paymentLabel: ms.payment_type === 'PIX' ? 'PIX Avulso' : `Cartão ${Number(ms.installments)}×`,
+    paymentMethod: ms.payment_type === 'PIX' ? 'PIX' : 'CartÃ£o',
+    paymentLabel: ms.payment_type === 'PIX' ? 'PIX Avulso' : `CartÃ£o ${Number(ms.installments)}Ã—`,
     offerCode: '', paymentMode: ms.payment_type === 'PIX' ? 'single' : 'installment',
     paymentInstallments: Number(ms.installments),
     paymentIsSub: false,
@@ -733,10 +733,10 @@ function manualToStudent(ms: ManualStudent): Student {
   };
 }
 
-// ── Add Student Modal ─────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// â”€â”€ Add Student Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // BATCH PARSER
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 interface ParsedRow {
   name: string; email: string; phone: string; cpf: string;
   paymentMethod: string; totalAmount: string;
@@ -754,13 +754,13 @@ const RE_EMAIL   = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
 const RE_CPF_FMT = /\d{3}\.\d{3}\.\d{3}[\-.\s]\d{2}/;          // formatted CPF
 const RE_CPF_RAW = /\b\d{11}\b(?![\w.\-])/;                     // 11-digit raw (low priority)
 const RE_PHONE   = /(?:\+?55\s?)?(?:\(?\d{2}\)?[\s.\-]?)?(?:9[\s.\-]?)?\d{4}[\s.\-]?\d{4}/;
-// Payment detection — ORDER MATTERS: most specific first
+// Payment detection â€” ORDER MATTERS: most specific first
 function detectPayment(text: string): string {
   const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   // Specific combos first
   if (t.includes('debito') || t.includes('debit'))  return 'CARTAO_DEBITO';
   if (t.includes('credito') || t.includes('credit')) return 'CARTAO_CREDITO';
-  if (t.includes('cartao') || t.includes('card'))    return 'CARTAO_CREDITO'; // bare "cartao" = crédito
+  if (t.includes('cartao') || t.includes('card'))    return 'CARTAO_CREDITO'; // bare "cartao" = crÃ©dito
   if (t.includes('boleto') || t.includes('billet'))  return 'BOLETO';
   if (t.includes('pix'))                             return 'PIX';
   if (t.includes('picpay'))                          return 'PIX';
@@ -788,7 +788,7 @@ function parseSingleLine(raw: string): ParsedRow {
 
   const payment  = detectPayment(raw);
   // Remove payment keywords from work
-  work = work.replace(/\b(pix|boleto|cart[aã]o|cr[eé]dito|d[eé]bito|picpay|transfer[eê]ncia)\b/gi, ' ');
+  work = work.replace(/\b(pix|boleto|cart[aÃ£]o|cr[eÃ©]dito|d[eÃ©]bito|picpay|transfer[eÃª]ncia)\b/gi, ' ');
 
   // Remove amounts like R$ 1.000,00 or 1500.00
   work = work.replace(/R\$\s?[\d.,]+/gi, ' ').replace(/\b\d{1,6}[.,]\d{2}\b/g, ' ');
@@ -801,7 +801,7 @@ function parseSingleLine(raw: string): ParsedRow {
     .trim();
 
   // Detect installments pattern: '12x', '12 vezes', 'x12'
-  const instMatch = raw.match(/\b(\d{1,2})\s*[xX×]\b|\b[xX]\s*(\d{1,2})\b|\b(\d{1,2})\s+vez(?:es)?\b/i);
+  const instMatch = raw.match(/\b(\d{1,2})\s*[xXÃ—]\b|\b[xX]\s*(\d{1,2})\b|\b(\d{1,2})\s+vez(?:es)?\b/i);
   const installments = instMatch ? String(parseInt(instMatch[1] || instMatch[2] || instMatch[3] || '1', 10)) : '1';
 
   const confidence: ParsedRow['confidence'] =
@@ -821,7 +821,7 @@ function parseSingleLine(raw: string): ParsedRow {
 function parseBatchText(text: string): ParsedRow[] {
   const rows: ParsedRow[] = [];
 
-  // ─ Strategy A: blank-line-separated blocks (each block = one student) ─────
+  // â”€ Strategy A: blank-line-separated blocks (each block = one student) â”€â”€â”€â”€â”€
   if (/\n[ \t]*\n/.test(text)) {
     const blocks = text.split(/\n[ \t]*\n/).map(b => b.trim()).filter(Boolean);
     for (const block of blocks) {
@@ -837,7 +837,7 @@ function parseBatchText(text: string): ParsedRow[] {
     return rows;
   }
 
-  // ─ Strategy B: one student per line (strip leading commas) ────────────
+  // â”€ Strategy B: one student per line (strip leading commas) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const rawLines = text
     .split(/\r?\n/)
     .map(l => l.trim().replace(/^[,;\s]+/, ''))
@@ -858,25 +858,25 @@ function parseBatchText(text: string): ParsedRow[] {
   return rows;
 }
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ConfBadge({ level }: { level: 'high' | 'medium' | 'low' }) {
-  const cfg = level === 'high'   ? { c: '#4ade80', bg: 'rgba(74,222,128,0.1)',  label: '✓ OK' }
-            : level === 'medium' ? { c: '#fbbf24', bg: 'rgba(251,191,36,0.1)',  label: '⚠ Rev' }
-            :                      { c: '#f87171', bg: 'rgba(248,113,113,0.1)', label: '✕ Erro' };
+  const cfg = level === 'high'   ? { c: '#4ade80', bg: 'rgba(74,222,128,0.1)',  label: 'âœ“ OK' }
+            : level === 'medium' ? { c: '#fbbf24', bg: 'rgba(251,191,36,0.1)',  label: 'âš  Rev' }
+            :                      { c: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'âœ• Erro' };
   return <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
     background: cfg.bg, color: cfg.c, whiteSpace: 'nowrap' }}>{cfg.label}</span>;
 }
 
-// ── Dup status badge ─────────────────────────────────────────────────────────
+// â”€â”€ Dup status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DupBadge({ status }: { status: 'new' | 'enrich' }) {
   return status === 'new'
     ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
-        background: 'rgba(74,222,128,0.1)', color: '#4ade80', whiteSpace: 'nowrap' }}>🆕 Novo</span>
+        background: 'rgba(74,222,128,0.1)', color: '#4ade80', whiteSpace: 'nowrap' }}>ðŸ†• Novo</span>
     : <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
-        background: 'rgba(99,179,237,0.1)', color: '#63b3ed', whiteSpace: 'nowrap' }}>🔄 Atualizar</span>;
+        background: 'rgba(99,179,237,0.1)', color: '#63b3ed', whiteSpace: 'nowrap' }}>ðŸ”„ Atualizar</span>;
 }
 
-// ── CSV / XLS Import Modal ────────────────────────────────────────────────────
+// â”€â”€ CSV / XLS Import Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type CsvField =
   'name'|'email'|'phone'|'cpf'|'entryDate'|
   'paymentMethod'|'totalAmount'|'installments'|'installmentsPaid'|
@@ -892,7 +892,7 @@ const CSV_FIELD_LABELS: Record<CsvField, string> = {
   entryDate:            'Data de Entrada',
   paymentMethod:        'Tipo de Pagamento',
   totalAmount:          'Valor Parcela (R$)',
-  installments:         'Nº de Parcelas',
+  installments:         'NÂº de Parcelas',
   installmentsPaid:     'Parcelas Pagas',
   vendedor:             'Vendedor',
   bp_valor:             'Valor',
@@ -900,10 +900,10 @@ const CSV_FIELD_LABELS: Record<CsvField, string> = {
   bp_modelo:            'Modelo',
   bp_parcela:           'Parcela (R$)',
   bp_primeira_parcela:  'Primeira Parcela',
-  bp_ultimo_pagamento:  'Último Pagamento',
-  bp_proximo_pagamento: 'Próximo Pagamento',
+  bp_ultimo_pagamento:  'Ãšltimo Pagamento',
+  bp_proximo_pagamento: 'PrÃ³ximo Pagamento',
   bp_em_dia:            'Em Dia',
-  _ignore:              '— Ignorar —',
+  _ignore:              'â€” Ignorar â€”',
 };
 
 // Auto-detect column mapping from header name
@@ -940,7 +940,7 @@ function normalisePayment(raw: string): string {
   return 'PIX';
 }
 
-// Parse a raw Excel serial date or string date → YYYY-MM-DD
+// Parse a raw Excel serial date or string date â†’ YYYY-MM-DD
 function parseDateCell(val: any): string {
   if (!val) return new Date().toISOString().slice(0, 10);
   if (typeof val === 'number') {
@@ -976,7 +976,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   const [allRaw,     setAllRaw]     = React.useState<any[][]>([]);
   const [mapping,    setMapping]    = React.useState<Record<string, CsvField>>({});
   const [saving,     setSaving]     = React.useState(false);
-  const [progress,   setProgress]   = React.useState(0); // 0–100 for loading bar
+  const [progress,   setProgress]   = React.useState(0); // 0â€“100 for loading bar
   const [result,     setResult]     = React.useState<{saved:number;enriched:number;failed:number;errors:string[]}|null>(null);
   const [error,      setError]      = React.useState('');
   const fileRef   = React.useRef<HTMLInputElement>(null);
@@ -1040,7 +1040,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
         installments:         pickRaw('installments', row) || '1',
         installmentAmount:    '',
         installmentsPaid:     pickRaw('installmentsPaid', row) || '0',
-        // buyer_persona fields — raw strings, API will parse
+        // buyer_persona fields â€” raw strings, API will parse
         vendedor:             pickRaw('vendedor', row),
         bp_valor:             pickRaw('bp_valor', row).replace(/[^\d.,]/g, ''),
         bp_pagamento:         pickRaw('bp_pagamento', row),
@@ -1053,7 +1053,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
         bp_proximo_pagamento: parseDateCell(headers.findIndex(h => fieldFor(h) === 'bp_proximo_pagamento') >= 0
                                 ? row[headers.findIndex(h => fieldFor(h) === 'bp_proximo_pagamento')] : ''),
         bp_em_dia:            pickRaw('bp_em_dia', row).toUpperCase() === 'SIM' ? 'SIM'
-                                : pickRaw('bp_em_dia', row).toUpperCase() === 'NAO' || pickRaw('bp_em_dia', row).toUpperCase() === 'NÃO' ? 'NÃO'
+                                : pickRaw('bp_em_dia', row).toUpperCase() === 'NAO' || pickRaw('bp_em_dia', row).toUpperCase() === 'NÃƒO' ? 'NÃƒO'
                                 : pickRaw('bp_em_dia', row),
         dupStatus:            existingEmails.has(email.toLowerCase()) ? 'enrich' as const : 'new' as const,
         confidence:           conf,
@@ -1063,10 +1063,10 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
 
   const handleImport = async () => {
     const rows = buildRows().filter(r => r.name && r.email);
-    if (rows.length === 0) { setError('Nenhuma linha válida (nome + email obrigatórios).'); return; }
+    if (rows.length === 0) { setError('Nenhuma linha vÃ¡lida (nome + email obrigatÃ³rios).'); return; }
     setSaving(true); setProgress(5); setError('');
 
-    // Animate progress bar: fills 5→85% during upload, then 100% on completion
+    // Animate progress bar: fills 5â†’85% during upload, then 100% on completion
     const totalMs = Math.max(8000, rows.length * 350);
     const interval = 200;
     const perTick = (80 / (totalMs / interval));
@@ -1151,10 +1151,10 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
           <div>
             <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Importar Planilha CSV / XLS</h3>
             <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>
-              {step === 'upload'  ? 'Faça upload da planilha e mapeie os campos'            :
-               step === 'map'    ? `${headers.length} colunas detectadas — associe os campos` :
+              {step === 'upload'  ? 'FaÃ§a upload da planilha e mapeie os campos'            :
+               step === 'map'    ? `${headers.length} colunas detectadas â€” associe os campos` :
                step === 'preview'? `${totalValid} aluno${totalValid !== 1 ? 's' : ''} prontos para importar` :
-               'Importação concluída'}
+               'ImportaÃ§Ã£o concluÃ­da'}
             </p>
           </div>
           <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: SILVER, cursor: 'pointer', padding: 4 }}>
@@ -1171,7 +1171,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
           ))}
         </div>
 
-        {/* ── STEP 1: UPLOAD ─────────────────────────────────────────────── */}
+        {/* â”€â”€ STEP 1: UPLOAD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 'upload' && (<>
           <div
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -1189,7 +1189,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             <p style={{ color: SILVER, fontSize: 12, margin: '0 0 16px' }}>ou clique para selecionar</p>
             <span style={{ fontSize: 10, fontWeight: 800, color: BLUE, background: 'rgba(99,179,237,0.1)',
               border: '1px solid rgba(99,179,237,0.3)', borderRadius: 8, padding: '4px 12px' }}>
-              .CSV · .XLS · .XLSX
+              .CSV Â· .XLS Â· .XLSX
             </span>
             <input ref={fileRef} type="file" accept=".csv,.xls,.xlsx"
               style={{ display: 'none' }} onChange={handleFileChange} />
@@ -1198,14 +1198,14 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             border: '1px solid rgba(255,255,255,0.07)', marginBottom: 16 }}>
             <p style={{ fontSize: 10, fontWeight: 900, color: SILVER, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Dica</p>
             <p style={{ fontSize: 11, color: SILVER, margin: 0, lineHeight: 1.7 }}>
-              A planilha pode ter qualquer cabeçalho — você vai associar cada coluna ao campo correto na próxima etapa. <br/>
-              Campos reconhecidos: <strong style={{ color: 'white' }}>Nome, Email, Telefone, CPF, Data de Entrada, Tipo de Pagamento, Valor Parcela, Nº Parcelas, Parcelas Pagas</strong>.
+              A planilha pode ter qualquer cabeÃ§alho â€” vocÃª vai associar cada coluna ao campo correto na prÃ³xima etapa. <br/>
+              Campos reconhecidos: <strong style={{ color: 'white' }}>Nome, Email, Telefone, CPF, Data de Entrada, Tipo de Pagamento, Valor Parcela, NÂº Parcelas, Parcelas Pagas</strong>.
             </p>
           </div>
           {error && <p style={{ color: '#f87171', fontSize: 11, marginTop: 8 }}>{error}</p>}
         </>)}
 
-        {/* ── STEP 2: MAP COLUMNS ─────────────────────────────────────────── */}
+        {/* â”€â”€ STEP 2: MAP COLUMNS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 'map' && (<>
           <div style={{ overflowX: 'auto', marginBottom: 20 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -1221,7 +1221,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
                   </th>
                   <th style={{ padding: '6px 10px', textAlign: 'left', fontWeight: 900, fontSize: 9,
                     textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER }}>
-                    Exemplo (1ª linha)
+                    Exemplo (1Âª linha)
                   </th>
                 </tr>
               </thead>
@@ -1243,7 +1243,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
                     </td>
                     <td style={{ padding: '5px 10px', color: SILVER, fontSize: 10, maxWidth: 200,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {String(rawRows[0]?.[hi] ?? '—')}
+                      {String(rawRows[0]?.[hi] ?? 'â€”')}
                     </td>
                   </tr>
                 ))}
@@ -1255,7 +1255,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
           {rawRows.length > 0 && (
             <div style={{ marginBottom: 20 }}>
               <p style={{ fontSize: 10, fontWeight: 900, color: SILVER, textTransform: 'uppercase',
-                letterSpacing: '0.1em', margin: '0 0 8px' }}>Pré-visualização (3 primeiras linhas)</p>
+                letterSpacing: '0.1em', margin: '0 0 8px' }}>PrÃ©-visualizaÃ§Ã£o (3 primeiras linhas)</p>
               <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
                   <thead>
@@ -1263,7 +1263,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
                       {headers.map((h, i) => (
                         <th key={i} style={{ padding: '5px 8px', fontWeight: 800, color: mapping[h] !== '_ignore' ? BLUE : 'rgba(255,255,255,0.3)',
                           whiteSpace: 'nowrap', textAlign: 'left' }}>
-                          {h}{mapping[h] !== '_ignore' ? ` → ${CSV_FIELD_LABELS[mapping[h]]}` : ''}
+                          {h}{mapping[h] !== '_ignore' ? ` â†’ ${CSV_FIELD_LABELS[mapping[h]]}` : ''}
                         </th>
                       ))}
                     </tr>
@@ -1290,7 +1290,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             <button onClick={() => { setStep('upload'); setError(''); }}
               style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
                 cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
-              ← Voltar
+              â† Voltar
             </button>
             <button onClick={() => {
                 const has = Object.values(mapping).some(v => v === 'name');
@@ -1307,13 +1307,13 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
           </div>
         </>)}
 
-        {/* ── STEP 3: PREVIEW ──────────────────────────────────────────────── */}
+        {/* â”€â”€ STEP 3: PREVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 'preview' && (<>
           <div style={{ overflowX: 'auto', marginBottom: 16 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','Vendedor','Valor BP','Pag. BP','Modelo','Parcela BP','1ª Parcela','Últ. Pag.','Próx. Pag.','Em Dia','Status','OK'].map(h => (
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','Vendedor','Valor BP','Pag. BP','Modelo','Parcela BP','1Âª Parcela','Ãšlt. Pag.','PrÃ³x. Pag.','Em Dia','Status','OK'].map(h => (
                     <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
                       fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
@@ -1323,30 +1323,30 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
                 {buildRows().map((r, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '5px 8px', color: SILVER, fontSize: 10 }}>{i+1}</td>
-                    <td style={{ padding: '5px 8px', color: 'white', fontWeight: 700 }}>{r.name || <span style={{color:'#f87171'}}>—</span>}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.email || <span style={{color:'#f87171'}}>—</span>}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.phone || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.cpf || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: 'white', fontWeight: 700 }}>{r.name || <span style={{color:'#f87171'}}>â€”</span>}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.email || <span style={{color:'#f87171'}}>â€”</span>}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.phone || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.cpf || 'â€”'}</td>
                     <td style={{ padding: '5px 8px', color: GOLD, fontWeight: 700 }}>
-                      {{PIX:'PIX',BOLETO:'Boleto',CARTAO_CREDITO:'Crédito',CARTAO_DEBITO:'Débito'}[r.paymentMethod] || r.paymentMethod}
+                      {{PIX:'PIX',BOLETO:'Boleto',CARTAO_CREDITO:'CrÃ©dito',CARTAO_DEBITO:'DÃ©bito'}[r.paymentMethod] || r.paymentMethod}
                     </td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.totalAmount || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.installments}×</td>
-                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.entryDate || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: GOLD, fontWeight: 700 }}>{r.vendedor || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_valor || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_pagamento || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_modelo || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_parcela || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_primeira_parcela || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_ultimo_pagamento || '—'}</td>
-                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_proximo_pagamento || '—'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.totalAmount || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.installments}Ã—</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.entryDate || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: GOLD, fontWeight: 700 }}>{r.vendedor || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_valor || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_pagamento || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_modelo || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER }}>{r.bp_parcela || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_primeira_parcela || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_ultimo_pagamento || 'â€”'}</td>
+                    <td style={{ padding: '5px 8px', color: SILVER, whiteSpace:'nowrap' }}>{r.bp_proximo_pagamento || 'â€”'}</td>
                     <td style={{ padding: '5px 8px' }}>
                       {r.bp_em_dia === 'SIM'
-                        ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>✓ SIM</span>
+                        ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>âœ“ SIM</span>
                         : r.bp_em_dia
-                        ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>✗ {r.bp_em_dia}</span>
-                        : <span style={{ color: SILVER }}>—</span>}
+                        ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>âœ— {r.bp_em_dia}</span>
+                        : <span style={{ color: SILVER }}>â€”</span>}
                     </td>
                     <td style={{ padding: '5px 8px' }}><DupBadge status={r.dupStatus} /></td>
                     <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
@@ -1356,10 +1356,10 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             </table>
           </div>
           <p style={{ fontSize: 11, color: SILVER, marginBottom: 14 }}>
-            <strong style={{ color: 'white' }}>{totalValid}</strong> aluno{totalValid !== 1 ? 's' : ''} válidos de {allRaw.length} linhas
+            <strong style={{ color: 'white' }}>{totalValid}</strong> aluno{totalValid !== 1 ? 's' : ''} vÃ¡lidos de {allRaw.length} linhas
             {' '}({buildRows().filter(r => r.dupStatus === 'enrich').length > 0 && (
               <span style={{ color: '#63b3ed' }}>
-                {buildRows().filter(r => r.dupStatus === 'enrich').length} 🔄 serão enriquecidos
+                {buildRows().filter(r => r.dupStatus === 'enrich').length} ðŸ”„ serÃ£o enriquecidos
               </span>
             )})
           </p>
@@ -1379,7 +1379,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
                 }} />
               </div>
               <p style={{ fontSize: 10, color: 'rgba(168,178,192,0.6)', margin: '5px 0 0', textAlign: 'center' }}>
-                Processando {totalValid} aluno{totalValid !== 1 ? 's' : ''}... não feche esta janela.
+                Processando {totalValid} aluno{totalValid !== 1 ? 's' : ''}... nÃ£o feche esta janela.
               </p>
             </div>
           )}
@@ -1389,7 +1389,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
               style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
                 cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1,
                 background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
-              ← Ajustar
+              â† Ajustar
             </button>
             <button onClick={handleImport} disabled={saving || totalValid === 0}
               style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
@@ -1406,7 +1406,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
           </div>
         </>)}
 
-        {/* ── STEP 4: DONE ────────────────────────────────────────────────── */}
+        {/* â”€â”€ STEP 4: DONE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 'done' && result && (<>
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 56,
@@ -1420,7 +1420,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             )}
             {result.enriched > 0 && (
               <p style={{ color: BLUE, fontSize: 14, fontWeight: 700, margin: '8px 0 4px' }}>
-                🔄 {result.enriched} cadastro{result.enriched !== 1 ? 's' : ''} enriquecido{result.enriched !== 1 ? 's' : ''} com dados faltantes
+                ðŸ”„ {result.enriched} cadastro{result.enriched !== 1 ? 's' : ''} enriquecido{result.enriched !== 1 ? 's' : ''} com dados faltantes
               </p>
             )}
             {result.saved === 0 && result.enriched === 0 && result.failed === 0 && (
@@ -1444,7 +1444,7 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   );
 }
 
-// ── Batch Add Modal ───────────────────────────────────────────────────────────
+// â”€â”€ Batch Add Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
   courseName: string;
   existingEmails: Set<string>;
@@ -1479,7 +1479,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
 
   const handleImport = async () => {
     const valid = rows.filter(r => r.name && r.email);
-    if (valid.length === 0) { setError('Nenhuma linha válida (nome + email obrigatórios).'); return; }
+    if (valid.length === 0) { setError('Nenhuma linha vÃ¡lida (nome + email obrigatÃ³rios).'); return; }
     setSaving(true); setError('');
     try {
       const res = await fetch('/api/alunos/batch', {
@@ -1521,8 +1521,8 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
   const SEL = { ...IN, cursor: 'pointer' };
   const PAYMENT_OPTS = [
     { v: 'PIX',           l: 'PIX' },
-    { v: 'CARTAO_CREDITO', l: 'Cartão Crédito' },
-    { v: 'CARTAO_DEBITO',  l: 'Cartão Débito' },
+    { v: 'CARTAO_CREDITO', l: 'CartÃ£o CrÃ©dito' },
+    { v: 'CARTAO_DEBITO',  l: 'CartÃ£o DÃ©bito' },
     { v: 'BOLETO',         l: 'Boleto' },
   ];
 
@@ -1550,9 +1550,9 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
           <div>
             <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Adicionar por Lote</h3>
             <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>
-              {step === 'paste'   ? 'Cole os dados — a plataforma identifica os campos automaticamente' :
-               step === 'preview' ? `${rows.length} aluno${rows.length !== 1 ? 's' : ''} identificado${rows.length !== 1 ? 's' : ''} — revise e confirme` :
-               'Importação concluída'}
+              {step === 'paste'   ? 'Cole os dados â€” a plataforma identifica os campos automaticamente' :
+               step === 'preview' ? `${rows.length} aluno${rows.length !== 1 ? 's' : ''} identificado${rows.length !== 1 ? 's' : ''} â€” revise e confirme` :
+               'ImportaÃ§Ã£o concluÃ­da'}
             </p>
           </div>
           <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none',
@@ -1561,15 +1561,15 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
           </button>
         </div>
 
-        {/* ─── STEP 1: PASTE ─────────────────────────────────────────────── */}
+        {/* â”€â”€â”€ STEP 1: PASTE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 'paste' && (<>
           {/* Examples */}
           <div style={{ marginBottom: 16, padding: '12px 14px', borderRadius: 12,
             background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
             <p style={{ fontSize: 10, fontWeight: 900, color: SILVER, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Formatos aceitos</p>
-            {["João Silva, joao@email.com, (11) 99999-0000, 123.456.789-00, PIX",
-              "Maria Souza\naria.souza@gmail.com\n(21) 98765-4321\nCartão Crédito",
-              "joao@email.com 11 99999-0000 João da Silva 123.456.789-00 boleto",
+            {["JoÃ£o Silva, joao@email.com, (11) 99999-0000, 123.456.789-00, PIX",
+              "Maria Souza\naria.souza@gmail.com\n(21) 98765-4321\nCartÃ£o CrÃ©dito",
+              "joao@email.com 11 99999-0000 JoÃ£o da Silva 123.456.789-00 boleto",
             ].map((ex, i) => (
               <div key={i} style={{ fontFamily: 'monospace', fontSize: 10, color: 'rgba(74,222,128,0.8)',
                 background: 'rgba(74,222,128,0.05)', borderRadius: 7, padding: '6px 10px',
@@ -1581,7 +1581,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
           <textarea
             value={rawText}
             onChange={e => setRawText(e.target.value)}
-            placeholder={"João Silva, joao@gmail.com, (11) 99999-0000\nMaria Santos, maria@hotmail.com, 987.654.321-00, Boleto\n..."}
+            placeholder={"JoÃ£o Silva, joao@gmail.com, (11) 99999-0000\nMaria Santos, maria@hotmail.com, 987.654.321-00, Boleto\n..."}
             style={{ width: '100%', minHeight: 220, background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, color: 'white',
               fontSize: 12, padding: 14, outline: 'none', resize: 'vertical',
@@ -1605,7 +1605,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
           </div>
         </>)}
 
-        {/* ─── STEP 2: PREVIEW ───────────────────────────────────────────── */}
+        {/* â”€â”€â”€ STEP 2: PREVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 'preview' && (<>
           <div style={{ overflowX: 'auto', marginBottom: 16 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -1657,7 +1657,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
                         <td style={{ padding: '5px 4px' }}>
                           <button onClick={() => removeRow(i)}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 14, padding: 2 }}>
-                            ✕
+                            âœ•
                           </button>
                         </td>
                       </tr>
@@ -1668,15 +1668,15 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
                           <td colSpan={numCols - 1} style={{ padding: '4px 4px 8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 9, fontWeight: 900, color: GOLD, textTransform: 'uppercase',
-                                letterSpacing: '0.1em', marginRight: 4, whiteSpace: 'nowrap' }}>💳 Parcelamento:</span>
+                                letterSpacing: '0.1em', marginRight: 4, whiteSpace: 'nowrap' }}>ðŸ’³ Parcelamento:</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <label style={{ fontSize: 9, color: SILVER, whiteSpace: 'nowrap' }}>Nº Parcelas</label>
+                                <label style={{ fontSize: 9, color: SILVER, whiteSpace: 'nowrap' }}>NÂº Parcelas</label>
                                 <input type="number" min="1" max="36"
                                   value={r.installments}
                                   onChange={e => updateRow(i, 'installments', e.target.value)}
                                   style={{ ...IN, width: 52, textAlign: 'center' }} />
                               </div>
-                              <span style={{ color: SILVER, fontSize: 11 }}>×</span>
+                              <span style={{ color: SILVER, fontSize: 11 }}>Ã—</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                 <label style={{ fontSize: 9, color: SILVER, whiteSpace: 'nowrap' }}>R$ / parcela</label>
                                 <input
@@ -1710,7 +1710,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
           <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 20 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 900, color: SILVER, textTransform: 'uppercase', letterSpacing: '0.1em', cursor: 'pointer' }}>
               <input type="checkbox" checked={useBp} onChange={e => setUseBp(e.target.checked)} />
-              Incluir Informações Adicionais para TODOS OS ALUNOS do lote (Modelo / Vendedor / Status)
+              Incluir InformaÃ§Ãµes Adicionais para TODOS OS ALUNOS do lote (Modelo / Vendedor / Status)
             </label>
             {useBp && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 12 }}>
@@ -1735,7 +1735,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
             <button onClick={() => { setStep('paste'); setError(''); }}
               style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
                 cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
-              ← Voltar
+              â† Voltar
             </button>
             <button onClick={handleImport} disabled={saving || rows.filter(r => r.name && r.email).length === 0}
               style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12,
@@ -1750,7 +1750,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
           </div>
         </>)}
 
-        {/* ─── STEP 3: DONE ──────────────────────────────────────────────── */}
+        {/* â”€â”€â”€ STEP 3: DONE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 'done' && result && (<>
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 56, color: (result as any).saved > 0 ? GREEN : '#63b3ed' }}>
@@ -1761,7 +1761,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
             </p>
             {(result as any).enriched > 0 && (
               <p style={{ color: '#63b3ed', fontSize: 13, margin: '4px 0' }}>
-                🔄 {(result as any).enriched} cadastro{(result as any).enriched !== 1 ? 's' : ''} enriquecido{(result as any).enriched !== 1 ? 's' : ''} com dados faltantes
+                ðŸ”„ {(result as any).enriched} cadastro{(result as any).enriched !== 1 ? 's' : ''} enriquecido{(result as any).enriched !== 1 ? 's' : ''} com dados faltantes
               </p>
             )}
             {(result as any).failed > 0 && (
@@ -1786,7 +1786,7 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
   );
 }
 
-// ── Add Student Modal ─────────────────────────────────────────────────────────
+// â”€â”€ Add Student Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AddStudentModal({ courseName, onClose, onSaved }: {
   courseName: string;
   onClose: () => void;
@@ -2087,7 +2087,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           {/* Buyer Persona */}
           <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '20px 0' }} />
           <p style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: 'rgba(168,178,192,0.8)', marginBottom: 12 }}>
-            Informações Adicionais (Planilha)
+            InformaÃ§Ãµes Adicionais (Planilha)
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
             <div>
@@ -2097,7 +2097,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
             </div>
             <div>
               <label style={LABEL}>Modelo *</label>
-              <input style={INPUT} placeholder="1x / Recorrência" value={form.bp_modelo}
+              <input style={INPUT} placeholder="1x / RecorrÃªncia" value={form.bp_modelo}
                 onChange={e => setForm(f => ({ ...f, bp_modelo: e.target.value }))} required />
             </div>
             <div>
@@ -2113,8 +2113,8 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
 
           {/* Notes */}
           <div style={{ marginBottom: 24 }}>
-            <label style={LABEL}>Observações</label>
-            <textarea style={{ ...INPUT, minHeight: 60, resize: 'vertical' }} placeholder="Anotações extras..."
+            <label style={LABEL}>ObservaÃ§Ãµes</label>
+            <textarea style={{ ...INPUT, minHeight: 60, resize: 'vertical' }} placeholder="AnotaÃ§Ãµes extras..."
               value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
 
@@ -2151,8 +2151,8 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   );
 }
 
-// ── Date format helpers ──────────────────────────────────────────────────────
-// YYYY-MM-DD  →  DD/MM/AAAA  (for display inside the modal)
+// â”€â”€ Date format helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// YYYY-MM-DD  â†’  DD/MM/AAAA  (for display inside the modal)
 function isoToDMY(iso: string): string {
   if (!iso) return '';
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -2161,14 +2161,14 @@ function isoToDMY(iso: string): string {
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(iso)) return iso;
   return iso;
 }
-// DD/MM/AAAA  →  YYYY-MM-DD  (for the backend API)
+// DD/MM/AAAA  â†’  YYYY-MM-DD  (for the backend API)
 function dmyToISO(dmy: string): string {
   const m = dmy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) return dmy; // if incomplete, return as-is (backend will ignore)
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
-// ── Date field with auto-mask DD/MM/AAAA ─────────────────────────────────────
+// â”€â”€ Date field with auto-mask DD/MM/AAAA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EditDateField({ label, value, onChange, icon }: {
   label: string; value: string; onChange: (v: string) => void; icon: string;
 }) {
@@ -2212,7 +2212,7 @@ function EditDateField({ label, value, onChange, icon }: {
   );
 }
 
-// ── Field helper for EditStudentModal (must be at module scope — NOT inside render) ──
+// â”€â”€ Field helper for EditStudentModal (must be at module scope â€” NOT inside render) â”€â”€
 function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
   label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; icon: string; onEnter?: () => void;
@@ -2241,71 +2241,133 @@ function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
   );
 }
 
-// ── Edit Student Modal ────────────────────────────────────────────────────────
-// Normalise legacy SIM/NÃO values → canonical Adimplente/Inadimplente/Quitado
+// â”€â”€ Edit Student Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Normalise legacy SIM/NÃƒO values â†’ canonical Adimplente/Inadimplente/Quitado
 function normaliseEmDia(v?: string): string {
   const raw = (v || '').trim();
   const u = raw.toUpperCase();
   if (u === 'SIM') return 'Adimplente';
-  if (u === 'NÃO' || u === 'NAO' || u === 'NÂO') return 'Inadimplente';
-  if (u === 'QUITADO') return 'Quitado';
+  if (u === 'NÃƒO' || u === 'NAO' || u === 'NÃ‚O') return 'Inadimplente';
+  if (u === 'QUITADO' || u === 'QUITO') return 'Quitado';
   if (['Adimplente', 'Inadimplente', 'Quitado'].includes(raw)) return raw;
   return 'Adimplente';
 }
 
+// Normalise payment_type to one of the 4 canonical UI values
+function normalisePt(v?: string): 'PIX_AVISTA' | 'PIX_CARTAO' | 'CREDIT_CARD' | 'PIX_MENSAL' {
+  const u = (v || '').toUpperCase();
+  if (u === 'PIX_CARTAO' || u === 'PIX CARTAO') return 'PIX_CARTAO';
+  if (u === 'CREDIT_CARD' || u === 'CREDITCARD' || u === 'CARTAO') return 'CREDIT_CARD';
+  if (u === 'PIX_MENSAL' || u === 'PIX MENSAL') return 'PIX_MENSAL';
+  return 'PIX_AVISTA'; // default: PIX Ã  vista
+}
+
+type EditPayType = 'PIX_AVISTA' | 'PIX_CARTAO' | 'CREDIT_CARD' | 'PIX_MENSAL';
+
 function EditStudentModal({ student, onClose, onSaved }: {
   student: {
     name: string; email: string; phone: string; document: string; manualId?: string;
+    // payment fields (manual students only)
+    payment_type?: string; currency?: string; total_amount?: number;
+    down_payment?: number; installments?: number; installment_amount?: number;
+    installment_dates?: InstallmentDate[]; entry_date?: number;
     // buyer_persona fields
     vendedor?: string; bp_valor?: string; bp_pagamento?: string; bp_modelo?: string;
-    bp_parcela?: string; bp_em_dia?: string; bp_primeira_parcela?: string; bp_ultimo_pagamento?: string; bp_proximo_pagamento?: string;
+    bp_parcela?: string; bp_em_dia?: string; bp_primeira_parcela?: string;
+    bp_ultimo_pagamento?: string; bp_proximo_pagamento?: string;
     notes?: string;
   };
   onClose: () => void;
   onSaved: (updated: { phone: string; name: string; document: string; vendedor: string; bp_modelo: string; bp_em_dia: string }) => void;
 }) {
-  const [phone,      setPhone]      = React.useState(student.phone      || '');
-  const [name,       setName]       = React.useState(student.name       || '');
-  const [docNum,     setDocNum]     = React.useState(student.document   || '');
+  const isManual = !!student.manualId;
+
+  // â”€â”€ Dados Pessoais â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [phone,    setPhone]    = React.useState(student.phone    || '');
+  const [name,     setName]     = React.useState(student.name     || '');
+  const [docNum,   setDocNum]   = React.useState(student.document || '');
+
+  // â”€â”€ Pagamento (manual only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [payType,  setPayType]  = React.useState<EditPayType>(normalisePt(student.payment_type));
+  const [currency, setCurrency] = React.useState(student.currency || 'BRL');
+  const [totalAmt, setTotalAmt] = React.useState(student.total_amount != null ? String(student.total_amount) : '');
+  const [downPmt,  setDownPmt]  = React.useState(student.down_payment  != null ? String(student.down_payment)  : '');
+  const [insts,    setInsts]    = React.useState(student.installments   != null ? student.installments   : 1);
+  const [instDates, setInstDates] = React.useState<InstallmentDate[]>(
+    (student.installment_dates || []).map(d => ({
+      ...d,
+      due_ms:  Number(d.due_ms),
+      paid_ms: d.paid_ms != null ? Number(d.paid_ms) : null,
+    }))
+  );
+  const [firstPayDate, setFirstPayDate] = React.useState<string>(() => {
+    // Pre-fill from existing installment_dates[0] or entry_date
+    const first = (student.installment_dates || [])[0];
+    if (first?.due_ms) return new Date(Number(first.due_ms)).toISOString().slice(0, 10);
+    if (student.entry_date) return new Date(Number(student.entry_date)).toISOString().slice(0, 10);
+    return new Date().toISOString().slice(0, 10);
+  });
+
+  // Derived amounts
+  const totalAmtN = parseFloat(totalAmt || '0');
+  const downAmtN  = payType === 'PIX_CARTAO' ? parseFloat(downPmt || '0') : 0;
+  const remaining = Math.max(0, totalAmtN - downAmtN);
+  const instAmt   = insts > 0 ? remaining / insts : remaining;
+
+  // Re-generate installment dates when payment params change
+  React.useEffect(() => {
+    const needsDates = ['PIX_CARTAO', 'CREDIT_CARD', 'PIX_MENSAL'].includes(payType);
+    if (!needsDates || insts < 1) { setInstDates([]); return; }
+    const [py, pm, pd] = firstPayDate.split('-').map(Number);
+    setInstDates(prev => Array.from({ length: insts }, (_, i) => {
+      const d = new Date(py, pm - 1 + i, pd, 12, 0, 0);
+      const due = d.getTime();
+      // Preserve paid status for existing dates with same due_ms
+      const existing = prev.find(p => Math.abs(p.due_ms - due) < 86_400_000);
+      return { due_ms: due, paid: existing?.paid ?? false, paid_ms: existing?.paid_ms ?? null };
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payType, insts, firstPayDate]);
+
+  const togglePaid = (idx: number) => {
+    setInstDates(prev => prev.map((d, i) =>
+      i !== idx ? d : { ...d, paid: !d.paid, paid_ms: !d.paid ? Date.now() : null }
+    ));
+  };
+
+  // â”€â”€ Buyer Persona â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [vendedor,   setVendedor]   = React.useState(student.vendedor   || '');
-  const [bpValor,    setBpValor]    = React.useState(student.bp_valor   || '');
-  const [bpPag,      setBpPag]      = React.useState(student.bp_pagamento || '');
   const [bpModelo,   setBpModelo]   = React.useState(student.bp_modelo  || '');
-  const [bpParcela,  setBpParcela]  = React.useState(student.bp_parcela || '');
   const [bpEmDia,    setBpEmDia]    = React.useState(normaliseEmDia(student.bp_em_dia));
   const [bpPrimeira, setBpPrimeira] = React.useState(isoToDMY(student.bp_primeira_parcela || ''));
   const [bpUltimo,   setBpUltimo]   = React.useState(isoToDMY(student.bp_ultimo_pagamento  || ''));
   const [bpProximo,  setBpProximo]  = React.useState(isoToDMY(student.bp_proximo_pagamento || ''));
   const [notes,      setNotes]      = React.useState(student.notes || '');
-  // attachments
-  const [attachments,    setAttachments]    = React.useState<any[]>([]);
-  const [uploading,      setUploading]      = React.useState(false);
-  const [uploadError,    setUploadError]    = React.useState('');
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [saving,     setSaving]     = React.useState(false);
-  const [error,      setError]      = React.useState('');
 
-  // Load existing attachments on mount
+  // â”€â”€ Attachments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [attachments,  setAttachments]  = React.useState<any[]>([]);
+  const [uploading,    setUploading]    = React.useState(false);
+  const [uploadError,  setUploadError]  = React.useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [error,  setError]  = React.useState('');
+
   React.useEffect(() => {
     fetch(`/api/alunos/attachments?email=${encodeURIComponent(student.email)}`)
-      .then(r => r.json())
-      .then(d => setAttachments(d.attachments || []))
-      .catch(() => {});
+      .then(r => r.json()).then(d => setAttachments(d.attachments || [])).catch(() => {});
   }, [student.email]);
 
   const handleUpload = async (file: File) => {
     setUploading(true); setUploadError('');
     try {
       const fd = new FormData();
-      fd.append('email', student.email);
-      fd.append('file',  file);
-      const res  = await fetch('/api/alunos/attachments', { method: 'POST', body: fd });
+      fd.append('email', student.email); fd.append('file', file);
+      const res = await fetch('/api/alunos/attachments', { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao enviar');
       setAttachments(prev => [data.attachment, ...prev]);
-    } catch (e: any) {
-      setUploadError(e.message);
-    } finally { setUploading(false); }
+    } catch (e: any) { setUploadError(e.message); }
+    finally { setUploading(false); }
   };
 
   const handleDeleteAttachment = async (id: string) => {
@@ -2313,10 +2375,17 @@ function EditStudentModal({ student, onClose, onSaved }: {
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
+  // â”€â”€ Save â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSave = async () => {
     setSaving(true); setError('');
     try {
-      const res = await fetch('/api/alunos/profile', {
+      // 1. Always update buyer_profiles (works for both Hotmart + Manual)
+      const isPix = payType === 'PIX_AVISTA';
+      const dbBpPag = payType === 'PIX_AVISTA' ? 'Pix' :
+                      payType === 'PIX_CARTAO'  ? 'Pix + Cartao' :
+                      payType === 'CREDIT_CARD' ? 'Cartao' : 'Pix Mensal';
+
+      const profileRes = await fetch('/api/alunos/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2326,24 +2395,64 @@ function EditStudentModal({ student, onClose, onSaved }: {
           document:     docNum.trim()   || null,
           manualId:     student.manualId || null,
           notes:        notes.trim()    || null,
-          // buyer_persona
-          vendedor:     vendedor.trim()  || null,
-          bp_valor:     bpValor.trim()   || null,
-          bp_pagamento: bpPag.trim()     || null,
-          bp_modelo:    bpModelo.trim()  || null,
-          bp_parcela:   bpParcela.trim() || null,
+          vendedor:     vendedor.trim() || null,
+          bp_valor:     totalAmt.trim() || null,
+          bp_pagamento: isManual ? dbBpPag : (student.bp_pagamento || null),
+          bp_modelo:    bpModelo.trim() || null,
+          bp_parcela:   isManual ? (insts > 1 ? String(instAmt.toFixed(2)) : totalAmt.trim()) : null,
           bp_em_dia:    bpEmDia || null,
           bp_primeira_parcela:  dmyToISO(bpPrimeira.trim()) || null,
           bp_ultimo_pagamento:  dmyToISO(bpUltimo.trim())   || null,
           bp_proximo_pagamento: dmyToISO(bpProximo.trim())  || null,
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
+      if (!profileRes.ok) throw new Error((await profileRes.json()).error || 'Erro ao salvar perfil');
+
+      // 2. For manual students: also update manual_students table
+      if (isManual && student.manualId) {
+        const dbPayType = isPix ? 'PIX' : payType; // PIX_AVISTA â†’ PIX for DB
+        const finalDates: InstallmentDate[] = isPix
+          ? [{ due_ms: student.entry_date || Date.now(), paid: true, paid_ms: student.entry_date || Date.now() }]
+          : instDates;
+
+        const manRes = await fetch(`/api/alunos/manual/${student.manualId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name:               name.trim()    || null,
+            phone:              phone.trim()   || null,
+            payment_type:       dbPayType,
+            currency:           currency,
+            total_amount:       totalAmtN || null,
+            down_payment:       downAmtN  || 0,
+            installments:       isPix ? 1 : insts,
+            installment_amount: isPix ? totalAmtN : instAmt,
+            installment_dates:  finalDates,
+            notes:              notes.trim() || null,
+          }),
+        });
+        if (!manRes.ok) throw new Error((await manRes.json()).error || 'Erro ao atualizar aluno manual');
+      }
+
       onSaved({ phone: phone.trim(), name: name.trim(), document: docNum.trim(), vendedor: vendedor.trim(), bp_modelo: bpModelo.trim(), bp_em_dia: bpEmDia });
       onClose();
     } catch (e: any) {
       setError(e.message);
     } finally { setSaving(false); }
+  };
+
+  // â”€â”€ Shared styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const INPUT: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 12, color: 'white', padding: '10px 14px', width: '100%', outline: 'none',
+    fontSize: 13, fontWeight: 600,
+  };
+  const LABEL: React.CSSProperties = {
+    fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.15em', color: SILVER,
+    display: 'block', marginBottom: 6,
+  };
+  const SEC: React.CSSProperties = {
+    fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12,
   };
 
   return createPortal(
@@ -2352,92 +2461,216 @@ function EditStudentModal({ student, onClose, onSaved }: {
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.9)', backdropFilter: 'blur(14px)' }} />
       <div style={{
-        position: 'relative', width: '100%', maxWidth: 520, borderRadius: 24,
-        background: 'linear-gradient(160deg, rgba(8,15,30,0.98) 0%, rgba(4,10,20,0.99) 100%)',
+        position: 'relative', width: '100%', maxWidth: 560, borderRadius: 24,
+        background: 'linear-gradient(160deg, rgba(0,22,55,0.97) 0%, rgba(0,12,35,0.98) 100%)',
         border: '1px solid rgba(99,179,237,0.2)',
         boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(99,179,237,0.08), 0 1px 0 rgba(255,255,255,0.05) inset',
         padding: 32, maxHeight: '90vh', overflowY: 'auto',
       }}>
+
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: 'rgba(99,179,237,0.12)', border: '1px solid rgba(99,179,237,0.25)',
-            flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ color: '#63b3ed', fontSize: 20 }}>edit</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', background: 'rgba(99,179,237,0.12)', border: '1px solid rgba(99,179,237,0.3)', flexShrink: 0 }}>
+            <span className="material-symbols-outlined" style={{ color: '#63b3ed', fontSize: 22 }}>edit</span>
           </div>
           <div>
-            <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Editar Informações</h3>
-            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>{student.name} · {student.email}</p>
+            <h2 style={{ color: 'white', fontWeight: 900, fontSize: 18, margin: 0 }}>Editar InformaÃ§Ãµes</h2>
+            <p style={{ color: SILVER, fontSize: 11, margin: '3px 0 0', fontWeight: 700 }}>{student.name} Â· {student.email}</p>
           </div>
-          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none',
-            color: SILVER, cursor: 'pointer', padding: 4 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-          </button>
+          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, width: 32, height: 32,
+            cursor: 'pointer', color: SILVER, fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Ã—</button>
         </div>
 
-        {/* Section: Dados Pessoais */}
-        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
-          color: TEAL, marginBottom: 12 }}>Dados Pessoais</p>
+        {/* â”€â”€ Dados Pessoais â”€â”€ */}
+        <p style={{ ...SEC, color: TEAL }}>Dados Pessoais</p>
         <EditField label="Nome" icon="person" value={name} onChange={setName} onEnter={handleSave} placeholder="Nome completo" />
         <EditField label="Telefone" icon="phone" value={phone} onChange={setPhone} onEnter={handleSave} placeholder="(11) 99999-9999" />
         <EditField label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum} onEnter={handleSave} placeholder="000.000.000-00" />
 
-        {/* Section: Buyer Persona */}
-        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
-          color: GOLD, marginBottom: 12, marginTop: 20 }}>Buyer Persona</p>
-        <EditField label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} onEnter={handleSave} placeholder="Nome do vendedor" />
-        <EditField label="Valor Total (R$)" icon="payments" value={bpValor} onChange={setBpValor} onEnter={handleSave} placeholder="Ex: 30000" />
-        <EditField label="Tipo de Pagamento" icon="account_balance" value={bpPag} onChange={setBpPag} onEnter={handleSave} placeholder="Ex: PIX, Hotmart 12x" />
-        <EditField label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} onEnter={handleSave} placeholder="Ex: 12x, 1x" />
-        <EditField label="Valor da Parcela (R$)" icon="receipt" value={bpParcela} onChange={setBpParcela} onEnter={handleSave} placeholder="Ex: 2500" />
+        {/* â”€â”€ Pagamento (somente alunos manuais) â”€â”€ */}
+        {isManual && (<>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '20px 0' }} />
+          <p style={{ ...SEC, color: GREEN }}>Pagamento</p>
+
+          {/* Forma de Pagamento */}
+          <label style={LABEL}>Forma de Pagamento</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+            {([
+              { key: 'PIX_AVISTA',  icon: 'pix',              label: 'PIX Ã  Vista',       col: GREEN     },
+              { key: 'PIX_CARTAO',  icon: 'currency_exchange', label: 'PIX + CartÃ£o',      col: '#38bdf8' },
+              { key: 'CREDIT_CARD', icon: 'credit_card',       label: 'CartÃ£o de CrÃ©dito', col: GOLD      },
+              { key: 'PIX_MENSAL',  icon: 'autorenew',         label: 'PIX Mensal',        col: '#c084fc' },
+            ] as { key: EditPayType; icon: string; label: string; col: string }[]).map(({ key, icon, label, col }) => (
+              <button key={key} type="button"
+                onClick={() => setPayType(key)}
+                style={{
+                  padding: '10px 12px', borderRadius: 12, fontWeight: 800, fontSize: 11, cursor: 'pointer',
+                  background: payType === key ? `${col}22` : 'rgba(255,255,255,0.05)',
+                  border: `1.5px solid ${payType === key ? col : 'rgba(255,255,255,0.1)'}`,
+                  color: payType === key ? col : SILVER,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s',
+                }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Moeda */}
+          <div style={{ marginBottom: 18 }}>
+            <label style={LABEL}>Moeda</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(['BRL', 'USD', 'ARS', 'COP', 'CLP', 'EUR', 'MXN', 'PEN'] as const).map(c => (
+                <button key={c} type="button"
+                  onClick={() => setCurrency(c)}
+                  style={{
+                    padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                    background: currency === c ? 'rgba(232,177,79,0.18)' : 'rgba(255,255,255,0.05)',
+                    border: `1.5px solid ${currency === c ? GOLD : 'rgba(255,255,255,0.1)'}`,
+                    color: currency === c ? GOLD : SILVER, transition: 'all 0.2s',
+                  }}>{c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Valor + Parcelas */}
+          <div style={{ display: 'grid',
+            gridTemplateColumns: payType === 'PIX_AVISTA' ? '1fr' :
+              payType === 'PIX_CARTAO' ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr',
+            gap: 14, marginBottom: 14 }}>
+            <div>
+              <label style={LABEL}>Valor Total ({currency})</label>
+              <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00"
+                value={totalAmt} onChange={e => setTotalAmt(e.target.value)} />
+            </div>
+            {payType === 'PIX_CARTAO' && (
+              <div>
+                <label style={LABEL}>Entrada PIX ({currency})</label>
+                <input style={INPUT} type="number" step="0.01" min="0" placeholder="0.00"
+                  value={downPmt} onChange={e => setDownPmt(e.target.value)} />
+              </div>
+            )}
+            {payType !== 'PIX_AVISTA' && (<>
+              <div>
+                <label style={LABEL}>{payType === 'PIX_MENSAL' ? 'Meses' : 'Parcelas'}</label>
+                <select style={{ ...INPUT, cursor: 'pointer' }} value={insts}
+                  onChange={e => setInsts(parseInt(e.target.value))}>
+                  {Array.from({ length: payType === 'PIX_MENSAL' ? 60 : 24 }, (_, i) => i + 1).map(n => (
+                    <option key={n} value={n} style={{ background: NAVY, color: 'white' }}>{n}x</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={LABEL}>{payType === 'PIX_CARTAO' ? 'Parcela CartÃ£o' : 'Valor/Parcela'}</label>
+                <div style={{ ...INPUT, color: GOLD, fontWeight: 900, display: 'flex', alignItems: 'center' }}>
+                  {totalAmt ? `${currency} ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+                </div>
+              </div>
+            </>)}
+          </div>
+
+          {/* Data do 1o pagamento */}
+          {payType !== 'PIX_AVISTA' && (
+            <div style={{ marginBottom: 18 }}>
+              <label style={LABEL}>Data do 1Âº pagamento</label>
+              <input style={{ ...INPUT, maxWidth: 220 }} type="date" value={firstPayDate}
+                onChange={e => setFirstPayDate(e.target.value)} />
+              <p style={{ fontSize: 10, color: SILVER, marginTop: 6, fontWeight: 600 }}>
+                As demais parcelas serÃ£o calculadas mensalmente a partir desta data.
+              </p>
+            </div>
+          )}
+
+          {/* Tracker de parcelas */}
+          {payType !== 'PIX_AVISTA' && instDates.length > 0 && (
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
+              <p style={{ ...LABEL, marginBottom: 12 }}>Parcelas â€” marque as jÃ¡ pagas</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                {instDates.map((d, i) => (
+                  <div key={i} onClick={() => togglePaid(i)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10,
+                      cursor: 'pointer', transition: 'all 0.15s',
+                      background: d.paid ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${d.paid ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)'}` }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 6, border: `2px solid ${d.paid ? GREEN : 'rgba(255,255,255,0.2)'}`,
+                      background: d.paid ? GREEN : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.15s', flexShrink: 0 }}>
+                      {d.paid && <span className="material-symbols-outlined" style={{ fontSize: 12, color: NAVY }}>check</span>}
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: d.paid ? GREEN : SILVER }}>Parcela {i + 1}</span>
+                    <span style={{ fontSize: 11, color: SILVER, marginLeft: 4 }}>
+                      {new Date(d.due_ms).toLocaleDateString('pt-BR')}
+                    </span>
+                    <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: d.paid ? GREEN : GOLD }}>
+                      {currency} {instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {payType === 'PIX_CARTAO' && downAmtN > 0 && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 10, paddingTop: 10,
+                  fontSize: 11, fontWeight: 700, color: '#38bdf8', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Entrada PIX paga no ato</span>
+                  <span>{currency} {downAmtN.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </>)}
+
+        {/* â”€â”€ Buyer Persona â”€â”€ */}
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '20px 0' }} />
+        <p style={{ ...SEC, color: GOLD }}>
+          {isManual ? 'InformaÃ§Ãµes Adicionais (Planilha)' : 'Buyer Persona'}
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <div>
+            <label style={LABEL}>Vendedor</label>
+            <input style={INPUT} placeholder="Nome do vendedor" value={vendedor}
+              onChange={e => setVendedor(e.target.value)} />
+          </div>
+          <div>
+            <label style={LABEL}>Modelo</label>
+            <input style={INPUT} placeholder="1x / RecorrÃªncia" value={bpModelo}
+              onChange={e => setBpModelo(e.target.value)} />
+          </div>
+        </div>
+
+        {/* Status */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
-            textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Status</label>
-          <select
-            value={bpEmDia}
-            onChange={e => setBpEmDia(e.target.value)}
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-              color: 'white', outline: 'none', boxSizing: 'border-box', cursor: 'pointer',
-            }}
-          >
-            <option value="Adimplente" style={{ background: NAVY, color: 'white' }}>Adimplente</option>
+          <label style={LABEL}>Status</label>
+          <select value={bpEmDia} onChange={e => setBpEmDia(e.target.value)}
+            style={{ ...INPUT, cursor: 'pointer' }}>
+            <option value="Adimplente"  style={{ background: NAVY, color: 'white' }}>Adimplente</option>
             <option value="Inadimplente" style={{ background: NAVY, color: 'white' }}>Inadimplente</option>
-            <option value="Quitado" style={{ background: NAVY, color: 'white' }}>Quitado</option>
+            <option value="Quitado"     style={{ background: NAVY, color: 'white' }}>Quitado</option>
           </select>
         </div>
 
-        {/* Date fields */}
-        <EditDateField label="1ª Parcela (DD/MM/AAAA)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} />
-        <EditDateField label="Último Pagamento (DD/MM/AAAA)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} />
-        <EditDateField label="Próximo Pagamento (DD/MM/AAAA)" icon="schedule" value={bpProximo} onChange={setBpProximo} />
+        {/* Datas de pagamento */}
+        <EditDateField label="1Âª Parcela (DD/MM/AAAA)"          icon="event"           value={bpPrimeira} onChange={setBpPrimeira} />
+        <EditDateField label="Ãšltimo Pagamento (DD/MM/AAAA)"    icon="event_available" value={bpUltimo}   onChange={setBpUltimo} />
+        <EditDateField label="PrÃ³ximo Pagamento (DD/MM/AAAA)"   icon="schedule"        value={bpProximo}  onChange={setBpProximo} />
 
-        {/* Observações */}
-        <div style={{ marginBottom: 16, marginTop: 4 }}>
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
-            textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Observações</label>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            placeholder="Anotações extras..."
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-              color: 'white', outline: 'none', boxSizing: 'border-box', resize: 'vertical', minHeight: 60,
-            }}
-          />
+        {/* ObservaÃ§Ãµes */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={LABEL}>ObservaÃ§Ãµes</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="AnotaÃ§Ãµes extras..."
+            style={{ ...INPUT, minHeight: 60, resize: 'vertical' }} />
         </div>
 
-        {/* ── Arquivos Anexos ── */}
-        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
-          color: '#a78bfa', marginBottom: 12, marginTop: 20 }}>Arquivos Anexos</p>
+        {/* â”€â”€ Anexos â”€â”€ */}
+        <p style={{ ...SEC, color: '#a78bfa', marginTop: 20 }}>Arquivos Anexos</p>
         <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.pdf" style={{ display: 'none' }}
           onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ''; }} />
         <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 14px',
-            borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
-            letterSpacing: '0.1em', cursor: 'pointer', marginBottom: 12, transition: 'all 0.2s',
+            borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em',
+            cursor: 'pointer', marginBottom: 12, transition: 'all 0.2s',
             background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.28)',
             color: '#a78bfa', justifyContent: 'center' }}>
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{uploading ? 'progress_activity' : 'attach_file'}</span>
@@ -2457,9 +2690,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
                     textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {a.filename}
                 </a>
-                <span style={{ fontSize: 10, color: SILVER, flexShrink: 0 }}>
-                  {(a.size_bytes / 1024).toFixed(0)} KB
-                </span>
+                <span style={{ fontSize: 10, color: SILVER, flexShrink: 0 }}>{(a.size_bytes / 1024).toFixed(0)} KB</span>
                 <button onClick={() => handleDeleteAttachment(a.id)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', padding: 2 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
@@ -2472,16 +2703,13 @@ function EditStudentModal({ student, onClose, onSaved }: {
           <p style={{ color: SILVER, fontSize: 11, textAlign: 'center', marginBottom: 16 }}>Nenhum arquivo anexado</p>
         )}
 
-        {error && (
-          <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>
-        )}
+        {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>}
 
-        {/* Actions */}
+        {/* BotÃµes */}
         <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
           <button onClick={onClose} disabled={saving}
-            style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
-              cursor: 'pointer', background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+            style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12, cursor: 'pointer',
+              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
             Cancelar
           </button>
           <button onClick={handleSave} disabled={saving}
@@ -2492,7 +2720,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
             <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
               {saving ? 'progress_activity' : 'save'}
             </span>
-            {saving ? 'Salvando...' : 'Salvar Alterações'}
+            {saving ? 'Salvando...' : 'Salvar AlteraÃ§Ãµes'}
           </button>
         </div>
       </div>
@@ -2501,7 +2729,8 @@ function EditStudentModal({ student, onClose, onSaved }: {
   );
 }
 
-// ── Delete Confirm Modal ─────────────────────────────────────────────────────
+
+// â”€â”€ Delete Confirm Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function DeleteConfirmModal({ name, source, onConfirm, onCancel, loading }: {
   name: string;
   source: 'manual' | 'hotmart';
@@ -2531,13 +2760,13 @@ function DeleteConfirmModal({ name, source, onConfirm, onCancel, loading }: {
         <p style={{ color: SILVER, fontSize: 13, textAlign: 'center', lineHeight: 1.6, margin: '0 0 8px' }}>
           <span style={{ color: 'white', fontWeight: 800 }}>{name}</span>{' '}
           {isHotmart
-            ? 'será ocultado desta lista. Vendas e acesso à plataforma não são afetados.'
-            : 'será removido permanentemente da lista de alunos manuais.'}
+            ? 'serÃ¡ ocultado desta lista. Vendas e acesso Ã  plataforma nÃ£o sÃ£o afetados.'
+            : 'serÃ¡ removido permanentemente da lista de alunos manuais.'}
         </p>
         <p style={{ color: 'rgba(168,178,192,0.6)', fontSize: 11, textAlign: 'center', lineHeight: 1.5, margin: '0 0 26px' }}>
           {isHotmart
-            ? 'Esta ação não cancela a venda na Hotmart nem remove o acesso do aluno ao produto.'
-            : 'Isso não afeta dados da Hotmart, vendas, assinaturas ou acesso à plataforma.'}
+            ? 'Esta aÃ§Ã£o nÃ£o cancela a venda na Hotmart nem remove o acesso do aluno ao produto.'
+            : 'Isso nÃ£o afeta dados da Hotmart, vendas, assinaturas ou acesso Ã  plataforma.'}
         </p>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onCancel} disabled={loading}
@@ -2562,7 +2791,7 @@ function DeleteConfirmModal({ name, source, onConfirm, onCancel, loading }: {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function CursoDetailPage({ params }: { params: Promise<{ courseName: string }> }) {
   const { courseName } = use(params);
   // Support both slug (e.g. 'skeletal-expert') and legacy %XX encoded names
@@ -2595,13 +2824,13 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [sortDir,      setSortDir]      = useState<'desc' | 'asc'>('desc');
   const [statusFilter, setStatusFilter] = useState<'' | 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO'>('');
 
-  // Tooltip — single global mouse tracker, no React state for position
+  // Tooltip â€” single global mouse tracker, no React state for position
   const [tooltipSt,  setTooltipSt]  = useState<Student | null>(null);
   const tipTimer = React.useRef<any>(null);
   const openTip  = (_e: React.MouseEvent, s: Student) => { clearTimeout(tipTimer.current); setTooltipSt(s); };
   const closeTip = () => { tipTimer.current = setTimeout(() => setTooltipSt(null), 150); };
 
-  // One listener tracks mouse and moves tooltip div directly — no React state involved
+  // One listener tracks mouse and moves tooltip div directly â€” no React state involved
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const tip = document.getElementById('name-tooltip');
@@ -2619,7 +2848,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     return () => document.removeEventListener('mousemove', onMove);
   }, []);
 
-  // Resolve slug → real course name, then load students (single sequential flow)
+  // Resolve slug â†’ real course name, then load students (single sequential flow)
   useEffect(() => {
     fetch('/api/cursos')
       .then(r => r.json())
@@ -2656,7 +2885,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     }).catch(() => setLoading(false));
   }, [decoded, turmaFilter, allCourseNames.length]);
 
-  // Merge Hotmart + manual students — manual has priority (dedup by email)
+  // Merge Hotmart + manual students â€” manual has priority (dedup by email)
   const manualEmailSet = new Set(manualStudents.map(ms => ms.email.toLowerCase()));
   const allStudents: Student[] = [
     ...manualStudents.map(ms => manualToStudent(ms)),
@@ -2683,7 +2912,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const paginated  = sorted.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(sorted.length / pageSize);
 
-  // ── Pre-load buyerPersonaCache for ALL students on initial load (for correct pill counts) ────────────
+  // â”€â”€ Pre-load buyerPersonaCache for ALL students on initial load (for correct pill counts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (allStudents.length === 0) return;
     const allEmails = allStudents
@@ -2711,7 +2940,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allStudents.length]);
 
-  // ── Background contact fetch (phone + CPF + buyer_persona) for current page ──
+  // â”€â”€ Background contact fetch (phone + CPF + buyer_persona) for current page â”€â”€
   useEffect(() => {
     const uncached = paginated
       .map(s => (s.email || '').toLowerCase())
@@ -2797,20 +3026,20 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                   </p>
                   <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
                     style={{ background: 'rgba(232,177,79,0.1)', color: GOLD, border: '1px solid rgba(232,177,79,0.2)' }}>
-                    dados vitalícios
+                    dados vitalÃ­cios
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Action toolbar (row 2) ───────────────────────────────────── */}
+          {/* â”€â”€ Action toolbar (row 2) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 28 }}>
 
-            {/* ── Group 1: Gerar Relatórios ──────────────────────────────── */}
+            {/* â”€â”€ Group 1: Gerar RelatÃ³rios â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em',
-                color: 'rgba(168,178,192,0.6)', margin: 0, paddingLeft: 2 }}>Gerar Relatórios</p>
+                color: 'rgba(168,178,192,0.6)', margin: 0, paddingLeft: 2 }}>Gerar RelatÃ³rios</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {/* PDF */}
                 <button onClick={() => generatePDF(decoded, sorted, phoneCache, documentCache, buyerPersonaCache)}
@@ -2870,19 +3099,19 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             {/* Divider */}
             <div style={{ width: 1, height: 48, background: 'rgba(255,255,255,0.09)', flexShrink: 0 }} />
 
-            {/* ── Group 2: Importar Alunos ────────────────────────────────── */}
+            {/* â”€â”€ Group 2: Importar Alunos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em',
                 color: 'rgba(168,178,192,0.6)', margin: 0, paddingLeft: 2 }}>Importar Alunos</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {/* Adicionar aluno único */}
+                {/* Adicionar aluno Ãºnico */}
                 <button onClick={() => setShowAddModal(true)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
                     borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
                     letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 0.2s',
                     background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.28)', color: GREEN }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>person_add</span>
-                  Aluno único
+                  Aluno Ãºnico
                 </button>
                 {/* Adicionar em Lote */}
                 <button onClick={() => setShowBatchModal(true)}
@@ -2906,7 +3135,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             </div>
 
           </div>
-          {/* Search + Status filter pills — same row */}
+          {/* Search + Status filter pills â€” same row */}
           <div className="flex flex-wrap items-center gap-2 mb-5">
             {/* Search box */}
             <div className="relative min-w-[200px] max-w-[300px] flex-1">
@@ -2949,7 +3178,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           </div>
 
 
-          {/* Table — no overflow:hidden so portaled tooltip renders above all elements */}
+          {/* Table â€” no overflow:hidden so portaled tooltip renders above all elements */}
           <div style={{ overflowX: 'auto', borderRadius: 24 }}>
           <div style={{ ...TABLE_STYLE, overflow: 'visible', minWidth: 900 }}>
             <div className="pointer-events-none" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', borderRadius: '24px 24px 0 0', height: 4, marginBottom: -4 }} />
@@ -2957,7 +3186,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
             {/* Top pagination bar */}
             <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Por página:</span>
+                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Por pÃ¡gina:</span>
                 {[50, 100, 150, 200].map(n => (
                   <button key={n} onClick={() => { setPageSize(n); setPage(0); }}
                     className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
@@ -2970,11 +3199,11 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                 <div className="flex items-center gap-2">
                   <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                     className="px-4 py-1.5 rounded-xl text-[11px] font-black transition-all disabled:opacity-30"
-                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>← Anterior</button>
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>â† Anterior</button>
                   <span className="text-[12px] font-bold px-3" style={{ color: SILVER }}>{page + 1} / {totalPages}</span>
                   <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                     className="px-4 py-1.5 rounded-xl text-[11px] font-black transition-all disabled:opacity-30"
-                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Próxima →</button>
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>PrÃ³xima â†’</button>
                 </div>
               )}
               <span className="text-[11px] font-bold" style={{ color: SILVER }}>{sorted.length.toLocaleString('pt-BR')} alunos</span>
@@ -3031,7 +3260,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                     {/* Date */}
                     <span className="text-[11px] font-bold pt-1" style={{ color: SILVER }}>{fmtDate(s.entryDate)}</span>
 
-                    {/* Name + flag — exactly like Hotmart page */}
+                    {/* Name + flag â€” exactly like Hotmart page */}
                     <div className="pr-3 pt-0.5"
                       onMouseEnter={e => { if ((s as any).source !== 'manual') openTip(e, s); }}
                       onMouseLeave={closeTip}>
@@ -3054,7 +3283,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       </div>
                       {status === 'INADIMPLENTE' && (
                         <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#f87171' }}>
-                          ⚠ Pagamento em atraso
+                          âš  Pagamento em atraso
                         </span>
                       )}
                     </div>
@@ -3066,7 +3295,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         <span className="material-symbols-outlined" style={{ fontSize: 11, color: SILVER, flexShrink: 0 }}>mail</span>
                         <span className="text-[12px] font-bold truncate" style={{ color: 'white' }}>{s.email}</span>
                       </div>
-                      {/* Telefone — buyer_persona overrides */}
+                      {/* Telefone â€” buyer_persona overrides */}
                       {(() => {
                         const bpData = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
                         const ph = bpData.phone
@@ -3106,11 +3335,11 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         ) : null;
                       })()}
                     </div>
-                    {/* Valor Parcela — buyer_persona.valor/parcela overrides Hotmart */}
+                    {/* Valor Parcela â€” buyer_persona.valor/parcela overrides Hotmart */}
                     <div className="flex flex-col gap-0.5 pt-1">
                       {(() => {
                         const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
-                        // For Hotmart BRL students, trust Hotmart pricing — skip bp override
+                        // For Hotmart BRL students, trust Hotmart pricing â€” skip bp override
                         const isHotmartBRL = (s as any).source !== 'manual' && s.currency === 'BRL';
                         const parcela = isHotmartBRL ? null : (bp.parcela ?? bp.valor);
                         if (parcela != null) {
@@ -3127,7 +3356,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           <>
                             <span className="text-[12px] font-bold" style={{ color: GOLD }}>{fmtMoneyByCurrency(vParcela(s), s.currency)}</span>
                             {s.valorBRL != null && s.currency !== 'BRL' && (
-                              <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(s.valorBRL)}</span>
+                              <span className="text-[9px] font-bold" style={{ color: SILVER }}>â‰ˆ {fmtMoney(s.valorBRL)}</span>
                             )}
                           </>
                         );
@@ -3140,10 +3369,10 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         const totalBrl = s.paymentHistory.length > 0
                           ? s.valorBRL * s.paymentHistory.length
                           : s.valorBRL;
-                        return <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(totalBrl)}</span>;
+                        return <span className="text-[9px] font-bold" style={{ color: SILVER }}>â‰ˆ {fmtMoney(totalBrl)}</span>;
                       })()}
                     </div>
-                    {/* Pagamento — buyer_persona overrides Hotmart */}
+                    {/* Pagamento â€” buyer_persona overrides Hotmart */}
                     {(() => {
                       const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
                       const isHotmartBRLpay = (s as any).source !== 'manual' && s.currency === 'BRL';
@@ -3159,12 +3388,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                                 border:     `1px solid ${(emDia === 'SIM' || emDia?.toUpperCase() === 'QUITADO') ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
                                 width: 'fit-content',
                               }}>
-                                {emDia === 'SIM' ? '✓ Em dia' : emDia?.toUpperCase() === 'QUITADO' ? '✓ Quitado' : '✗ Atrasado'}
+                                {emDia === 'SIM' ? 'âœ“ Em dia' : emDia?.toUpperCase() === 'QUITADO' ? 'âœ“ Quitado' : 'âœ— Atrasado'}
                               </span>
                             )}
                             {bp.proximo_pagamento && (
                               <span className="text-[9px]" style={{ color: SILVER }}>
-                                Próx: {new Date(bp.proximo_pagamento).toLocaleDateString('pt-BR')}
+                                PrÃ³x: {new Date(bp.proximo_pagamento).toLocaleDateString('pt-BR')}
                               </span>
                             )}
                           </div>
@@ -3172,7 +3401,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       }
                       return <PaymentCell s={s} statusOverride={status} />;
                     })()}
-                    {/* Delete action — all students */}
+                    {/* Delete action â€” all students */}
                     <div className="flex items-center justify-center gap-1 pt-0.5">
                       {/* Edit button */}
                       <button
@@ -3187,6 +3416,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           // pass current BP data so fields are pre-filled
                           ...(() => {
                             const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                            // For manual students, payment data lives on the student object itself
+                            const isManualS = (s as any).source === 'manual';
                             return {
                               vendedor:      bp.vendedor     || '',
                               bp_valor:      bp.valor     != null ? String(bp.valor)   : '',
@@ -3195,13 +3426,24 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                               bp_parcela:    bp.parcela   != null ? String(bp.parcela) : '',
                               bp_em_dia:     bp.em_dia       || '',
                               notes:         bp.notes        || '',
-              bp_primeira_parcela:  bp.primeira_parcela  ? new Date(Number(bp.primeira_parcela)).toISOString().slice(0,10)  : '',
-              bp_ultimo_pagamento:  bp.ultimo_pagamento  ? new Date(Number(bp.ultimo_pagamento)).toISOString().slice(0,10)  : '',
-              bp_proximo_pagamento: bp.proximo_pagamento ? new Date(Number(bp.proximo_pagamento)).toISOString().slice(0,10) : '',
+                              bp_primeira_parcela:  bp.primeira_parcela  ? new Date(Number(bp.primeira_parcela)).toISOString().slice(0,10)  : '',
+                              bp_ultimo_pagamento:  bp.ultimo_pagamento  ? new Date(Number(bp.ultimo_pagamento)).toISOString().slice(0,10)  : '',
+                              bp_proximo_pagamento: bp.proximo_pagamento ? new Date(Number(bp.proximo_pagamento)).toISOString().slice(0,10) : '',
+                              // Manual student payment fields
+                              ...(isManualS ? {
+                                payment_type:       (s as any).paymentType   || 'PIX',
+                                currency:           (s as any).currency       || 'BRL',
+                                total_amount:       (s as any).valorBRL      ?? (s as any).valor ?? undefined,
+                                down_payment:       (s as any).down_payment   ?? 0,
+                                installments:       (s as any).paymentInstallments ?? 1,
+                                installment_amount: (s as any).installment_amount  ?? undefined,
+                                installment_dates:  (s as any).manualInstallments  ?? [],
+                                entry_date:         s.entryDate ?? undefined,
+                              } : {}),
                             };
                           })()
                         })}
-                        title="Editar informações"
+                        title="Editar informaÃ§Ãµes"
                         style={{ background: 'none', border: '1px solid rgba(99,179,237,0.2)', borderRadius: 8,
                           width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center',
                           justifyContent: 'center', color: 'rgba(99,179,237,0.5)', transition: 'all 0.15s' }}
@@ -3236,7 +3478,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
           {/* Footer */}
           <div className="flex items-center justify-between mt-5 flex-wrap gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Por página:</span>
+              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Por pÃ¡gina:</span>
               {[50, 100, 150, 200].map(n => (
                 <button key={n} onClick={() => { setPageSize(n); setPage(0); }}
                   className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
@@ -3249,11 +3491,11 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
               <div className="flex items-center gap-2">
                 <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
                   className="px-4 py-2 rounded-xl text-[11px] font-black transition-all disabled:opacity-30"
-                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>← Anterior</button>
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>â† Anterior</button>
                 <span className="text-[12px] font-bold px-3" style={{ color: SILVER }}>{page + 1} / {totalPages}</span>
                 <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
                   className="px-4 py-2 rounded-xl text-[11px] font-black transition-all disabled:opacity-30"
-                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>Próxima →</button>
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: SILVER }}>PrÃ³xima â†’</button>
               </div>
             )}
             <span className="text-[11px] font-bold" style={{ color: SILVER }}>{sorted.length.toLocaleString('pt-BR')} alunos</span>

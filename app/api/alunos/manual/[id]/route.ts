@@ -6,7 +6,7 @@ export const runtime = 'nodejs';
 
 /* ══════════════════════════════════════════════════════════════════════════
    PUT /api/alunos/manual/[id]
-   Update installment_dates (mark parcelas as paid/unpaid) or other fields.
+   Full update of a manual student — all editable fields.
    ══════════════════════════════════════════════════════════════════════════ */
 export async function PUT(
   request: Request,
@@ -22,12 +22,21 @@ export async function PUT(
   const now = Date.now();
 
   try {
-    // Allow updating installment_dates and/or notes
+    // Build update payload — only override fields that are explicitly provided
     const rows = (await sql`
       UPDATE manual_students SET
-        installment_dates = COALESCE(${body.installment_dates ? JSON.stringify(body.installment_dates) : null}::jsonb, installment_dates),
-        notes      = COALESCE(${body.notes ?? null}, notes),
-        updated_at = ${now}
+        name               = COALESCE(${body.name               ?? null}, name),
+        phone              = COALESCE(${body.phone              ?? null}, phone),
+        entry_date         = COALESCE(${body.entry_date         ?? null}::bigint, entry_date),
+        payment_type       = COALESCE(${body.payment_type       ?? null}, payment_type),
+        currency           = COALESCE(${body.currency           ?? null}, currency),
+        total_amount       = COALESCE(${body.total_amount       ?? null}::numeric, total_amount),
+        down_payment       = COALESCE(${body.down_payment       ?? null}::numeric, down_payment),
+        installments       = COALESCE(${body.installments       ?? null}::integer, installments),
+        installment_amount = COALESCE(${body.installment_amount ?? null}::numeric, installment_amount),
+        installment_dates  = COALESCE(${body.installment_dates  ? JSON.stringify(body.installment_dates) : null}::jsonb, installment_dates),
+        notes              = COALESCE(${body.notes              ?? null}, notes),
+        updated_at         = ${now}
       WHERE id = ${id}
       RETURNING *
     `) as any[];
