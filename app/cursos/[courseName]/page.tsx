@@ -453,12 +453,28 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
   const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
   const rawEmDia = ((s as any).bpEmDia ?? cacheEntry.em_dia);
 
+  // Helper: check if proximo_pagamento is still in the future (within grace)
+  const proxRaw = (s as any).bpProximoPagamento ?? cacheEntry.proximo_pagamento;
+  const proxMs  = proxRaw ? Number(proxRaw) : null;
+  const notYetOverdue = proxMs != null && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
+
   // If bp_em_dia is set, it is the authoritative source
   if (rawEmDia != null && rawEmDia !== '') {
     const up = String(rawEmDia).toUpperCase().trim();
-    if (up === 'SIM')     return 'ADIMPLENTE';
+    // Handle BOTH old format (SIM / NÃO / NAO) AND new format (Adimplente / Inadimplente / Quitado)
+    if (up === 'SIM' || up === 'ADIMPLENTE') {
+      // Respect grace period: even if marked Adimplente, downgrade if proximo is past grace
+      if (proxMs != null && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) < Date.now()) return 'INADIMPLENTE';
+      return 'ADIMPLENTE';
+    }
     if (up === 'QUITADO') return 'QUITADO';
-    // Any other value (NAO, NÃO, ATRASADO, free text, etc.) = INADIMPLENTE
+    if (up === 'NãO' || up === 'NAO' || up === 'NÂO' || up === 'INADIMPLENTE') {
+      // If proximo_pagamento is still in the future (+ grace), student is not yet overdue
+      if (notYetOverdue) return 'ADIMPLENTE';
+      return 'INADIMPLENTE';
+    }
+    // Unknown free-text value — if proximo is future, give benefit of doubt
+    if (notYetOverdue) return 'ADIMPLENTE';
     return 'INADIMPLENTE';
   }
 
