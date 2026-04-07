@@ -200,33 +200,46 @@ function RenderListItem({ item, rank, type }: any) {
     return <CustomerCard customer={item} rank={rank} />;
 
   if (type === 'EXTRATO') {
-    const months = ['', 'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
+    const months    = ['', 'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
     const isTotals  = item.month === 0;
-    const hotmart   = item.hotmartRevenue || 0;
-    const spend     = item.spend || 0;
-    const roas      = spend > 0 ? hotmart / spend : null;
+    const spend     = item.spend         || 0;
+    const brl       = item.revenueBRL    || 0;
+    const latam     = item.revenueLATAM  || 0;
+    const total     = (brl + latam) || item.revenueTotal || item.hotmartRevenue || 0;
+    const roas      = spend > 0 ? total / spend : null;
     const roasColor = roas === null ? SILVER : roas >= 3 ? '#4ade80' : roas >= 1.5 ? GOLD : '#f87171';
     const fmtRoas   = (v: number | null) => v === null ? '—' : `${v.toFixed(2)}×`;
+    const DIV = () => <div className="hidden sm:block w-px self-stretch" style={{ background: 'rgba(255,255,255,0.08)', minHeight: 32 }} />;
 
     if (isTotals) {
       return (
-        <div className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 mt-4"
+        <div className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 mt-4 flex-wrap"
           style={{ background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.25)' }}>
           <div>
             <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total do Ano</p>
             <p className="font-black text-white text-lg leading-tight">CONSOLIDADO</p>
           </div>
-          <div className="hidden sm:block w-px h-10" style={{ background: 'rgba(255,255,255,0.1)' }} />
+          <DIV />
           <div>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Investido</p>
-            <p className="font-black text-white text-lg">{R(spend)}</p>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento (Meta)</p>
+            <p className="font-black text-white text-lg">{spend > 0 ? R(spend) : '—'}</p>
           </div>
-          <div className="hidden sm:block w-px h-10" style={{ background: 'rgba(255,255,255,0.1)' }} />
+          <DIV />
           <div>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Faturado Hotmart</p>
-            <p className="font-black text-2xl" style={{ color: '#22c55e' }}>{R(hotmart)}</p>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Hotmart BRL (Líq.)</p>
+            <p className="font-black text-lg" style={{ color: '#4ade80' }}>{brl > 0 ? R(brl) : '—'}</p>
           </div>
-          <div className="hidden sm:block w-px h-10" style={{ background: 'rgba(255,255,255,0.1)' }} />
+          <DIV />
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Hotmart LATAM → BRL</p>
+            <p className="font-black text-lg" style={{ color: '#38bdf8' }}>{latam > 0 ? R(latam) : '—'}</p>
+          </div>
+          <DIV />
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Faturado</p>
+            <p className="font-black text-2xl" style={{ color: '#22c55e' }}>{R(total)}</p>
+          </div>
+          <DIV />
           <div className="sm:text-right">
             <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>ROAS Anual</p>
             <p className="font-black text-2xl" style={{ color: roasColor }}>{fmtRoas(roas)}</p>
@@ -236,29 +249,37 @@ function RenderListItem({ item, rank, type }: any) {
     }
 
     return (
-      <div className="rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 transition-all"
+      <div className="rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 flex-wrap transition-all"
         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.04)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}>
-        {/* Mês */}
-        <div className="sm:min-w-[130px]">
+        <div style={{ minWidth: 100 }}>
           <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Mês</p>
           <p className="font-black text-white">{months[item.month]}</p>
         </div>
-        <div className="hidden sm:block w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
-        {/* Investido */}
-        <div className="sm:min-w-[140px]">
-          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investido (Meta)</p>
-          <p className="font-black" style={{ color: spend > 0 ? '#f87171' : SILVER }}>{spend > 0 ? R(spend) : '—'}</p>
+        <DIV />
+        <div style={{ minWidth: 110 }}>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento</p>
+          <p className="font-black text-sm" style={{ color: spend > 0 ? '#f87171' : SILVER }}>{spend > 0 ? R(spend) : '—'}</p>
         </div>
-        <div className="hidden sm:block w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
-        {/* Faturamento */}
-        <div className="sm:min-w-[160px]">
-          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Faturamento Hotmart (Líq.)</p>
-          <p className="font-black" style={{ color: hotmart > 0 ? '#22c55e' : SILVER }}>{hotmart > 0 ? R(hotmart) : '—'}</p>
+        <DIV />
+        <div style={{ minWidth: 120 }}>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Hotmart BRL</p>
+          <p className="font-black text-sm" style={{ color: brl > 0 ? '#4ade80' : SILVER }}>{brl > 0 ? R(brl) : '—'}</p>
+          {item.txCountBRL > 0 && <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>{item.txCountBRL}v</p>}
         </div>
-        <div className="hidden sm:block w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
-        {/* ROAS */}
+        <DIV />
+        <div style={{ minWidth: 120 }}>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Hotmart LATAM</p>
+          <p className="font-black text-sm" style={{ color: latam > 0 ? '#38bdf8' : SILVER }}>{latam > 0 ? R(latam) : '—'}</p>
+          {item.txCountLATAM > 0 && <p className="text-[9px] font-bold mt-0.5" style={{ color: SILVER }}>{item.txCountLATAM}v</p>}
+        </div>
+        <DIV />
+        <div style={{ minWidth: 120 }}>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Faturado</p>
+          <p className="font-black text-sm" style={{ color: total > 0 ? '#22c55e' : SILVER }}>{total > 0 ? R(total) : '—'}</p>
+        </div>
+        <DIV />
         <div className="sm:flex-1 sm:text-right">
           <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>ROAS</p>
           <p className="font-black text-lg" style={{ color: roasColor }}>{fmtRoas(roas)}</p>
@@ -268,3 +289,4 @@ function RenderListItem({ item, rank, type }: any) {
   }
   return null;
 }
+
