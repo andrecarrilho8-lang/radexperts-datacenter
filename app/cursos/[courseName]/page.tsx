@@ -3571,7 +3571,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         />
       )}
 
-      {tooltipSt && (tooltipSt as any).source !== 'manual' && typeof window !== 'undefined' && createPortal(
+      {tooltipSt && typeof window !== 'undefined' && createPortal(
         <NameTooltip
           s={tooltipSt}
           onHoverIn={() => clearTimeout(tipTimer.current)}
