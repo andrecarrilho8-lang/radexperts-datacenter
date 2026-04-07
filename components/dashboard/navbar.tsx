@@ -11,11 +11,10 @@ const NAVY   = '#001a35';
 const SILVER = '#A8B2C0';
 
 const TRAFEGO_ITEMS = [
-  { label: 'Campanhas',         href: '/campanhas',                        icon: 'campaign' },
-  { label: 'Campanhas Ativas',  href: '/campanhas-ativas',                 icon: 'bolt' },
-  { label: 'Análise',           href: '/trafego/analise',                  icon: 'analytics' },
-  { label: 'Histórico',         href: '/historico',                        icon: 'history' },
-  { label: 'Extrato Mensal',    href: '/trafego/historico/extrato-mensal', icon: 'table_chart' },
+  { label: 'Campanhas',         href: '/campanhas',          icon: 'campaign' },
+  { label: 'Campanhas Ativas',  href: '/campanhas-ativas',   icon: 'bolt' },
+  { label: 'Análise',           href: '/trafego/analise',    icon: 'analytics' },
+  { label: 'Histórico',         href: '/historico',          icon: 'history' },
 ];
 
 const FINANCEIRO_ITEMS = [

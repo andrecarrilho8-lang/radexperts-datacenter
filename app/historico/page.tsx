@@ -172,8 +172,12 @@ function RenderListItem({ item, rank, type }: any) {
 
   if (type === 'EXTRATO') {
     const months = ['', 'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
-    const isTotals = item.month === 0;
-    const hotmart  = item.hotmartRevenue || 0;
+    const isTotals  = item.month === 0;
+    const hotmart   = item.hotmartRevenue || 0;
+    const spend     = item.spend || 0;
+    const roas      = spend > 0 ? hotmart / spend : null;
+    const roasColor = roas === null ? SILVER : roas >= 3 ? '#4ade80' : roas >= 1.5 ? GOLD : '#f87171';
+    const fmtRoas   = (v: number | null) => v === null ? '—' : `${v.toFixed(2)}×`;
 
     if (isTotals) {
       return (
@@ -186,12 +190,17 @@ function RenderListItem({ item, rank, type }: any) {
           <div className="hidden sm:block w-px h-10" style={{ background: 'rgba(255,255,255,0.1)' }} />
           <div>
             <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Investido</p>
-            <p className="font-black text-white text-lg">{R(item.spend)}</p>
+            <p className="font-black text-white text-lg">{R(spend)}</p>
           </div>
           <div className="hidden sm:block w-px h-10" style={{ background: 'rgba(255,255,255,0.1)' }} />
-          <div className="sm:flex-1 sm:text-right">
+          <div>
             <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Total Faturado Hotmart</p>
             <p className="font-black text-2xl" style={{ color: '#22c55e' }}>{R(hotmart)}</p>
+          </div>
+          <div className="hidden sm:block w-px h-10" style={{ background: 'rgba(255,255,255,0.1)' }} />
+          <div className="sm:text-right">
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>ROAS Anual</p>
+            <p className="font-black text-2xl" style={{ color: roasColor }}>{fmtRoas(roas)}</p>
           </div>
         </div>
       );
@@ -202,19 +211,28 @@ function RenderListItem({ item, rank, type }: any) {
         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}
         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.04)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.03)')}>
+        {/* Mês */}
         <div className="sm:min-w-[130px]">
           <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Mês</p>
           <p className="font-black text-white">{months[item.month]}</p>
         </div>
         <div className="hidden sm:block w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
+        {/* Investido */}
         <div className="sm:min-w-[140px]">
-          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investido</p>
-          <p className="font-black text-white">{R(item.spend)}</p>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investido (Meta)</p>
+          <p className="font-black" style={{ color: spend > 0 ? '#f87171' : SILVER }}>{spend > 0 ? R(spend) : '—'}</p>
         </div>
         <div className="hidden sm:block w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
+        {/* Faturamento */}
+        <div className="sm:min-w-[160px]">
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Faturamento Hotmart (Líq.)</p>
+          <p className="font-black" style={{ color: hotmart > 0 ? '#22c55e' : SILVER }}>{hotmart > 0 ? R(hotmart) : '—'}</p>
+        </div>
+        <div className="hidden sm:block w-px h-8" style={{ background: 'rgba(255,255,255,0.08)' }} />
+        {/* ROAS */}
         <div className="sm:flex-1 sm:text-right">
-          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Faturamento Hotmart</p>
-          <p className="font-black text-lg" style={{ color: '#22c55e' }}>{R(hotmart)}</p>
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>ROAS</p>
+          <p className="font-black text-lg" style={{ color: roasColor }}>{fmtRoas(roas)}</p>
         </div>
       </div>
     );
