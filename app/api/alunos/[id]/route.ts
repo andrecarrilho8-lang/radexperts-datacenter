@@ -267,17 +267,45 @@ export async function GET(
       }
     }
 
-    // Add manual student totals (total_amount is in BRL always)
+    // Add manual student totals (total_amount is in BRL always) + fetch full manual records
+    let manualStudents: any[] = [];
     try {
       const sql = getDb();
       const manualRows = await sql`
-        SELECT COALESCE(total_amount, 0) AS total_amount
+        SELECT id, name, email, course_name, entry_date, phone,
+               payment_type, currency, total_amount, down_payment,
+               installments, installment_amount, installment_dates, notes,
+               created_at, updated_at
         FROM manual_students
         WHERE LOWER(email) = ${email}
+        ORDER BY entry_date DESC
       ` as any[];
       for (const row of manualRows) {
         ltvBRL['BRL'] += Number(row.total_amount) || 0;
       }
+      manualStudents = manualRows.map(r => ({
+        id:                 r.id,
+        name:               r.name,
+        email:              r.email,
+        course_name:        r.course_name,
+        entry_date:         Number(r.entry_date) || null,
+        phone:              r.phone || '',
+        payment_type:       r.payment_type || 'PIX',
+        currency:           r.currency || 'BRL',
+        total_amount:       Number(r.total_amount) || 0,
+        down_payment:       Number(r.down_payment) || 0,
+        installments:       Number(r.installments) || 1,
+        installment_amount: Number(r.installment_amount) || 0,
+        installment_dates:  (() => {
+          try {
+            const raw = typeof r.installment_dates === 'string'
+              ? JSON.parse(r.installment_dates)
+              : (r.installment_dates || []);
+            return Array.isArray(raw) ? raw : [];
+          } catch { return []; }
+        })(),
+        notes:              r.notes || '',
+      }));
     } catch { /* non-fatal */ }
 
     // Primary LTV = BRL total (most common); expose breakdown for UI
@@ -330,6 +358,7 @@ export async function GET(
       purchases,
       uniqueProducts,
       buyerPersona: mergedBuyerPersona,
+      manualStudents,
       ac: acId ? {
         id:          acId,
         firstName:   acFirstName,

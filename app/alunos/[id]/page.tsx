@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { Navbar } from '@/components/dashboard/navbar';
+import { EditManualStudentModal, type ManualStudentFields } from '@/components/dashboard/edit-manual-student-modal';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -80,6 +81,7 @@ export default function AlunoPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading,   setUploading]   = useState(false);
   const [uploadErr,   setUploadErr]   = useState('');
+  const [editTarget,  setEditTarget]  = useState<ManualStudentFields | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -499,7 +501,8 @@ export default function AlunoPage() {
 
                   {/* ── Buyer Persona ── */}
                   {data.buyerPersona && Object.values(data.buyerPersona).some(v => v != null) && (() => {
-                    const bp = data.buyerPersona;
+                    const bp  = data.buyerPersona;
+                    const ms  = (data.manualStudents || [])[0]; // primary manual record
                     const rows = [
                       { label: 'Vendedor',         value: bp.vendedor },
                       { label: 'CPF',              value: bp.document },
@@ -512,16 +515,56 @@ export default function AlunoPage() {
                       { label: 'Últ. Pagamento',   value: bp.ultimo_pagamento  ? D(bp.ultimo_pagamento)  : null },
                       { label: 'Próx. Pagamento',  value: bp.proximo_pagamento ? D(bp.proximo_pagamento) : null },
                     ].filter(r => r.value);
+
+                    // Status badge
+                    const emDia = (bp.em_dia || '').toUpperCase();
+                    const isOk  = emDia === 'SIM' || emDia === 'ADIMPLENTE';
+                    const isNok = emDia === 'NÃO' || emDia === 'NAO' || emDia === 'INADIMPLENTE';
+                    const isQuit = emDia === 'QUITADO';
+
                     return (
                       <div style={{ ...card, border: '1px solid rgba(232,177,79,0.2)' }} className="p-5">
                         <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: GOLD }}>
                           <span className="material-symbols-outlined text-sm">manage_accounts</span>
                           Buyer Persona
-                          {bp.em_dia === 'SIM' && (
-                            <span className="ml-auto text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>✓ Em dia</span>
+                          {isOk   && <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>✓ Adimplente</span>}
+                          {isNok  && <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>✗ Inadimplente</span>}
+                          {isQuit && <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>✔ Quitado</span>}
+                          {!isOk && !isNok && !isQuit && bp.em_dia && (
+                            <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(255,255,255,0.08)', color: SILVER }}>· {bp.em_dia}</span>
                           )}
-                          {bp.em_dia && bp.em_dia !== 'SIM' && (
-                            <span className="ml-auto text-[8px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>✗ {bp.em_dia}</span>
+                          {/* Edit button — only when a manual_student record exists */}
+                          {ms && (
+                            <button
+                              className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all no-print"
+                              style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD, cursor: 'pointer' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.2)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.1)')}
+                              onClick={() => setEditTarget({
+                                manualId:            ms.id,
+                                email:               data.email,
+                                name:                ms.name || data.name || '',
+                                phone:               ms.phone || data.phone || '',
+                                payment_type:        ms.payment_type,
+                                currency:            ms.currency,
+                                total_amount:        ms.total_amount,
+                                down_payment:        ms.down_payment,
+                                installments:        ms.installments,
+                                installment_amount:  ms.installment_amount,
+                                installment_dates:   ms.installment_dates,
+                                notes:               ms.notes,
+                                entry_date:          ms.entry_date,
+                                vendedor:            bp.vendedor,
+                                bp_modelo:           bp.modelo,
+                                bp_em_dia:           bp.em_dia || 'Adimplente',
+                                bp_primeira_parcela:  bp.primeira_parcela  ? new Date(bp.primeira_parcela).getTime()  : null,
+                                bp_ultimo_pagamento:  bp.ultimo_pagamento  ? new Date(bp.ultimo_pagamento).getTime()  : null,
+                                bp_proximo_pagamento: bp.proximo_pagamento ? new Date(bp.proximo_pagamento).getTime() : null,
+                              })}
+                            >
+                              <span className="material-symbols-outlined" style={{ fontSize: 13 }}>edit</span>
+                              Editar
+                            </button>
                           )}
                         </p>
                         <div className="space-y-2.5">
@@ -800,6 +843,47 @@ export default function AlunoPage() {
           )}
         </main>
       </div>
+
+      {/* ── Edit Manual Student Modal ──────────────────────────────── */}
+      {editTarget && (
+        <EditManualStudentModal
+          student={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={(updated) => {
+            // Merge updated fields back into local data state
+            setData((prev: any) => {
+              if (!prev) return prev;
+              // Update manualStudents[0]
+              const ms = (prev.manualStudents || [])[0];
+              const newMs = ms ? { ...ms, ...updated } : ms;
+              const newManualStudents = newMs
+                ? [newMs, ...(prev.manualStudents || []).slice(1)]
+                : prev.manualStudents;
+
+              // Update buyerPersona
+              const bp = prev.buyerPersona || {};
+              const newBp = {
+                ...bp,
+                vendedor:           updated.vendedor            ?? bp.vendedor,
+                modelo:             updated.bp_modelo           ?? bp.modelo,
+                pagamento:          updated.payment_type        ?? bp.pagamento,
+                em_dia:             updated.bp_em_dia           ?? bp.em_dia,
+                primeira_parcela:   updated.bp_primeira_parcela != null
+                  ? new Date(updated.bp_primeira_parcela).toISOString()
+                  : bp.primeira_parcela,
+                ultimo_pagamento:   updated.bp_ultimo_pagamento != null
+                  ? new Date(updated.bp_ultimo_pagamento).toISOString()
+                  : bp.ultimo_pagamento,
+                proximo_pagamento:  updated.bp_proximo_pagamento != null
+                  ? new Date(updated.bp_proximo_pagamento).toISOString()
+                  : bp.proximo_pagamento,
+              };
+
+              return { ...prev, manualStudents: newManualStudents, buyerPersona: newBp };
+            });
+          }}
+        />
+      )}
     </LoginWrapper>
   );
 }
