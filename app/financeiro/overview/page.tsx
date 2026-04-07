@@ -161,13 +161,55 @@ type Data = {
   hotmartEntries: Transaction[];
   manualEntries: Transaction[];
   upcoming: Upcoming[];
+  manualUpcoming: ManualUpcoming[];
   overdue: Overdue[];
+  manualOverdue: ManualOverdue[];
   statusCounts: Record<string, number>;
 };
+type ManualUpcoming = {
+  name: string; email: string; product: string;
+  dueDate: number; amount: number;
+  installmentNum: number; totalInstallments: number;
+};
+type ManualOverdue = {
+  name: string; email: string; product: string;
+  dueDate: number; daysOverdue: number; amount: number;
+  installmentNum: number; totalInstallments: number;
+};
 
-/* ─────────────────────────────────────────────────────────────────────
-   EntryTable — reusable table for Hotmart or Manual entries
-───────────────────────────────────────────────────────────────────── */
+/* ── Paginator ──────────────────────────────────────────────────────────── */
+function Paginator({ page, total, perPage, onPage, accent }: {
+  page: number; total: number; perPage: number;
+  onPage: (p: number) => void; accent: string;
+}) {
+  const pages = Math.ceil(total / perPage);
+  if (pages <= 1) return null;
+  const start  = Math.max(0, Math.min(page - 3, pages - 7));
+  const window = Array.from({ length: Math.min(7, pages) }, (_, i) => start + i);
+  const btn = (disabled: boolean, active = false): React.CSSProperties => ({
+    minWidth: 32, height: 32, borderRadius: 8, fontSize: 11, fontWeight: 900,
+    cursor: disabled ? 'default' : 'pointer',
+    border: active ? `1px solid ${accent}80` : '1px solid rgba(255,255,255,0.1)',
+    background: active ? `${accent}22` : 'rgba(255,255,255,0.04)',
+    color: active ? accent : disabled ? 'rgba(255,255,255,0.2)' : SILVER,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '12px 0' }}>
+      <button onClick={() => onPage(0)} disabled={page === 0} style={btn(page === 0)}>«</button>
+      <button onClick={() => onPage(page - 1)} disabled={page === 0} style={btn(page === 0)}>‹</button>
+      {window.map(p => <button key={p} onClick={() => onPage(p)} style={btn(false, page === p)}>{p + 1}</button>)}
+      <button onClick={() => onPage(page + 1)} disabled={page >= pages - 1} style={btn(page >= pages - 1)}>›</button>
+      <button onClick={() => onPage(pages - 1)} disabled={page >= pages - 1} style={btn(page >= pages - 1)}>»</button>
+      <span style={{ fontSize: 10, fontWeight: 700, color: SILVER, marginLeft: 6 }}>
+        {page * perPage + 1}–{Math.min((page + 1) * perPage, total)} de {total}
+      </span>
+    </div>
+  );
+}
+
+
+const PAGE_SIZE = 15;
 function EntryTable({
   title, subtitle, accent, entries, loading, router, isManual = false,
 }: {
@@ -175,6 +217,17 @@ function EntryTable({
   entries: Transaction[]; loading: boolean;
   router: ReturnType<typeof useRouter>; isManual?: boolean;
 }) {
+  const [search, setSearch] = React.useState('');
+  const [page, setPage]     = React.useState(0);
+  React.useEffect(() => { setPage(0); }, [search]);
+  const filtered    = search.trim()
+    ? entries.filter(e =>
+        e.buyer.name.toLowerCase().includes(search.toLowerCase()) ||
+        e.buyer.email.toLowerCase().includes(search.toLowerCase())
+      )
+    : entries;
+  const pageEntries = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   return (
     <div style={{
       background: `linear-gradient(160deg, ${accent}09 0%, ${accent}03 50%, rgba(0,10,30,0.7) 100%)`,
@@ -184,20 +237,27 @@ function EntryTable({
       boxShadow: `0 1px 0 ${accent}18 inset, 0 24px 48px -12px rgba(0,0,0,0.5)`,
       borderRadius: 24, overflow: 'hidden',
     }}>
-      <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${accent}22` }}>
+      <div className="px-7 py-5 flex items-center gap-3 flex-wrap" style={{ borderBottom: `1px solid ${accent}22` }}>
         <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ background: `${accent}15`, border: `1px solid ${accent}35` }}>
           <span className="material-symbols-outlined text-xl" style={{ color: accent }}>
             {isManual ? 'edit_note' : 'payments'}
           </span>
         </div>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>{title}</p>
           <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>{subtitle}</p>
         </div>
-        <span className="ml-auto px-3 py-1 rounded-full text-[11px] font-black"
-          style={{ background: `${accent}18`, color: accent }}>
-          {loading ? '…' : entries.length}
+        {/* Search */}
+        <div style={{ position: 'relative', minWidth: 200 }}>
+          <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: SILVER, fontSize: 16, pointerEvents: 'none' }}>search</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome..."
+            style={{ background: 'rgba(255,255,255,0.07)', border: `1px solid ${accent}30`, borderRadius: 10,
+              padding: '7px 10px 7px 32px', color: '#fff', fontSize: 11, fontWeight: 600, width: '100%', outline: 'none' }} />
+          {search && <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: SILVER, cursor: 'pointer', fontSize: 16 }}>×</button>}
+        </div>
+        <span className="px-3 py-1 rounded-full text-[11px] font-black" style={{ background: `${accent}18`, color: accent }}>
+          {loading ? '…' : search ? `${filtered.length} resultado${filtered.length !== 1 ? 's' : ''}` : `${entries.length} entradas`}
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -214,11 +274,11 @@ function EntryTable({
           <tbody>
             {loading
               ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={5} accent={accent} />)
-              : entries.length === 0
+              : pageEntries.length === 0
                 ? <tr><td colSpan={5} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
-                    Nenhuma entrada encontrada.
+                    {search ? `Nenhum resultado para "${search}"` : 'Nenhuma entrada encontrada.'}
                   </td></tr>
-                : entries.map((t, idx) => {
+                : pageEntries.map((t, idx) => {
                     const dt = fmtDateTime(t.date);
                     let installLabel = '', installStyle: React.CSSProperties = {};
                     if (t.isSubscription) {
@@ -289,6 +349,7 @@ function EntryTable({
           </tbody>
         </table>
       </div>
+      <Paginator page={page} total={filtered.length} perPage={PAGE_SIZE} onPage={setPage} accent={accent} />
     </div>
   );
 }
@@ -314,7 +375,11 @@ export default function FinanceiroOverviewPage() {
   }, []);
 
   const tab = TABS.find(t => t.key === activeTab)!;
-  const counts = { entradas: 10, proximos: data?.upcoming.length ?? 0, inadimplentes: data?.overdue.length ?? 0 };
+  const counts = {
+    entradas:       (data?.hotmartEntries.length ?? 0) + (data?.manualEntries.length ?? 0),
+    proximos:       (data?.upcoming.length ?? 0) + (data?.manualUpcoming?.length ?? 0),
+    inadimplentes:  (data?.overdue.length ?? 0) + (data?.manualOverdue?.length ?? 0),
+  };
 
   return (
     <LoginWrapper>
@@ -430,248 +495,250 @@ export default function FinanceiroOverviewPage() {
               Columns: Data Próx. Cobrança | Valor | Dias | Nome | Oferta | Produto
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'proximos' && (
-            <div style={tabStyle(tab.accent)}>
-              <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${tab.accent}22` }}>
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${tab.accent}15`, border: `1px solid ${tab.accent}35` }}>
-                  <span className="material-symbols-outlined text-xl" style={{ color: tab.accent }}>event_upcoming</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* ─ Hotmart upcoming */}
+              <div style={tabStyle('#38bdf8')}>
+                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: '1px solid #38bdf822' }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: '#38bdf815', border: '1px solid #38bdf835' }}>
+                    <span className="material-symbols-outlined text-xl" style={{ color: '#38bdf8' }}>event_upcoming</span>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>Próximos Pagamentos Hotmart</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>cobranças de assinatura ativa ordenadas por data</p>
+                  </div>
+                  <span className="ml-auto px-3 py-1 rounded-full text-[11px] font-black" style={{ background: '#38bdf818', color: '#38bdf8' }}>
+                    {loading ? '…' : (data?.upcoming || []).length}
+                  </span>
                 </div>
-                <div>
-                  <p style={{ fontSize: '20px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>Próximos Pagamentos</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
-                    10 cobranças de assinatura ativa mais próximas
-                  </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                    <thead><tr style={{ background: '#38bdf808' }}>
+                      <TH>Data Próx. Cobrança</TH><TH right>Valor</TH><TH>Dias</TH><TH>Nome</TH><TH>Oferta</TH><TH>Produto</TH>
+                    </tr></thead>
+                    <tbody>
+                      {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={6} accent="#38bdf8" />) :
+                        (data?.upcoming || []).length === 0
+                          ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Nenhuma cobrança próxima.</td></tr>
+                          : (data!.upcoming).map((u, idx) => {
+                              const dias = daysUntil(u.dateNextCharge);
+                              const urgColor = dias <= 3 ? '#f87171' : dias <= 7 ? GOLD : '#38bdf8';
+                              const rowBg = idx % 2 === 0 ? 'transparent' : '#38bdf805';
+                              return (
+                                <tr key={u.subscriberCode || idx} style={{ background: rowBg, borderBottom: '1px solid #38bdf815' }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = '#38bdf80d')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
+                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-black text-white">{fmtDate(u.dateNextCharge)}</span></td>
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span className="font-black text-lg" style={{ color: '#38bdf8' }}>{fmtLocalCurrency(u.amount, u.currency)}</span>
+                                      {u.currency !== 'BRL' && u.amountBRL && <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtBRL(u.amountBRL)}</span>}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black" style={{ background: `${urgColor}18`, border: `1px solid ${urgColor}40`, color: urgColor }}>{dias}d</span></td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col">
+                                      <div className="flex items-center gap-2"><Flag currency={u.currency} /><NameBtn name={u.subscriber.name} email={u.subscriber.email} router={router} /></div>
+                                      <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{u.subscriber.email}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4"><span className="text-[11px] font-bold" style={{ color: SILVER }}>{u.plan}</span></td>
+                                  <td className="py-3 px-4"><span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{u.product.name}</span></td>
+                                </tr>
+                              );
+                            })
+                      }
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: `${tab.accent}08` }}>
-                      <TH>Data Próx. Cobrança</TH>
-                      <TH right>Valor</TH>
-                      <TH>Dias</TH>
-                      <TH>Nome</TH>
-                      <TH>Oferta</TH>
-                      <TH>Produto</TH>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={6} accent={tab.accent} />) :
-                      (data?.upcoming || []).length === 0 ? (
-                        <tr><td colSpan={6} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
-                          Nenhuma cobrança próxima.
-                        </td></tr>
-                      ) : data!.upcoming.map((u, idx) => {
-                        const dias = daysUntil(u.dateNextCharge);
-                        const urgColor = dias <= 3 ? '#f87171' : dias <= 7 ? GOLD : tab.accent;
-                        const rowBg = idx % 2 === 0 ? 'transparent' : `${tab.accent}05`;
-                        return (
-                          <tr key={u.subscriberCode || idx}
-                            style={{ background: rowBg, borderBottom: `1px solid ${tab.accent}15` }}
-                            onMouseEnter={e => (e.currentTarget.style.background = `${tab.accent}0d`)}
-                            onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                            {/* Data Próx. Cobrança */}
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className="text-sm font-black text-white">{fmtDate(u.dateNextCharge)}</span>
-                            </td>
-                            {/* Valor */}
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <div className="flex flex-col items-end gap-0.5">
-                                <span className="font-black text-lg" style={{ color: tab.accent }}>
-                                  {fmtLocalCurrency(u.amount, u.currency)}
-                                </span>
-                                {u.currency !== 'BRL' && u.amountBRL && (
-                                  <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-                                    ≈ {fmtBRL(u.amountBRL)}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            {/* Dias */}
-                            <td className="py-3 px-4">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black"
-                                style={{ background: `${urgColor}18`, border: `1px solid ${urgColor}40`, color: urgColor }}>
-                                {dias}d
-                              </span>
-                            </td>
-                            {/* Nome */}
-                            <td className="py-3 px-4">
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                  <Flag currency={u.currency} />
-                                  <NameBtn name={u.subscriber.name} email={u.subscriber.email} router={router} />
-                                </div>
-                                <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{u.subscriber.email}</span>
-                              </div>
-                            </td>
-                            {/* Oferta */}
-                            <td className="py-3 px-4">
-                              <span className="text-[11px] font-bold" style={{ color: SILVER }}>{u.plan}</span>
-                            </td>
-                            {/* Produto */}
-                            <td className="py-3 px-4">
-                              <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
-                                {u.product.name}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    }
-                  </tbody>
-                </table>
+
+              {/* ─ PIX Manual upcoming */}
+              <div style={tabStyle(GOLD)}>
+                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${GOLD}22` }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}35` }}>
+                    <span className="material-symbols-outlined text-xl" style={{ color: GOLD }}>edit_note</span>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>Próximos Pagamentos PIX Manual</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>próxima parcela não paga de cada aluno manual</p>
+                  </div>
+                  <span className="ml-auto px-3 py-1 rounded-full text-[11px] font-black" style={{ background: `${GOLD}18`, color: GOLD }}>
+                    {loading ? '…' : (data?.manualUpcoming || []).length}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                    <thead><tr style={{ background: `${GOLD}08` }}>
+                      <TH>Data Vencimento</TH><TH right>Valor</TH><TH>Dias</TH><TH>Parcela</TH><TH>Nome</TH><TH>Produto</TH>
+                    </tr></thead>
+                    <tbody>
+                      {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={6} accent={GOLD} />) :
+                        (data?.manualUpcoming || []).length === 0
+                          ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Nenhum próximo pagamento manual encontrado.</td></tr>
+                          : (data!.manualUpcoming).map((u, idx) => {
+                              const dias = daysUntil(u.dueDate);
+                              const urgColor = dias <= 3 ? '#f87171' : dias <= 7 ? '#fb923c' : GOLD;
+                              const rowBg = idx % 2 === 0 ? 'transparent' : `${GOLD}05`;
+                              return (
+                                <tr key={`${u.email}-${idx}`} style={{ background: rowBg, borderBottom: `1px solid ${GOLD}15` }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = `${GOLD}0d`)}
+                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
+                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-black text-white">{fmtDate(u.dueDate)}</span></td>
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                                    <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(u.amount)}</span>
+                                  </td>
+                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black" style={{ background: `${urgColor}18`, border: `1px solid ${urgColor}40`, color: urgColor }}>{dias}d</span></td>
+                                  <td className="py-3 px-4"><span className="text-[11px] font-black" style={{ color: SILVER }}>{u.installmentNum}/{u.totalInstallments}</span></td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col">
+                                      <NameBtn name={u.name} email={u.email} router={router} />
+                                      <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{u.email}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4"><span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{u.product}</span></td>
+                                </tr>
+                              );
+                            })
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
             </div>
           )}
 
           {/* ══════════════════════════════════════════════════════════════════
               TAB: INADIMPLENTES
-              Columns: Última Transação | Valor | Nome | Produto | Plano | Início | Dias em Atraso
           ══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'inadimplentes' && (
-            <div style={tabStyle(tab.accent)}>
-              <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${tab.accent}22` }}>
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${tab.accent}15`, border: `1px solid ${tab.accent}35` }}>
-                  <span className="material-symbols-outlined text-xl" style={{ color: tab.accent }}>warning</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* ─ Hotmart overdue */}
+              <div style={tabStyle('#f87171')}>
+                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: '1px solid #f8717122' }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: '#f8717115', border: '1px solid #f8717135' }}>
+                    <span className="material-symbols-outlined text-xl" style={{ color: '#f87171' }}>warning</span>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
+                      Inadimplentes Hotmart{!loading && data ? ` — ${data.overdue.length}` : ''}
+                    </p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
+                      assinaturas e parcelamentos com pagamento atrasado · últ. cobrança há +35 dias
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: '20px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
-                    Inadimplentes{!loading && data ? ` — ${data.overdue.length}` : ''}
-                  </p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
-                    Assinaturas e parcelamentos com pagamento atrasado · últ. cobrança há +35 dias
-                  </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                    <thead><tr style={{ background: '#f8717108' }}>
+                      <TH>Último Pagamento</TH><TH right>Valor</TH><TH>Nome</TH><TH>Produto</TH><TH>Oferta</TH><TH>Início</TH><TH>Dias em Atraso</TH>
+                    </tr></thead>
+                    <tbody>
+                      {loading ? [...Array(6)].map((_, i) => <SkelRow key={i} cols={7} accent="#f87171" />) :
+                        (data?.overdue || []).length === 0
+                          ? <tr><td colSpan={7} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>🎉 Nenhum inadimplente Hotmart.</td></tr>
+                          : data!.overdue.map((o, idx) => {
+                              const dias     = o.daysSinceLast ?? 0;
+                              const severity = dias > 50 ? '#f87171' : dias > 40 ? GOLD : SILVER;
+                              const rowBg    = idx % 2 === 0 ? '#f8717104' : '#f8717108';
+                              return (
+                                <tr key={o.subscriberCode || idx} style={{ background: rowBg, borderBottom: '1px solid #f8717118' }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = '#f8717114')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-sm font-black text-white">{fmtDate(o.lastPayDate)}</span>
+                                      <span className="text-[9px] font-bold" style={{ color: SILVER }}>{o.lastTransaction.slice(0, 14)}…</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span className="font-black text-lg" style={{ color: '#f87171' }}>{fmtLocalCurrency(o.amount, o.currency)}</span>
+                                      {o.currency !== 'BRL' && o.amountBRL && <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtBRL(o.amountBRL)}</span>}
+                                      <div className="mt-1 flex flex-col items-end gap-0.5 border-t pt-1" style={{ borderColor: '#f8717122', width: '100%' }}>
+                                        <span className="text-[9px] font-black" style={{ color: '#4ade80' }}>✓ {o.isSub ? `${o.paidCount}× pagos` : o.isSmartInstall ? `${o.paidCount}/${o.installments} parcelas` : `${o.paidCount}× pago`}</span>
+                                        <span className="text-[9px]" style={{ color: '#4ade8090' }}>{fmtLocalCurrency(o.paidTotal, o.currency)}</span>
+                                        {o.isSmartInstall && o.installments > o.paidCount && <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>◷ {o.installments - o.paidCount} restantes</span>}
+                                        {o.isSub && <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>◷ {o.daysSinceLast}d sem pagar</span>}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col">
+                                      <div className="flex items-center gap-2"><Flag currency={o.currency} /><NameBtn name={o.subscriber.name} email={o.subscriber.email} router={router} /></div>
+                                      <span className="text-[11px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4"><span className="text-[12px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product.name}</span></td>
+                                  <td className="py-3 px-4"><span className="text-[12px] font-bold" style={{ color: SILVER }}>{o.plan}</span></td>
+                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-bold text-white">{fmtDate(o.accessionDate)}</span></td>
+                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black" style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>{dias}d</span></td>
+                                </tr>
+                              );
+                            })
+                      }
+                    </tbody>
+                  </table>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                  <colgroup>
-                    <col style={{ width: '130px' }} />{/* Último Pgto */}
-                    <col style={{ width: '145px' }} />{/* Valor */}
-                    <col style={{ width: '240px' }} />{/* Nome */}
-                    <col style={{ width: '180px' }} />{/* Produto */}
-                    <col style={{ width: '160px' }} />{/* Oferta */}
-                    <col style={{ width: '90px' }} /> {/* Início */}
-                    <col style={{ width: '90px' }} /> {/* Dias em Atraso */}
-                  </colgroup>
-                  <thead>
-                    <tr style={{ background: `${tab.accent}08` }}>
-                      <TH>Último Pagamento</TH>
-                      <TH right>Valor</TH>
-                      <TH>Nome</TH>
-                      <TH>Produto</TH>
-                      <TH>Oferta</TH>
-                      <TH>Início</TH>
-                      <TH>Dias em Atraso</TH>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? [...Array(6)].map((_, i) => <SkelRow key={i} cols={7} accent={tab.accent} />) :
-                      (data?.overdue || []).length === 0 ? (
-                        <tr><td colSpan={7} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>
-                          🎉 Nenhum inadimplente.
-                          {data?.statusCounts && (
-                            <span className="block text-[10px] mt-2 font-normal normal-case tracking-normal opacity-50">
-                              Statuses: {JSON.stringify(data.statusCounts)}
-                            </span>
-                          )}
-                        </td></tr>
-                      ) : data!.overdue.map((o, idx) => {
-                        const dias     = o.daysSinceLast ?? 0;
-                        const severity = dias > 50 ? '#f87171' : dias > 40 ? GOLD : SILVER;
-                        const rowBg    = idx % 2 === 0 ? `${tab.accent}04` : `${tab.accent}08`;
-                        return (
-                          <tr key={o.subscriberCode || idx}
-                            style={{ background: rowBg, borderBottom: `1px solid ${tab.accent}18` }}
-                            onMouseEnter={e => (e.currentTarget.style.background = `${tab.accent}14`)}
-                            onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                            {/* Último Pagamento */}
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-black text-white">{fmtDate(o.lastPayDate)}</span>
-                                <span className="text-[9px] font-bold" style={{ color: SILVER }}>{o.lastTransaction.slice(0, 14)}…</span>
-                              </div>
-                            </td>
-                            {/* Valor + breakdown (o que pagou / o que deve) */}
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <div className="flex flex-col items-end gap-1">
-                                {/* Main amount */}
-                                <span className="font-black text-lg" style={{ color: tab.accent }}>
-                                  {fmtLocalCurrency(o.amount, o.currency)}
-                                </span>
-                                {o.currency !== 'BRL' && o.amountBRL && (
-                                  <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-                                    ≈ {fmtBRL(o.amountBRL)}
-                                  </span>
-                                )}
-                                {/* Payment breakdown */}
-                                <div className="mt-1 flex flex-col items-end gap-0.5 border-t pt-1" style={{ borderColor: `${tab.accent}22`, width: '100%' }}>
-                                  {/* Paid */}
-                                  <span className="text-[9px] font-black" style={{ color: '#4ade80' }}>
-                                    ✓ {o.isSub
-                                      ? `${o.paidCount}× pago${o.paidCount !== 1 ? 's' : ''}`
-                                      : o.isSmartInstall
-                                        ? `${o.paidCount}/${o.installments} parcelas`
-                                        : `${o.paidCount}× pago`
-                                    }
-                                  </span>
-                                  {/* Total paid value */}
-                                  <span className="text-[9px]" style={{ color: '#4ade8090' }}>
-                                    {fmtLocalCurrency(o.paidTotal, o.currency)}
-                                  </span>
-                                  {/* Owes */}
-                                  {o.isSmartInstall && o.installments > o.paidCount && (
-                                    <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>
-                                      ◷ {o.installments - o.paidCount} restante{o.installments - o.paidCount !== 1 ? 's' : ''}
-                                    </span>
-                                  )}
-                                  {o.isSub && (
-                                    <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>
-                                      ◷ {o.daysSinceLast}d sem pagar
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            {/* Nome */}
-                            <td className="py-3 px-4">
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                  <Flag currency={o.currency} />
-                                  <NameBtn name={o.subscriber.name} email={o.subscriber.email} router={router} />
-                                </div>
-                                <span className="text-[11px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
-                              </div>
-                            </td>
-                            {/* Produto */}
-                            <td className="py-3 px-4">
-                              <span className="text-[12px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
-                                {o.product.name}
-                              </span>
-                            </td>
-                            {/* Plano */}
-                            <td className="py-3 px-4">
-                              <span className="text-[12px] font-bold" style={{ color: SILVER }}>{o.plan}</span>
-                            </td>
-                            {/* Início */}
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className="text-sm font-bold text-white">{fmtDate(o.accessionDate)}</span>
-                            </td>
-                            {/* Dias em Atraso */}
-                            <td className="py-3 px-4">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
-                                style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
-                                {dias}d
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    }
-                  </tbody>
-                </table>
+
+              {/* ─ PIX Manual overdue */}
+              <div style={tabStyle(GOLD)}>
+                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${GOLD}22` }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}35` }}>
+                    <span className="material-symbols-outlined text-xl" style={{ color: GOLD }}>edit_note</span>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
+                      Inadimplentes PIX Manual{!loading && data ? ` — ${(data.manualOverdue || []).length}` : ''}
+                    </p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
+                      parcelas vencidas e não pagas de alunos manuais
+                    </p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                    <thead><tr style={{ background: `${GOLD}08` }}>
+                      <TH>Vencimento</TH><TH>Dias em Atraso</TH><TH right>Valor</TH><TH>Parcela</TH><TH>Nome</TH><TH>Produto</TH>
+                    </tr></thead>
+                    <tbody>
+                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={6} accent={GOLD} />) :
+                        (data?.manualOverdue || []).length === 0
+                          ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>🎉 Nenhum inadimplente PIX Manual.</td></tr>
+                          : data!.manualOverdue.map((o, idx) => {
+                              const severity = o.daysOverdue > 30 ? '#f87171' : o.daysOverdue > 14 ? '#fb923c' : GOLD;
+                              const rowBg = idx % 2 === 0 ? 'transparent' : `${GOLD}05`;
+                              return (
+                                <tr key={`${o.email}-${idx}`} style={{ background: rowBg, borderBottom: `1px solid ${GOLD}15` }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = `${GOLD}0d`)}
+                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
+                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span></td>
+                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black" style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>{o.daysOverdue}d</span></td>
+                                  <td className="py-3 px-4 text-right whitespace-nowrap"><span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(o.amount)}</span></td>
+                                  <td className="py-3 px-4"><span className="text-[11px] font-black" style={{ color: SILVER }}>{o.installmentNum}/{o.totalInstallments}</span></td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col">
+                                      <NameBtn name={o.name} email={o.email} router={router} />
+                                      <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4"><span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product}</span></td>
+                                </tr>
+                              );
+                            })
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
             </div>
           )}
 

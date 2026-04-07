@@ -172,10 +172,10 @@ export async function GET() {
       console.warn('[financeiro] manual_students fetch failed:', e.message);
     }
 
-    /* ── 1c. Sort manual entries by most-recently-updated, take top 20 ─── */
+    /* ── 1c. Sort manual entries by most-recently-updated, keep all ─────── */
     const manualSorted = manualEntriesList.sort((a, b) =>
       new Date(b.sort_ts || b.date || 0).getTime() - new Date(a.sort_ts || a.date || 0).getTime()
-    ).slice(0, 20);
+    );
 
     /* ── 2. Inadimplentes — sales-based, deduplicated by email×product ─── */
     type AggKey = string;
@@ -306,7 +306,6 @@ export async function GET() {
       upcoming = activeSubs
         .filter(s => s.date_next_charge && s.date_next_charge > nowMs)
         .sort((a, b) => a.date_next_charge - b.date_next_charge)
-        .slice(0, 10)
         .map(s => {
           const cur       = (s.price?.currency_code || 'BRL').toUpperCase();
           const amount    = s.price?.value ?? 0;
@@ -326,12 +325,87 @@ export async function GET() {
     // Filter overdue: exclude anyone with an active subscription (they're paying normally)
     const filteredOverdue = overdue.filter(o => !activeEmailSet.has(o.email));
 
+    /* ── 4. Manual upcoming & overdue (from installment_dates) ───────────── */
+    const manualUpcoming: any[] = [];
+    const manualOverdue:  any[] = [];
+
+    // Re-read already-fetched manualRows — derive from installment_dates
+    try {
+      const db = getDb();
+      const rows = await db`
+        SELECT id, name, email, course_name, entry_date,
+               total_amount, installments, installment_amount, installment_dates,
+               bp_proximo_pagamento, bp_em_dia
+        FROM manual_students ms
+        LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
+        WHERE COALESCE(ms.total_amount, 0) > 0
+        ORDER BY ms.entry_date DESC
+      ` as any[];
+
+      for (const row of rows) {
+        const name    = (row.name || '—').toUpperCase();
+        const email   = (row.email || '').toLowerCase().trim();
+        const product = row.course_name || '—';
+        const instAmt = Number(row.installment_amount) || Number(row.total_amount) || 0;
+        const totalInst = Number(row.installments) || 1;
+
+        let instDates: { due_ms: number; paid: boolean; paid_ms: number | null }[] = [];
+        try {
+          const raw = typeof row.installment_dates === 'string'
+            ? JSON.parse(row.installment_dates)
+            : (row.installment_dates || []);
+          if (Array.isArray(raw)) instDates = raw;
+        } catch { /* ignore */ }
+
+        if (totalInst === 1 || instDates.length === 0) {
+          // Single PIX: use bp_proximo_pagamento if available
+          const nextMs = Number(row.bp_proximo_pagamento) || 0;
+          if (nextMs > nowMs) {
+            manualUpcoming.push({ name, email, product,
+              dueDate: nextMs, amount: instAmt, installmentNum: 1, totalInstallments: 1,
+              source: 'manual',
+            });
+          }
+        } else {
+          // Find next UNPAID installment
+          const unpaid = instDates
+            .map((d, i) => ({ ...d, idx: i }))
+            .filter(d => !d.paid);
+          const nextUnpaid = unpaid.sort((a, b) => a.due_ms - b.due_ms)[0];
+          if (nextUnpaid) {
+            if (nextUnpaid.due_ms > nowMs) {
+              manualUpcoming.push({ name, email, product,
+                dueDate: nextUnpaid.due_ms, amount: instAmt,
+                installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
+                source: 'manual',
+              });
+            } else {
+              // due_ms < nowMs → overdue
+              const daysOverdue = Math.floor((nowMs - nextUnpaid.due_ms) / 86_400_000);
+              manualOverdue.push({ name, email, product,
+                dueDate: nextUnpaid.due_ms, daysOverdue, amount: instAmt,
+                installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
+                source: 'manual',
+              });
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[financeiro] manual upcoming/overdue failed:', e.message);
+    }
+
+    manualUpcoming.sort((a, b) => a.dueDate - b.dueDate);
+    manualOverdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
     return NextResponse.json({
       totalTransactions: approved.length,
       hotmartEntries: hotmartEntriesFinal,
       manualEntries: manualSorted,
       upcoming,
+      manualUpcoming,
       overdue: filteredOverdue,
+      manualOverdue,
       totalSubs,
     });
   } catch (e: any) {
