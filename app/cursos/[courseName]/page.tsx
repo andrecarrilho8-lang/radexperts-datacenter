@@ -448,6 +448,16 @@ function NameTooltip({ s, onHoverIn, onHoverOut }: {
 // Standalone status helper used by PDF / CSV / XLS exports
 const GRACE_DAYS_EXPORT = 15;
 const DAY_MS_EXPORT = 86_400_000;
+// Helper: parse either epoch-ms number or ISO date string into epoch ms (or null)
+function toEpochMs(val: any): number | null {
+  if (!val) return null;
+  const n = Number(val);
+  if (!isNaN(n) && n > 1_000_000_000_000) return n; // looks like epoch ms
+  if (!isNaN(n) && n > 0 && n < 1_000_000_000_000) return n * 1000; // epoch seconds
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d.getTime();
+}
+
 function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, any>> = {}): PayStatus {
   // Use BOTH sources: server-side JOIN (s.bpEmDia) + client-side async cache (bpCache)
   const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
@@ -455,8 +465,8 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
 
   // Helper: check if proximo_pagamento is still in the future (within grace)
   const proxRaw = (s as any).bpProximoPagamento ?? cacheEntry.proximo_pagamento;
-  const proxMs  = proxRaw ? Number(proxRaw) : null;
-  const notYetOverdue = proxMs != null && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
+  const proxMs  = toEpochMs(proxRaw);
+  const notYetOverdue = proxMs != null && !isNaN(proxMs) && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
 
   // If bp_em_dia is set, it is the authoritative source
   if (rawEmDia != null && rawEmDia !== '') {
@@ -464,7 +474,7 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
     // Handle BOTH old format (SIM / NÃO / NAO) AND new format (Adimplente / Inadimplente / Quitado)
     if (up === 'SIM' || up === 'ADIMPLENTE') {
       // Respect grace period: even if marked Adimplente, downgrade if proximo is past grace
-      if (proxMs != null && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) < Date.now()) return 'INADIMPLENTE';
+      if (proxMs != null && !isNaN(proxMs) && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) < Date.now()) return 'INADIMPLENTE';
       return 'ADIMPLENTE';
     }
     if (up === 'QUITADO') return 'QUITADO';
@@ -3372,16 +3382,27 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         return (
                           <div className="flex flex-col gap-0.5 pt-1">
                             {bp.pagamento && <span className="text-[11px] font-bold" style={{ color: 'white' }}>{bp.pagamento}</span>}
-                            {emDia != null && (
+                        {emDia != null && (() => {
+                            // Handle both old format (SIM/NÃO/QUITADO) and new normalized (Adimplente/Inadimplente/Quitado)
+                            const emUp = String(emDia).toUpperCase().trim();
+                            const isOk     = emUp === 'SIM' || emUp === 'ADIMPLENTE';
+                            const isQuit   = emUp === 'QUITADO';
+                            const isGreen  = isOk || isQuit;
+                            // Also check proximo_pagamento before showing ATRASADO
+                            const proxRawBp = bp.proximo_pagamento;
+                            const proxMsBp  = toEpochMs(proxRawBp);
+                            const notYetBp  = proxMsBp != null && !isNaN(proxMsBp) && (proxMsBp + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
+                            const effectiveGreen = isGreen || (!isQuit && notYetBp);
+                            const label = isOk ? '✓ Em dia' : isQuit ? '✓ Quitado' : notYetBp ? '✓ Em dia' : '✗ Atrasado';
+                            return (
                               <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
-                                background: (emDia === 'SIM' || emDia?.toUpperCase() === 'QUITADO') ? 'rgba(74,222,128,0.12)' : 'rgba(239,68,68,0.12)',
-                                color:      (emDia === 'SIM' || emDia?.toUpperCase() === 'QUITADO') ? GREEN : '#f87171',
-                                border:     `1px solid ${(emDia === 'SIM' || emDia?.toUpperCase() === 'QUITADO') ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                                background: effectiveGreen ? 'rgba(74,222,128,0.12)' : 'rgba(239,68,68,0.12)',
+                                color:      effectiveGreen ? GREEN : '#f87171',
+                                border:     `1px solid ${effectiveGreen ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
                                 width: 'fit-content',
-                              }}>
-                                {emDia === 'SIM' ? '✓ Em dia' : emDia?.toUpperCase() === 'QUITADO' ? '✓ Quitado' : '✗ Atrasado'}
-                              </span>
-                            )}
+                              }}>{label}</span>
+                            );
+                          })()}
                             {bp.proximo_pagamento && (
                               <span className="text-[9px]" style={{ color: SILVER }}>
                                 Próx: {new Date(bp.proximo_pagamento).toLocaleDateString('pt-BR')}
