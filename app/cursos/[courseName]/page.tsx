@@ -2743,7 +2743,15 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [showCSVModal,   setShowCSVModal]   = useState(false);
   const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string; email: string; source: 'manual' | 'hotmart' } | null>(null);
   const [deleting,       setDeleting]       = useState(false);
-  const [editTarget,     setEditTarget]     = useState<{ name: string; email: string; phone: string; document: string; manualId?: string } | null>(null);
+  const [editTarget,     setEditTarget]     = useState<{
+    name: string; email: string; phone: string; document: string; manualId?: string;
+    vendedor?: string; bp_valor?: string; bp_pagamento?: string; bp_modelo?: string;
+    bp_parcela?: string; bp_em_dia?: string; bp_primeira_parcela?: string;
+    bp_ultimo_pagamento?: string; bp_proximo_pagamento?: string; notes?: string;
+    payment_type?: string; currency?: string; total_amount?: number;
+    down_payment?: number; installments?: number; installment_amount?: number;
+    installment_dates?: InstallmentDate[]; entry_date?: number;
+  } | null>(null);
   const [turmas,         setTurmas]         = useState<string[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [turmaFilter,  setTurmaFilter]  = useState('');
@@ -3312,7 +3320,10 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           const isPix = pt === 'PIX' || pt === 'PIX_AVISTA';
                           if (isPix) {
                             // PIX à vista: total_amount is what was paid
-                            return <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(s.valorBRL || s.valor || 0, s.currency)}</span>;
+                            // Fallback to bp_valor from cache for legacy records where total_amount was NULL
+                            const bpCacheEntry = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                            const pixTotal = s.valorBRL || s.valor || Number(bpCacheEntry.valor || bpCacheEntry.bp_valor || 0);
+                            return <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(pixTotal, s.currency)}</span>;
                           }
                           const dates = ((s as any).manualInstallments || []) as InstallmentDate[];
                           const paidCount = dates.filter((d: InstallmentDate) => d.paid).length;
