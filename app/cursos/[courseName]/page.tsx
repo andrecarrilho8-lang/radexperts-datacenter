@@ -494,6 +494,63 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
   return base;
 }
 
+// ── Shared helper: compute all export fields for one student row ─────────────
+function exportRowData(
+  s: Student, i: number,
+  bpCache: Record<string, Record<string, any>>,
+  phoneCache: Record<string, string>,
+  docCache: Record<string, string>
+) {
+  const status   = effectiveStatusFor(s, bpCache);
+  const stLabel  = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
+  const stColor  = status === 'INADIMPLENTE' ? '#dc2626' : status === 'QUITADO' ? '#16a34a' : '#0ea5e9';
+  const emailKey = (s.email || '').toLowerCase();
+  const bp       = bpCache[emailKey] || {};
+  const phone    = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCache[emailKey] || '');
+  const cpf      = docCache[emailKey] || (s as any).document || '';
+  const isManual = (s as any).source === 'manual';
+
+  // Payment type label (human-readable)
+  const ptRaw = (s as any).paymentType || '';
+  const payLabel = isManual
+    ? (ptRaw === 'PIX' || ptRaw === 'PIX_AVISTA' ? 'PIX à Vista'
+      : ptRaw === 'PIX_CARTAO'  ? 'PIX + Cartão'
+      : ptRaw === 'CREDIT_CARD' ? 'Cartão de Crédito'
+      : ptRaw === 'PIX_MENSAL'  ? 'PIX Mensal' : 'PIX')
+    : (bp.pagamento ||
+       (s.paymentIsSub ? `Assinatura · ciclo ${s.paymentRecurrency}`
+        : s.paymentIsSmartInstall ? 'Parcelamento Inteligente'
+        : s.paymentIsCardInstall  ? `Cartão ${s.paymentInstallments}× (banco)`
+        : (s.paymentLabel || s.paymentType || '')));
+
+  const inst  = s.paymentInstallments || 1;
+  const isPix = isManual && (ptRaw === 'PIX' || ptRaw === 'PIX_AVISTA');
+
+  // Installment value
+  const vParc = isManual
+    ? (isPix ? (s.valorBRL || s.valor || Number(bp.valor || 0)) : (s.valor || 0))
+    : (s.valor || 0);
+
+  // Total paid
+  const manualDates = ((s as any).manualInstallments || []) as Array<{paid: boolean; paid_ms: number | null}>;
+  const paidCount   = isManual ? manualDates.filter(d => d.paid).length : s.paymentHistory.length;
+  const vTotal      = isManual
+    ? (isPix ? vParc : paidCount * vParc || Number(bp.valor || 0))
+    : (s.paymentHistory.reduce((a, p) => a + p.valor, 0) || Number(bp.valor || 0));
+
+  // Date helper — handles ISO strings AND epoch ms
+  const D = (val: any) => { const ms = toEpochMs(val); return ms ? new Date(ms).toLocaleDateString('pt-BR') : ''; };
+
+  // em_dia normalized label
+  const emUp = (bp.em_dia || '').toUpperCase().trim();
+  const emDiaLabel = emUp === 'SIM' || emUp === 'ADIMPLENTE' ? 'Em dia'
+    : emUp === 'QUITADO' ? 'Quitado'
+    : emUp === 'NÃO' || emUp === 'NAO' || emUp === 'INADIMPLENTE' ? 'Inadimplente'
+    : bp.em_dia || '';
+
+  return { status, stLabel, stColor, emailKey, bp, phone, cpf, isManual, payLabel, inst, isPix, vParc, paidCount, vTotal, D, emDiaLabel };
+}
+
 function generatePDF(
   courseName: string,
   students: Student[],
@@ -502,33 +559,21 @@ function generatePDF(
   bpCache: Record<string, Record<string, any>> = {}
 ) {
   const rows = students.map((s, i) => {
-    const status = effectiveStatusFor(s, bpCache);
-    const stLabel = status === 'INADIMPLENTE' ? '⚠ INADIMPLENTE' : status === 'QUITADO' ? (s.paymentIsSub && s.subStatus === 'CANCELLED' ? 'Encerrado' : '✓ QUITADO') : '● ADIMPLENTE';
-    const stColor = status === 'INADIMPLENTE' ? '#dc2626' : status === 'QUITADO' ? '#16a34a' : '#0ea5e9';
-    const inst = s.paymentInstallments;
-    const paid = s.paymentRecurrency;
-    const monthsSince = s.entryDate ? Math.floor((Date.now() - s.entryDate) / (30 * 86_400_000)) : 0;
-    const paidCard = !s.paymentIsSub && inst > 1 ? Math.min(monthsSince + 1, inst) : 0;
-    const vParcela = s.paymentIsSub ? s.valor : inst > 1 ? s.valor / inst : s.valor;
-    const vTotal   = s.paymentIsSub ? s.valor * paid : s.valor;
-    const method   = s.paymentIsSub ? `Assinatura · ${paid} pgtos` : inst > 1 ? `Cartão ${inst}× · ${paidCard}/${inst}` : 'Pago';
-    const rowBg = status === 'INADIMPLENTE' ? '#fff0f0' : i % 2 === 0 ? '#f8faff' : '#fff';
-    const emailKey = (s.email || '').toLowerCase();
-    const phone = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCache[emailKey] || '');
-    const cpf = documentCache[emailKey] || (s as any).document || '';
-    // Buyer persona — from cache (works for Hotmart + manual)
-    const bp = bpCache[emailKey] || {};
-    const vendedor  = bp.vendedor || '';
-    const bpPag    = bp.pagamento || (s as any).source === 'manual' ? (bp.pagamento || '') : '';
-    const bpModelo = bp.modelo || '';
-    const bpParcela = bp.parcela != null ? fmtMoney(Number(bp.parcela)) : bp.valor != null ? fmtMoney(Number(bp.valor)) : '';
-    const emDia    = bp.em_dia ? (bp.em_dia === 'SIM' ? '✓ Em Dia' : '✗ Atrasado') : '';
+    const { stLabel, stColor, phone, cpf, bp, payLabel, inst, isPix,
+            vParc, paidCount, vTotal, emDiaLabel, isManual } = exportRowData(s, i, bpCache, phoneCache, documentCache);
+    const rowBg    = stLabel === 'Inadimplente' ? '#fff0f0' : i % 2 === 0 ? '#f8faff' : '#fff';
+    const stHtml   = stLabel === 'Inadimplente' ? '⚠ INADIMPLENTE' : stLabel === 'Quitado' ? '✓ QUITADO' : '● ADIMPLENTE';
+    const vendedor = bp.vendedor || '';
+    const modelo   = bp.modelo   || '';
+    const instInfo = isManual
+      ? (isPix ? 'PIX à Vista' : `${paidCount}/${inst} pagas`)
+      : (s.paymentIsSub ? `Assin. · ciclo ${s.paymentRecurrency}` : inst > 1 ? `${paidCount}/${inst}` : 'Pago');
     const dadosPessoais = [
       `<b>${s.email}</b>`,
       phone ? `<span style="color:#16a34a">📞 ${phone}</span>` : '',
       cpf   ? `<span style="color:#0369a1">🪪 ${cpf}</span>`  : '',
     ].filter(Boolean).join('<br/>');
-    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${bpPag}${bpModelo ? ` · ${bpModelo}` : ''}</td><td style="font-weight:700">${bpParcela || fmtMoney(vParcela)}</td><td>${fmtMoney(vTotal)}</td><td style="color:${stColor};font-weight:900">${stLabel}</td><td style="color:#888">${emDia}</td><td style="color:#555">${method}</td></tr>`;
+    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${payLabel}${modelo ? ` · ${modelo}` : ''}</td><td style="font-weight:700">${vParc ? fmtMoney(vParc) : '—'}</td><td>${vTotal ? fmtMoney(vTotal) : '—'}</td><td style="color:${stColor};font-weight:900">${stHtml}</td><td style="color:#888">${emDiaLabel}</td><td style="color:#555">${instInfo}</td></tr>`;
   }).join('');
 
   const active    = students.filter(s => effectiveStatusFor(s, bpCache) === 'ADIMPLENTE').length;
@@ -579,18 +624,8 @@ function generateCSV(
     '1ª PARCELA','Últ. PAGAMENTO','PRÓX. PAGAMENTO','EM DIA',
   ];
   const rows = students.map((s, i) => {
-    const status   = effectiveStatusFor(s, bpCacheArg);
-    const inst     = s.paymentInstallments || 1;
-    const paid     = s.paymentHistory.length;
-    const emailKey = (s.email || '').toLowerCase();
-    const phone    = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCacheArg[emailKey] || '');
-    const cpf      = docCacheArg[emailKey] || (s as any).document || '';
-    const bp       = bpCacheArg[emailKey] || {};
-    const vParc    = (s as any).source === 'manual' ? (s.valor || 0) : (s.valor && inst > 1 ? s.valor / inst : s.valor || 0);
-    const vTotal   = s.paymentHistory.reduce((a, p) => a + p.valor, 0)
-                     || (bp.valor ? Number(bp.valor) * (paid || 1) : 0);
-    const stLabel  = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
-    const D = (ms: any) => ms ? new Date(Number(ms)).toLocaleDateString('pt-BR') : '';
+    const { stLabel, phone, cpf, bp, payLabel, inst, isPix,
+            vParc, paidCount, vTotal, D, emDiaLabel } = exportRowData(s, i, bpCacheArg, phoneCacheArg, docCacheArg);
     return [
       i + 1,
       s.name,
@@ -600,15 +635,14 @@ function generateCSV(
       s.entryDate ? new Date(s.entryDate).toLocaleDateString('pt-BR') : '',
       stLabel,
       (s as any).source === 'manual' ? 'Manual' : 'Hotmart',
-      bp.pagamento || s.paymentLabel || s.paymentType || '',
+      payLabel,
       +vParc.toFixed(2),
       +vTotal.toFixed(2),
-      inst > 1 ? inst : (s.paymentIsSub ? 'Ass.' : 1),
-      paid,
-      inst > 1 ? Math.max(0, inst - paid) : '',
+      isPix ? 1 : inst,
+      paidCount,
+      isPix ? 0 : Math.max(0, inst - paidCount),
       s.currency || 'BRL',
       (s as any).turma || 'Manual',
-      // BP fields
       bp.vendedor           || '',
       bp.valor              ? Number(bp.valor).toFixed(2) : '',
       bp.pagamento          || '',
@@ -617,7 +651,7 @@ function generateCSV(
       D(bp.primeira_parcela),
       D(bp.ultimo_pagamento),
       D(bp.proximo_pagamento),
-      bp.em_dia             || '',
+      emDiaLabel,
     ];
   });
   const csv = [headers, ...rows]
@@ -653,44 +687,25 @@ function generateXLS(
   ];
 
   const data = students.map((s, i) => {
-    const status   = effectiveStatusFor(s, bpCacheArg);
-    const inst     = s.paymentInstallments || 1;
-    const paid     = s.paymentHistory.length;
-    const emailKey = (s.email || '').toLowerCase();
-    const phone    = (s as any).source === 'manual' ? ((s as any).phone || '') : (phoneCacheArg[emailKey] || '');
-    const cpf      = docCacheArg[emailKey] || (s as any).document || '';
-    const bp       = bpCacheArg[emailKey] || {};
-    // For manual students, s.valor is the installment amount directly
-    // For Hotmart students, s.valor is the installment amount
-    const vParc    = s.valor || 0;
-    const vTotal   = s.paymentHistory.reduce((a, p) => a + p.valor, 0)
-                     || (bp.valor ? Number(bp.valor) : 0);
-    const stLabel  = status === 'INADIMPLENTE' ? 'Inadimplente' : status === 'QUITADO' ? 'Quitado' : 'Adimplente';
-    const entryDate = s.entryDate ? new Date(s.entryDate) : null;
-    const D = (ms: any) => ms ? new Date(Number(ms)).toLocaleDateString('pt-BR') : '';
+    const { stLabel, phone, cpf, bp, payLabel, inst, isPix,
+            vParc, paidCount, vTotal, D, emDiaLabel } = exportRowData(s, i, bpCacheArg, phoneCacheArg, docCacheArg);
     return [
       i + 1,
       s.name,
       s.email,
       phone,
       cpf,
-      entryDate ? entryDate.toLocaleDateString('pt-BR') : '',
+      s.entryDate ? new Date(s.entryDate).toLocaleDateString('pt-BR') : '',
       stLabel,
       (s as any).source === 'manual' ? 'Manual' : 'Hotmart',
-      bp.pagamento || (
-        s.paymentIsSub        ? `Assinatura (ciclo ${s.paymentRecurrency})` :
-        s.paymentIsSmartInstall ? 'Parcelamento Inteligente' :
-        s.paymentIsCardInstall  ? `Cartão (${inst}x banco)` :
-        (s.paymentLabel || s.paymentType || '')
-      ),
+      payLabel,
       +vParc.toFixed(2),
       +vTotal.toFixed(2),
-      inst > 1 ? inst : (s.paymentIsSub ? 'Assinatura' : 1),
-      paid,
-      inst > 1 ? Math.max(0, inst - paid) : '',
+      isPix ? 1 : inst,
+      paidCount,
+      isPix ? 0 : Math.max(0, inst - paidCount),
       s.currency || 'BRL',
       (s as any).turma || 'Manual',
-      // BP fields
       bp.vendedor           || '',
       bp.valor              ? +Number(bp.valor).toFixed(2) : '',
       bp.pagamento          || '',
@@ -699,7 +714,7 @@ function generateXLS(
       D(bp.primeira_parcela),
       D(bp.ultimo_pagamento),
       D(bp.proximo_pagamento),
-      bp.em_dia             || '',
+      emDiaLabel,
     ];
   });
 
