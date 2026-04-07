@@ -1792,36 +1792,38 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   onClose: () => void;
   onSaved: (s: ManualStudent) => void;
 }) {
+  type PayType = 'PIX_AVISTA' | 'PIX_CARTAO' | 'CREDIT_CARD' | 'PIX_MENSAL';
+
   const [form, setForm] = useState({
-    name:                '',
-    email:               '',
-    phone:               '',
-    entry_date:          new Date().toISOString().slice(0, 10),
-    first_payment_date:  new Date().toISOString().slice(0, 10),
-    payment_type:        'PIX' as 'PIX' | 'CREDIT_CARD',
-    total_amount:        '',
-    installments:        1,
-    notes:               '',
-    bp_vendedor:         '',
-    bp_modelo:           '',
-    bp_em_dia:           '',
+    name:               '',
+    email:              '',
+    phone:              '',
+    entry_date:         new Date().toISOString().slice(0, 10),
+    first_payment_date: new Date().toISOString().slice(0, 10),
+    payment_type:       'PIX_AVISTA' as PayType,
+    currency:           'BRL',
+    total_amount:       '',
+    down_payment:       '',
+    installments:       1,
+    notes:              '',
+    bp_vendedor:        '',
+    bp_modelo:          '',
+    bp_em_dia:          'Adimplente',
   });
   const [instDates, setInstDates] = useState<InstallmentDate[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState('');
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState('');
 
-  // Auto-generate installment dates from first_payment_date (1 per month)
+  // Auto-generate installment dates whenever relevant fields change
   useEffect(() => {
-    if (form.payment_type !== 'CREDIT_CARD' || form.installments < 1) {
-      setInstDates([]); return;
-    }
-    // Use first_payment_date as base; parse as local noon to avoid timezone shift
+    const needsDates = ['PIX_CARTAO', 'CREDIT_CARD', 'PIX_MENSAL'].includes(form.payment_type);
+    if (!needsDates || form.installments < 1) { setInstDates([]); return; }
     const [py, pm, pd] = form.first_payment_date.split('-').map(Number);
     setInstDates(Array.from({ length: form.installments }, (_, i) => {
       const d = new Date(py, pm - 1 + i, pd, 12, 0, 0);
-      return { due_ms: d.getTime(), paid: false, paid_ms: null };
+      return { due_ms: d.getTime(), paid: false, paid_ms: null } as InstallmentDate;
     }));
-  }, [form.installments, form.first_payment_date, form.payment_type]);
+  }, [form.installments, form.first_payment_date, form.payment_type, form.total_amount, form.down_payment]);
 
   const togglePaid = (idx: number) => {
     setInstDates(prev => prev.map((d, i) =>
@@ -1829,7 +1831,11 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
     ));
   };
 
-  const instAmt = parseFloat(form.total_amount || '0') / (form.installments || 1);
+  // Derived amounts
+  const totalAmt  = parseFloat(form.total_amount || '0');
+  const downAmt   = form.payment_type === 'PIX_CARTAO' ? parseFloat(form.down_payment || '0') : 0;
+  const remaining = Math.max(0, totalAmt - downAmt);
+  const instAmt   = form.installments > 0 ? remaining / form.installments : remaining;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1840,25 +1846,36 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
     try {
       const [ey, em, ed] = form.entry_date.split('-').map(Number);
       const entryTs = new Date(ey, em - 1, ed, 12, 0, 0).getTime();
+      const isPix   = form.payment_type === 'PIX_AVISTA';
+      const dbPayType = (
+        form.payment_type === 'PIX_AVISTA' || form.payment_type === 'PIX_MENSAL' ? 'PIX' :
+        form.payment_type === 'PIX_CARTAO' ? 'PIX_CARTAO' : 'CREDIT_CARD'
+      );
       const body = {
         course_name:        courseName,
         name:               form.name,
         email:              form.email.toLowerCase().trim(),
         phone:              form.phone,
         entry_date:         entryTs,
-        payment_type:       form.payment_type,
-        total_amount:       parseFloat(form.total_amount),
-        installments:       form.payment_type === 'PIX' ? 1 : form.installments,
-        installment_amount: instAmt,
-        installment_dates:  form.payment_type === 'PIX'
+        payment_type:       dbPayType,
+        currency:           form.currency,
+        total_amount:       totalAmt,
+        down_payment:       downAmt,
+        installments:       isPix ? 1 : form.installments,
+        installment_amount: isPix ? totalAmt : instAmt,
+        installment_dates:  isPix
           ? [{ due_ms: entryTs, paid: true, paid_ms: entryTs }]
           : instDates,
-        notes: form.notes,
-        bp_vendedor: form.bp_vendedor,
-        bp_modelo: form.bp_modelo,
-        bp_em_dia: form.bp_em_dia,
-        bp_valor: form.total_amount,
-        bp_pagamento: form.payment_type === 'PIX' ? 'Pix' : 'Cartao',
+        notes:        form.notes,
+        bp_vendedor:  form.bp_vendedor,
+        bp_modelo:    form.bp_modelo,
+        bp_em_dia:    isPix ? 'Quitado' : (form.bp_em_dia || 'Adimplente'),
+        bp_valor:     form.total_amount,
+        bp_pagamento: (
+          form.payment_type === 'PIX_AVISTA'  ? 'Pix' :
+          form.payment_type === 'PIX_CARTAO'  ? 'Pix + Cartao' :
+          form.payment_type === 'CREDIT_CARD' ? 'Cartao' : 'Pix Mensal'
+        ),
       };
       const r = await fetch('/api/alunos/manual', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -1907,7 +1924,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           </div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
             borderRadius: 10, width: 32, height: 32, cursor: 'pointer', color: SILVER, fontSize: 20,
-            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -1943,69 +1960,99 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
 
           {/* Forma de Pagamento */}
           <label style={{ ...LABEL, marginBottom: 12 }}>Forma de Pagamento *</label>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-            {(['PIX', 'CREDIT_CARD'] as const).map(t => (
-              <button key={t} type="button"
-                onClick={() => setForm(f => ({ ...f, payment_type: t, installments: 1 }))}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+            {([
+              { key: 'PIX_AVISTA',  icon: 'pix',              label: 'PIX a Vista',       col: GREEN      },
+              { key: 'PIX_CARTAO',  icon: 'currency_exchange', label: 'PIX + Cartao',      col: '#38bdf8'  },
+              { key: 'CREDIT_CARD', icon: 'credit_card',       label: 'Cartao de Credito', col: GOLD       },
+              { key: 'PIX_MENSAL',  icon: 'autorenew',         label: 'PIX Mensal',        col: '#c084fc'  },
+            ] as { key: string; icon: string; label: string; col: string }[]).map(({ key, icon, label, col }) => (
+              <button key={key} type="button"
+                onClick={() => setForm(f => ({ ...f, payment_type: key as PayType, installments: 1 }))}
                 style={{
-                  flex: 1, padding: '10px 0', borderRadius: 12, fontWeight: 800, fontSize: 12,
-                  cursor: 'pointer', transition: 'all 0.2s',
-                  background: form.payment_type === t ? (t === 'PIX' ? 'rgba(74,222,128,0.15)' : 'rgba(232,177,79,0.15)') : 'rgba(255,255,255,0.05)',
-                  border: `1.5px solid ${form.payment_type === t ? (t === 'PIX' ? GREEN : GOLD) : 'rgba(255,255,255,0.1)'}`,
-                  color: form.payment_type === t ? (t === 'PIX' ? GREEN : GOLD) : SILVER,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  padding: '10px 12px', borderRadius: 12, fontWeight: 800, fontSize: 11, cursor: 'pointer',
+                  background: form.payment_type === key ? `${col}22` : 'rgba(255,255,255,0.05)',
+                  border: `1.5px solid ${form.payment_type === key ? col : 'rgba(255,255,255,0.1)'}`,
+                  color: form.payment_type === key ? col : SILVER,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s',
                 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-                  {t === 'PIX' ? 'pix' : 'credit_card'}
-                </span>
-                {t === 'PIX' ? 'PIX' : 'Cartão de Crédito'}
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{icon}</span>
+                {label}
               </button>
             ))}
           </div>
 
+          {/* Moeda */}
+          <div style={{ marginBottom: 18 }}>
+            <label style={LABEL}>Moeda *</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(['BRL', 'USD', 'ARS', 'COP', 'CLP', 'EUR', 'MXN', 'PEN'] as const).map(c => (
+                <button key={c} type="button"
+                  onClick={() => setForm(f => ({ ...f, currency: c }))}
+                  style={{
+                    padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                    background: form.currency === c ? 'rgba(232,177,79,0.18)' : 'rgba(255,255,255,0.05)',
+                    border: `1.5px solid ${form.currency === c ? GOLD : 'rgba(255,255,255,0.1)'}`,
+                    color: form.currency === c ? GOLD : SILVER, transition: 'all 0.2s',
+                  }}>{c}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Valor + Parcelas */}
-          <div style={{ display: 'grid', gridTemplateColumns: form.payment_type === 'CREDIT_CARD' ? '1fr 1fr 1fr' : '1fr', gap: 14, marginBottom: form.payment_type === 'CREDIT_CARD' ? 14 : 18 }}>
+          <div style={{ display: 'grid',
+            gridTemplateColumns: form.payment_type === 'PIX_AVISTA' ? '1fr' :
+              form.payment_type === 'PIX_CARTAO' ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr',
+            gap: 14, marginBottom: 14 }}>
             <div>
-              <label style={LABEL}>Valor Total (R$) *</label>
+              <label style={LABEL}>Valor Total ({form.currency}) *</label>
               <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00" value={form.total_amount}
                 onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} required />
             </div>
-            {form.payment_type === 'CREDIT_CARD' && (<>
+            {form.payment_type === 'PIX_CARTAO' && (
               <div>
-                <label style={LABEL}>Parcelas</label>
+                <label style={LABEL}>Entrada PIX ({form.currency})</label>
+                <input style={INPUT} type="number" step="0.01" min="0" placeholder="0.00" value={form.down_payment}
+                  onChange={e => setForm(f => ({ ...f, down_payment: e.target.value }))} />
+              </div>
+            )}
+            {form.payment_type !== 'PIX_AVISTA' && (<>
+              <div>
+                <label style={LABEL}>{form.payment_type === 'PIX_MENSAL' ? 'Meses' : 'Parcelas'}</label>
                 <select style={{ ...INPUT, cursor: 'pointer' }} value={form.installments}
                   onChange={e => setForm(f => ({ ...f, installments: parseInt(e.target.value) }))}>
-                  {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
-                    <option key={n} value={n} style={{ background: NAVY, color: 'white' }}>{n}×</option>
+                  {Array.from({ length: form.payment_type === 'PIX_MENSAL' ? 60 : 24 }, (_, i) => i + 1).map(n => (
+                    <option key={n} value={n} style={{ background: NAVY, color: 'white' }}>{n}x</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label style={LABEL}>Valor por Parcela</label>
+                <label style={LABEL}>{form.payment_type === 'PIX_CARTAO' ? 'Parcela Cartao' : 'Valor/Parcela'}</label>
                 <div style={{ ...INPUT, color: GOLD, fontWeight: 900, display: 'flex', alignItems: 'center' }}>
-                  {form.total_amount ? `R$ ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                  {form.total_amount ? `${form.currency} ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
                 </div>
               </div>
             </>)}
           </div>
 
-          {/* Data do 1º pagamento (cartão) */}
-          {form.payment_type === 'CREDIT_CARD' && (
+          {/* Data do 1o pagamento */}
+          {form.payment_type !== 'PIX_AVISTA' && (
             <div style={{ marginBottom: 18 }}>
-              <label style={LABEL}>Data do 1º Pagamento *</label>
+              <label style={LABEL}>Data do 1o pagamento *</label>
               <input style={{ ...INPUT, maxWidth: 220 }} type="date" value={form.first_payment_date}
                 onChange={e => setForm(f => ({ ...f, first_payment_date: e.target.value }))} required />
               <p style={{ fontSize: 10, color: SILVER, marginTop: 6, fontWeight: 600 }}>
-                As demais parcelas serão calculadas mensalmente a partir desta data.
+                As demais parcelas serao calculadas mensalmente a partir desta data.
               </p>
             </div>
           )}
 
           {/* Installment tracker */}
-          {form.payment_type === 'CREDIT_CARD' && instDates.length > 0 && (
+          {form.payment_type !== 'PIX_AVISTA' && instDates.length > 0 && (
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
-              <p style={{ ...LABEL, marginBottom: 12 }}>Marque as parcelas já pagas</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <p style={{ ...LABEL, marginBottom: 12 }}>Parcelas geradas - marque as ja pagas</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
                 {instDates.map((d, i) => (
                   <div key={i} onClick={() => togglePaid(i)}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10,
@@ -2022,11 +2069,18 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
                       {new Date(d.due_ms).toLocaleDateString('pt-BR')}
                     </span>
                     <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: d.paid ? GREEN : GOLD }}>
-                      {form.total_amount ? `R$ ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—'}
+                      {form.currency} {instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 ))}
               </div>
+              {form.payment_type === 'PIX_CARTAO' && downAmt > 0 && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 10, paddingTop: 10,
+                  fontSize: 11, fontWeight: 700, color: '#38bdf8', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Entrada PIX paga no ato</span>
+                  <span>{form.currency} {downAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -2048,8 +2102,12 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
             </div>
             <div>
               <label style={LABEL}>Status *</label>
-              <input style={INPUT} placeholder="SIM / QUITO / NÃO" value={form.bp_em_dia}
-                onChange={e => setForm(f => ({ ...f, bp_em_dia: e.target.value }))} required />
+              <select style={{ ...INPUT, cursor: 'pointer' }} value={form.bp_em_dia}
+                onChange={e => setForm(f => ({ ...f, bp_em_dia: e.target.value }))} required>
+                <option value="Adimplente" style={{ background: NAVY, color: 'white' }}>Adimplente</option>
+                <option value="Inadimplente" style={{ background: NAVY, color: 'white' }}>Inadimplente</option>
+                <option value="Quitado" style={{ background: NAVY, color: 'white' }}>Quitado</option>
+              </select>
             </div>
           </div>
 

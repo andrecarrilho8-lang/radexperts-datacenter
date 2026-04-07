@@ -67,6 +67,7 @@ export async function POST(request: Request) {
     course_name, name, email, phone = '', entry_date,
     payment_type = 'PIX', total_amount, installments = 1,
     installment_amount, installment_dates = [], notes = '',
+    currency = 'BRL', down_payment = 0,
   } = body;
 
   if (!course_name || !name || !email || !entry_date || !total_amount) {
@@ -81,10 +82,12 @@ export async function POST(request: Request) {
     const rows = (await sql`
       INSERT INTO manual_students
         (course_name, name, email, phone, entry_date, payment_type,
-         total_amount, installments, installment_amount, installment_dates, notes, created_at, updated_at)
+         total_amount, installments, installment_amount, installment_dates,
+         notes, currency, down_payment, created_at, updated_at)
       VALUES
         (${course_name}, ${name}, ${email}, ${phone}, ${entry_date}, ${payment_type},
-         ${total_amount}, ${installments}, ${installment_amount ?? total_amount}, ${datesJson}, ${notes}, ${now}, ${now})
+         ${total_amount}, ${installments}, ${installment_amount ?? total_amount}, ${datesJson},
+         ${notes}, ${currency}, ${down_payment}, ${now}, ${now})
       RETURNING *
     `) as any[];
     return NextResponse.json({ student: rows[0] }, { status: 201 });

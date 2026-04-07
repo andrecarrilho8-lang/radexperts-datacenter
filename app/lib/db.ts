@@ -37,6 +37,9 @@ export async function ensureSchema() {
       updated_at  BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint
     )
   `;
+  // Additive migrations — safe to run on existing tables
+  await sql`ALTER TABLE manual_students ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'BRL'`;
+  await sql`ALTER TABLE manual_students ADD COLUMN IF NOT EXISTS down_payment NUMERIC(12,2) NOT NULL DEFAULT 0`;
   await sql`
     CREATE TABLE IF NOT EXISTS hidden_students (
       id          TEXT    PRIMARY KEY DEFAULT gen_random_uuid()::text,
