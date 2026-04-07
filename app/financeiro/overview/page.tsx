@@ -263,7 +263,14 @@ function EntryTable({
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+        <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: 120 }} />
+            <col style={{ width: 150 }} />
+            <col style={{ width: 90 }} />
+            <col />
+            <col style={{ width: 220 }} />
+          </colgroup>
           <thead>
             <tr style={{ background: `${accent}08` }}>
               <TH>Data / Hora</TH>
@@ -515,11 +522,19 @@ export default function FinanceiroOverviewPage() {
                   </span>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 150 }} />
+                      <col style={{ width: 65 }} />
+                      <col />
+                      <col style={{ width: 180 }} />
+                      <col style={{ width: 200 }} />
+                    </colgroup>
                     <thead><tr style={{ background: '#38bdf808' }}>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 130 }}>Data Próx. Cobr.</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 160 }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 70 }}>Dias</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Data Próx. Cobr.</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Oferta</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
@@ -585,11 +600,19 @@ export default function FinanceiroOverviewPage() {
                   </span>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 150 }} />
+                      <col style={{ width: 65 }} />
+                      <col />
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 200 }} />
+                    </colgroup>
                     <thead><tr style={{ background: `${GOLD}08` }}>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 130 }}>Data Vencimento</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 160 }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 70 }}>Dias</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Data Vencimento</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Parcela</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
@@ -673,9 +696,24 @@ export default function FinanceiroOverviewPage() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 160 }} />
+                      <col />
+                      <col style={{ width: 200 }} />
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 100 }} />
+                      <col style={{ width: 80 }} />
+                    </colgroup>
                     <thead><tr style={{ background: '#f8717108' }}>
-                      <TH>Último Pagamento</TH><TH right>Valor</TH><TH>Nome</TH><TH>Produto</TH><TH>Oferta</TH><TH>Início</TH><TH>Dias em Atraso</TH>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Último Pagamento</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Oferta</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Início</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias em Atraso</th>
                     </tr></thead>
                     <tbody>
                       {loading ? [...Array(6)].map((_, i) => <SkelRow key={i} cols={7} accent="#f87171" />) :
@@ -743,12 +781,20 @@ export default function FinanceiroOverviewPage() {
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse' }}>
+                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 95 }} />
+                      <col style={{ width: 150 }} />
+                      <col style={{ width: 95 }} />
+                      <col />
+                      <col style={{ width: 200 }} />
+                    </colgroup>
                     <thead><tr style={{ background: `${GOLD}08` }}>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 130 }}>Vencimento</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 100 }}>Dias em Atraso</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 160 }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest whitespace-nowrap" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)', width: 100 }}>Parcela</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Vencimento</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias Atraso</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Parcela</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
                     </tr></thead>
