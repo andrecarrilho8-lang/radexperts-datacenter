@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCache, setCache } from '@/app/lib/metaApi';
-import { fetchHotmartSales } from '@/app/lib/hotmartApi';
+import { fetchHotmartSales, fetchHotmartCommissions } from '@/app/lib/hotmartApi';
 import { convertToBRLOnDate } from '@/app/lib/currency';
 
 export const dynamic     = 'force-dynamic';
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   if (!accessToken || !adAccountId)
     return NextResponse.json({ error: 'Missing credentials' }, { status: 500 });
 
-  const cacheKey = `historico_mensal_v5|${year}`;
+  const cacheKey = `historico_mensal_v6|${year}`;
   if (!force) {
     const cached = getCache(cacheKey);
     if (cached) return NextResponse.json(cached);
@@ -34,18 +34,16 @@ export async function GET(request: Request) {
     ? now.toISOString().split('T')[0]
     : `${year}-12-31`;
 
-  // ── Monthly accumulator ───────────────────────────────────────────────────
   type MonthData = {
     month: number; spend: number;
     revenueBRL: number; revenueLATAM: number;
     txCountBRL: number; txCountLATAM: number;
   };
   const monthly: Record<number, MonthData> = {};
-  for (let i = 1; i <= maxMonth; i++) {
+  for (let i = 1; i <= maxMonth; i++)
     monthly[i] = { month: i, spend: 0, revenueBRL: 0, revenueLATAM: 0, txCountBRL: 0, txCountLATAM: 0 };
-  }
 
-  // ── 1. Meta spend — HTTP fetch (monthly breakdown) ───────────────────────
+  // ── 1. Meta spend — HTTP monthly breakdown ────────────────────────────────
   let metaError: string | null = null;
   try {
     const META_BASE  = 'https://graph.facebook.com/v19.0';
@@ -73,18 +71,34 @@ export async function GET(request: Request) {
     console.error('[Mensal] Meta error:', e.message);
   }
 
-  // ── 2. Hotmart — BRL vs LATAM ─────────────────────────────────────────────
+  // ── 2. Hotmart — sales + commissions in parallel ──────────────────────────
+  // KEY INSIGHT (same as /api/meta/route.ts):
+  //   commission.value for PRODUCER is ALWAYS in the PAYOUT currency:
+  //   - BRL sales  → producerNet in BRL  (net after Hotmart fees + co-producers)
+  //   - LATAM sales → producerNet in USD (Hotmart always pays intl producers in USD)
+  //
+  // So for LATAM: convertToBRLOnDate(producerNet_USD, 'USD', saleDate) = accurate BRL net
+  // This avoids using price.value in local currency (ARS, COP, etc.) which is unreliable.
   let hotmartError: string | null = null;
   try {
-    const sales  = await fetchHotmartSales(`${since}T00:00:00-03:00`, `${until}T23:59:59-03:00`);
+    const hotStart = `${since}T00:00:00-03:00`;
+    const hotEnd   = `${until}T23:59:59-03:00`;
+
+    // Fetch sales + commissions in parallel
+    const [sales, commMap] = await Promise.all([
+      fetchHotmartSales(hotStart, hotEnd),
+      fetchHotmartCommissions(hotStart, hotEnd).catch(() => new Map()),
+    ]);
+
     const seenTx = new Set<string>();
 
-    // Collect LATAM sales that need conversion first
-    const latamPending: { sale: any; m: number; rawValue: number; cur: string; dateIso: string }[] = [];
+    // Collect LATAM sales that need USD→BRL conversion
+    type LatamPending = { m: number; netUSD: number; dateIso: string };
+    const latamPending: LatamPending[] = [];
 
     for (const s of sales) {
-      const p   = s.purchase || {};
-      const tx  = p.transaction;
+      const p  = s.purchase || {};
+      const tx = p.transaction;
       if (!APPROVED.has(p.status) || !tx || seenTx.has(tx)) continue;
       seenTx.add(tx);
 
@@ -95,39 +109,63 @@ export async function GET(request: Request) {
       const m = saleDate.getMonth() + 1;
       if (!monthly[m]) continue;
 
-      const cur = (p.price?.currency_code || 'BRL').toUpperCase();
+      const cur   = (p.price?.currency_code || 'BRL').toUpperCase();
+      const isBRL = cur === 'BRL';
 
-      if (cur === 'BRL') {
-        // BRL: use actual_value (gross) or value as fallback — net not available without commission API
-        const val = p.price?.actual_value ?? p.price?.value ?? 0;
-        monthly[m].revenueBRL  += Number(val);
-        monthly[m].txCountBRL  += 1;
+      // Get producer net from commissions if available
+      const comm = commMap.get(tx);
+
+      if (isBRL) {
+        // BRL: commission.value = net in BRL. Fallback = actual_value (gross).
+        const net = comm?.producerNet ?? p.price?.actual_value ?? p.price?.value ?? 0;
+        monthly[m].revenueBRL += Number(net);
+        monthly[m].txCountBRL += 1;
       } else {
-        // LATAM: raw value in local currency (USD, COP, etc.) — must convert
-        const rawValue = p.price?.actual_value ?? p.price?.value ?? 0;
-        const dateIso  = saleDate.toISOString().split('T')[0];
-        latamPending.push({ sale: s, m, rawValue, cur, dateIso });
-      }
-    }
-
-    // Convert LATAM in parallel batches (like main meta API)
-    if (latamPending.length > 0) {
-      const BATCH = 8;
-      for (let i = 0; i < latamPending.length; i += BATCH) {
-        const batch = latamPending.slice(i, i + BATCH);
-        await Promise.all(batch.map(async ({ m, rawValue, cur, dateIso }) => {
+        // LATAM: commission.value = net in USD (always).
+        // If no commission data, use price.value as USD equivalent (rough fallback).
+        let netUSD: number;
+        if (comm?.producerNet != null) {
+          netUSD = comm.producerNet; // Already in USD — accurate net
+        } else {
+          // Fallback: price.value IS in local currency (ARS, COP, etc.), not USD.
+          // Convert local currency → BRL directly.
+          // This is the path that was causing inflation, so we use a very conservative value:
+          // use price.base_value (which Hotmart sometimes exposes as USD-equivalent),
+          // or just price.value converted at face value with the correct LATAM rate.
+          const localVal = p.price?.actual_value ?? p.price?.value ?? 0;
+          // Use the currency's actual rate, not USD
+          const dateIso  = saleDate.toISOString().split('T')[0];
           try {
-            const brlValue = await convertToBRLOnDate(rawValue, cur, dateIso);
-            monthly[m].revenueLATAM += brlValue;
-            monthly[m].txCountLATAM += 1;
-          } catch {
-            // Skip if conversion fails for a specific sale
-          }
-        }));
+            const brlDirect = await convertToBRLOnDate(localVal, cur, dateIso);
+            // Sanity cap: no single LATAM sale should exceed R$ 25,000 without commission data
+            if (brlDirect > 0 && brlDirect <= 25_000) {
+              monthly[m].revenueLATAM += brlDirect;
+              monthly[m].txCountLATAM  += 1;
+            } else if (brlDirect > 25_000) {
+              console.warn(`[Mensal LATAM fallback skipped] tx=${tx} cur=${cur} val=${localVal} brl=${brlDirect}`);
+            }
+          } catch { }
+          continue; // Already handled above, skip latamPending
+        }
+        const dateIso = saleDate.toISOString().split('T')[0];
+        latamPending.push({ m, netUSD, dateIso });
       }
     }
 
-    console.log(`[Mensal] BRL sales: ${Object.values(monthly).reduce((a, r) => a + r.txCountBRL, 0)}, LATAM: ${latamPending.length}`);
+    // Convert pending LATAM (USD → BRL) in parallel batches
+    const BATCH = 8;
+    for (let i = 0; i < latamPending.length; i += BATCH) {
+      const batch = latamPending.slice(i, i + BATCH);
+      await Promise.all(batch.map(async ({ m, netUSD, dateIso }) => {
+        try {
+          const brl = await convertToBRLOnDate(netUSD, 'USD', dateIso);
+          monthly[m].revenueLATAM += brl;
+          monthly[m].txCountLATAM  += 1;
+        } catch { }
+      }));
+    }
+
+    console.log(`[Mensal v6] BRL sales: ${Object.values(monthly).reduce((a, r) => a + r.txCountBRL, 0)}, LATAM pending: ${latamPending.length}`);
 
   } catch (e: any) {
     hotmartError = e.message;
