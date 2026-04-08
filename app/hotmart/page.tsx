@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useDashboard } from '@/app/lib/context';
 import { useDashboardData } from '@/app/lib/hooks';
 import { R, RF, N, D } from '@/app/lib/utils';
+import { slugify } from '@/app/lib/slug';
 import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
@@ -665,12 +666,30 @@ export default function HotmartPage() {
                         {/* Produto */}
                         <td className="py-3 px-4">
                           <button
-                            onClick={() => router.push(`/cursos/${encodeURIComponent(s.product.name)}`)}
-                            className="text-[11px] font-black uppercase tracking-tight whitespace-normal leading-4 text-left transition-all"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: SILVER }}
-                            onMouseEnter={e => { e.currentTarget.style.color = GOLD; e.currentTarget.style.textDecoration = 'underline'; }}
-                            onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.textDecoration = 'none'; }}
-                          >{s.product.name}</button>
+                            onClick={() => router.push(`/cursos/${slugify(s.product.name)}`)}
+                            className="rounded-2xl px-3 py-2.5 text-left flex items-center gap-3 transition-all group w-full"
+                            style={{
+                              background: 'linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(0,10,30,0.4) 100%)',
+                              border: '1px solid rgba(255,255,255,0.10)',
+                              backdropFilter: 'blur(16px)',
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.border = `1px solid ${GOLD}55`;
+                              e.currentTarget.style.background = `linear-gradient(160deg, ${GOLD}0d 0%, rgba(0,10,30,0.55) 100%)`;
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.border = '1px solid rgba(255,255,255,0.10)';
+                              e.currentTarget.style.background = 'linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(0,10,30,0.4) 100%)';
+                            }}
+                          >
+                            <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center transition-all group-hover:scale-105"
+                              style={{ background: `${GOLD}1a`, border: `1px solid ${GOLD}33` }}>
+                              <span className="material-symbols-outlined text-[16px]" style={{ color: GOLD }}>school</span>
+                            </div>
+                            <p className="font-black text-[11px] text-white uppercase leading-snug flex-1 line-clamp-2">{s.product.name}</p>
+                            <span className="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ color: GOLD }}>arrow_forward</span>
+                          </button>
                         </td>
                       </tr>
                     );
