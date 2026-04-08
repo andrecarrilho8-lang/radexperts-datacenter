@@ -289,8 +289,8 @@ export async function GET(request: Request) {
       const { AdAccount } = initSDK(process.env.META_ACCESS_TOKEN!);
       const account    = new AdAccount(process.env.META_AD_ACCOUNT_ID!);
 
-      // Get insights at ACCOUNT level broken down by campaign — this returns
-      // all campaigns that had ANY spend in the date range, regardless of current status
+      // Get insights aggregated by campaign for the date range.
+      // Using `for...of` on the cursor (same pattern as the working /daily route).
       const insights = await account.getInsights(
         [...INSIGHT_FIELDS, 'cpm'],
         {
@@ -298,17 +298,19 @@ export async function GET(request: Request) {
           level: 'campaign',
           limit: 100,
         }
-      ) as any[];
+      );
 
       const seenCamp = new Set<string>();
       for (const row of insights) {
-        const id = row.campaign_id || row._data?.campaign_id;
+        // SDK returns objects where fields are direct properties
+        const id   = (row as any).campaign_id;
+        const name = (row as any).campaign_name || `Campanha ${id}`;
         if (!id || seenCamp.has(id)) continue;
         seenCamp.add(id);
-        const m    = parseMetrics(row._data || row);
-        const name = row.campaign_name || row._data?.campaign_name || `Campanha ${id}`;
+        const m = parseMetrics(row as any);
         if (m.spend > 0) campaigns.push({ id, name, ...m });
       }
+
       campaigns.sort((a, b) => b.spend - a.spend);
       totalSpend     = campaigns.reduce((s, c) => s + c.spend,    0);
       totalRevenue   = campaigns.reduce((s, c) => s + c.revenue,  0);
