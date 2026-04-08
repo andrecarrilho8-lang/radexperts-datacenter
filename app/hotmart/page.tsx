@@ -664,7 +664,13 @@ export default function HotmartPage() {
 
                         {/* Produto */}
                         <td className="py-3 px-4">
-                          <span className="text-[11px] font-black uppercase tracking-tight whitespace-normal leading-4 block" style={{ color: SILVER }}>{s.product.name}</span>
+                          <button
+                            onClick={() => router.push(`/cursos/${encodeURIComponent(s.product.name)}`)}
+                            className="text-[11px] font-black uppercase tracking-tight whitespace-normal leading-4 text-left transition-all"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: SILVER }}
+                            onMouseEnter={e => { e.currentTarget.style.color = GOLD; e.currentTarget.style.textDecoration = 'underline'; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.textDecoration = 'none'; }}
+                          >{s.product.name}</button>
                         </td>
                       </tr>
                     );

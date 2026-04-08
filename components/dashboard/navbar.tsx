@@ -101,7 +101,7 @@ export function Navbar() {
 
   // ── Menu bar: Charcoal glossy ──────────────────────────────
   const menubarStyle: React.CSSProperties = {
-    background: 'linear-gradient(90deg, rgba(232,177,79,0.50) 0%, rgba(216,160,50,0.52) 50%, rgba(232,177,79,0.50) 100%)',
+    background: 'linear-gradient(90deg, rgba(232,177,79,0.72) 0%, rgba(216,160,50,0.75) 50%, rgba(232,177,79,0.72) 100%)',
     borderBottom: '1px solid rgba(255,255,255,0.3)',
     boxShadow: '0 4px 24px rgba(200,146,42,0.35), 0 1px 0 rgba(255,255,255,0.4) inset',
     backdropFilter: 'blur(20px)',
