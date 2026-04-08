@@ -3,6 +3,16 @@
     "app/api/**/*.ts": {
       "maxDuration": 30,
       "regions": ["gru1"]
+    },
+    "app/api/cron/weekly-report/route.ts": {
+      "maxDuration": 60,
+      "regions": ["gru1"]
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/weekly-report",
+      "schedule": "0 11 * * 1"
+    }
+  ]
 }
