@@ -18,7 +18,8 @@ const TRAFEGO_ITEMS = [
 ];
 
 const FINANCEIRO_ITEMS = [
-  { label: 'Overview', href: '/financeiro/overview', icon: 'account_balance_wallet' },
+  { label: 'Overview',  href: '/financeiro/overview',  icon: 'account_balance_wallet' },
+  { label: 'Comissões', href: '/financeiro/comissoes', icon: 'percent'                },
 ];
 
 export function Navbar() {
