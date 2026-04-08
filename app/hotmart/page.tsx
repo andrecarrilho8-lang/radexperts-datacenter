@@ -226,7 +226,7 @@ export default function HotmartPage() {
     <LoginWrapper>
       <div className="min-h-screen pb-20">
         <Navbar />
-        <div className="h-[80px]" />
+        <div className="h-[86px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-6 sm:pt-10">
 
           {/* Header */}
