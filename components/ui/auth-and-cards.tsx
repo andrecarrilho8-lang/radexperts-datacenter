@@ -45,17 +45,21 @@ export function TopPageCard({ page, type, rank }: { page: any; type: 'VENDAS' | 
 
 export function CustomerCard({ customer, rank }: { customer: any; rank: number }) {
   const [acTags, setAcTags] = React.useState<{ name: string }[]>([]);
+  const [phone, setPhone] = React.useState<string>(customer.phone || '');
 
   const GOLD   = '#E8B14F';
   const SILVER = '#A8B2C0';
   const NAVY   = '#001a35';
 
-  // Auto-load AC tags on mount
+  // Auto-load AC tags + phone fallback on mount
   React.useEffect(() => {
     if (!customer.email) return;
     fetch(`/api/leads/contact-by-email?email=${encodeURIComponent(customer.email)}`)
       .then(r => r.json())
-      .then(d => setAcTags(d.tags || []))
+      .then(d => {
+        setAcTags(d.tags || []);
+        if (!customer.phone && d.contact?.phone) setPhone(d.contact.phone);
+      })
       .catch(() => {});
   }, [customer.email]);
 
@@ -134,8 +138,8 @@ export function CustomerCard({ customer, rank }: { customer: any; rank: number }
             </span>
           </div>
           <p className="text-[13px] font-medium" style={{ color: SILVER }}>{customer.email}</p>
-          {customer.phone && (
-            <p className="text-[13px] font-bold mt-0.5" style={{ color: SILVER }}>📞 {customer.phone}</p>
+          {phone && (
+            <p className="text-[13px] font-bold mt-0.5" style={{ color: SILVER }}>📞 {phone}</p>
           )}
         </div>
 
