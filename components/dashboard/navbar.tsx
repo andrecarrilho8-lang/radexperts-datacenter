@@ -119,11 +119,11 @@ export function Navbar() {
       {/* ════════════════════════════════════════════════════
           TOP BAR  —  Logo · Data Center | Presets · User
           ════════════════════════════════════════════════════ */}
-      <div className="fixed top-0 w-full z-50 h-[42px] flex items-center justify-between px-4 md:px-8" style={topbarStyle}>
+      <div className="fixed top-0 w-full z-50 h-[62px] flex items-center justify-between px-4 md:px-8" style={topbarStyle}>
 
         {/* Left: Logo + Data Center */}
         <Link href={homePage} className="flex items-center gap-3 group transition-opacity hover:opacity-80">
-          <img src="/logo_radexperts.png" alt="RadExperts" className="h-6 object-contain" />
+          <img src="/logo_radexperts.png" alt="RadExperts" className="h-9 object-contain" />
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full animate-pulse hidden sm:block" style={{ background: GOLD }} />
             <span className="text-[8px] font-black uppercase tracking-[0.4em]" style={{ color: GOLD }}>Data Center</span>
@@ -225,7 +225,7 @@ export function Navbar() {
       {/* ════════════════════════════════════════════════════
           MENU BAR  —  Navigation links (desktop)
           ════════════════════════════════════════════════════ */}
-      <div className="fixed top-[42px] w-full z-40 h-[44px] hidden md:flex items-stretch" style={menubarStyle}>
+      <div className="fixed top-[62px] w-full z-40 h-[44px] hidden md:flex items-stretch" style={menubarStyle}>
 
         {/* Nav links */}
         <div className="flex items-stretch gap-0 px-6 lg:px-8 h-full">
@@ -356,7 +356,7 @@ export function Navbar() {
           MOBILE DRAWER
           ════════════════════════════════════════════════════ */}
       {mobileOpen && (
-        <div className="fixed top-[42px] left-0 w-full z-40 border-b shadow-2xl overflow-y-auto max-h-[calc(100vh-42px)] md:hidden"
+        <div className="fixed top-[62px] left-0 w-full z-40 border-b shadow-2xl overflow-y-auto max-h-[calc(100vh-62px)] md:hidden"
           style={{ background: '#001a35', borderColor: 'rgba(232,177,79,0.15)' }}>
           <div className="flex flex-col divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
 

@@ -310,7 +310,7 @@ export default function CampanhasAtivasPage() {
         {/* Content above background */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <Navbar />
-          <div className="h-[86px]" />
+          <div className="h-[106px]" />
 
           <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-8 pb-24">
 

@@ -109,7 +109,7 @@ export default function ResumoPage() {
         {/* Conteúdo em fluxo normal — fica POR CIMA da imagem */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <Navbar />
-          <div className="h-[86px]" />
+          <div className="h-[106px]" />
 
           <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pb-20">
 
