@@ -44,92 +44,134 @@ export function TopPageCard({ page, type, rank }: { page: any; type: 'VENDAS' | 
 }
 
 export function CustomerCard({ customer, rank }: { customer: any; rank: number }) {
-  const scoreBg =
-    customer.score === 'TOP' ? 'bg-amber-400 text-white' :
-    customer.score === 'BOM' ? 'bg-emerald-500 text-white' :
-    'bg-slate-200 text-slate-500';
+  const GOLD   = '#E8B14F';
+  const SILVER = '#A8B2C0';
+  const NAVY   = '#001a35';
+
+  const scoreStyle =
+    customer.score === 'TOP' ? { bg: 'rgba(232,177,79,0.2)',  color: GOLD,      border: 'rgba(232,177,79,0.4)'  } :
+    customer.score === 'BOM' ? { bg: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'rgba(74,222,128,0.35)' } :
+                               { bg: 'rgba(255,255,255,0.06)', color: SILVER,   border: 'rgba(255,255,255,0.12)' };
+
+  const rankColor =
+    rank === 1 ? { bg: '#E8B14F', color: NAVY, glow: '0 0 16px rgba(232,177,79,0.6)' } :
+    rank === 2 ? { bg: '#9BAAC0', color: '#fff', glow: '0 0 10px rgba(155,170,192,0.4)' } :
+    rank === 3 ? { bg: '#CD7F32', color: '#fff', glow: '0 0 10px rgba(205,127,50,0.4)'  } :
+                 { bg: 'rgba(255,255,255,0.08)', color: '#fff', glow: 'none' };
 
   const pmIcon = (pm: string) => {
     const m = (pm || '').toUpperCase();
-    if (m.includes('PIX')) return { icon: 'bolt', label: 'Pix' };
-    if (m.includes('CREDIT') || m.includes('CARD')) return { icon: 'credit_card', label: 'Crédito' };
-    if (m.includes('BOLETO') || m.includes('BILLET')) return { icon: 'receipt', label: 'Boleto' };
-    if (m.includes('DEBIT')) return { icon: 'credit_card', label: 'Débito' };
-    if (m.includes('PAYPAL')) return { icon: 'account_balance_wallet', label: 'PayPal' };
-    return { icon: 'payments', label: pm || '—' };
+    if (m.includes('PIX'))    return 'bolt';
+    if (m.includes('CREDIT') || m.includes('CARD')) return 'credit_card';
+    if (m.includes('BOLETO') || m.includes('BILLET')) return 'receipt';
+    if (m.includes('DEBIT'))  return 'credit_card';
+    if (m.includes('PAYPAL')) return 'account_balance_wallet';
+    return 'payments';
   };
 
   const sources: string[] = customer.sources || [];
 
-  return (
-    <div className={`group flex flex-col md:flex-row md:items-center gap-3 md:gap-4 px-4 md:px-5 py-4 md:py-3.5 rounded-2xl border transition-all hover:shadow-md hover:border-indigo-200 ${rank <= 3 ? 'bg-gradient-to-r from-slate-50 to-white border-slate-200' : 'bg-white border-slate-100'}`}>
+  // Link: if has manual source → prefer /alunos search; Hotmart-only → filter by email
+  const studentLink = `/alunos?search=${encodeURIComponent(customer.email)}`;
 
-      {/* Rank + Name row */}
-      <div className="flex items-start gap-3 md:contents">
-        {/* Rank */}
-        <div className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shadow-sm ${
-          rank === 1 ? 'bg-amber-400 text-white' :
-          rank === 2 ? 'bg-slate-400 text-white' :
-          rank === 3 ? 'bg-orange-400 text-white' :
-          'bg-slate-800 text-white'}`}>{rank}</div>
+  return (
+    <div
+      className="group relative flex flex-col gap-3 p-5 rounded-3xl transition-all duration-200 cursor-pointer"
+      style={{
+        background: 'linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 60%, rgba(0,10,30,0.4) 100%)',
+        border: rank <= 3 ? `1px solid rgba(232,177,79,0.25)` : '1px solid rgba(255,255,255,0.07)',
+        boxShadow: rank <= 3 ? '0 4px 32px rgba(232,177,79,0.08), 0 1px 0 rgba(255,255,255,0.1) inset' : '0 1px 0 rgba(255,255,255,0.05) inset',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(160deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 60%, rgba(0,10,30,0.3) 100%)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(160deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 60%, rgba(0,10,30,0.4) 100%)'; }}
+    >
+      {/* Row 1: Rank + Name + Score + Link */}
+      <div className="flex items-start gap-3">
+        {/* Rank badge */}
+        <div className="flex-shrink-0 w-9 h-9 rounded-2xl flex items-center justify-center font-black text-[13px]"
+          style={{ background: rankColor.bg, color: rankColor.color, boxShadow: rankColor.glow }}>
+          {rank}
+        </div>
 
         {/* Name + Email + Phone */}
-        <div className="flex-1 md:flex-shrink-0 md:w-[220px] min-w-0">
-          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-            <p className="font-black text-slate-900 text-[12px] uppercase tracking-tight leading-snug">{customer.name}</p>
-            <span className={`flex-shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${scoreBg}`}>{customer.score}</span>
-          </div>
-          <p className="text-[10px] text-slate-400 font-medium lowercase truncate">{customer.email}</p>
-          {customer.phone && (
-            <p className="text-[10px] text-slate-500 font-bold mt-0.5">
-              📞 {customer.phone}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <p className="font-black text-white text-[13px] uppercase tracking-tight leading-snug truncate max-w-[220px]">
+              {customer.name || customer.email}
             </p>
+            <span className="flex-shrink-0 text-[8px] font-black uppercase px-2 py-0.5 rounded-full"
+              style={{ background: scoreStyle.bg, color: scoreStyle.color, border: `1px solid ${scoreStyle.border}` }}>
+              {customer.score}
+            </span>
+          </div>
+          <p className="text-[10px] font-medium truncate" style={{ color: SILVER }}>{customer.email}</p>
+          {customer.phone && (
+            <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>📞 {customer.phone}</p>
           )}
         </div>
+
+        {/* Link to student page */}
+        <a
+          href={studentLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Ver página do aluno"
+          onClick={e => e.stopPropagation()}
+          className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all opacity-40 group-hover:opacity-100"
+          style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.2)', color: GOLD }}>
+          <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+        </a>
       </div>
 
-      {/* Fontes */}
-      {sources.length > 0 && (
-        <div className="flex flex-wrap gap-1 flex-shrink-0">
-          {sources.map((s: string, i: number) => (
-            <span key={i} className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
-              s === 'Hotmart' ? 'bg-orange-100 text-orange-600' :
-              s === 'Manual'  ? 'bg-sky-100    text-sky-600'    :
-              'bg-slate-100 text-slate-500'}`}>{s}</span>
+      {/* Row 2: Sources + Products */}
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {sources.map((s: string, i: number) => (
+          <span key={i} className="text-[9px] font-black uppercase px-2 py-0.5 rounded-lg"
+            style={s === 'Hotmart'
+              ? { background: 'rgba(255,100,0,0.15)', color: '#ff8040', border: '1px solid rgba(255,100,0,0.25)' }
+              : { background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)' }}>
+            {s}
+          </span>
+        ))}
+        {(customer.products as string[] || []).slice(0, 3).map((p: string, i: number) => (
+          <span key={i} className="text-[9px] font-semibold px-2 py-0.5 rounded-lg truncate max-w-[180px]"
+            style={{ background: 'rgba(139,92,246,0.12)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)' }}>
+            {p}
+          </span>
+        ))}
+        {(customer.products?.length || 0) > 3 && (
+          <span className="text-[9px] font-bold" style={{ color: SILVER }}>+{customer.products.length - 3}</span>
+        )}
+      </div>
+
+      {/* Row 3: Payment methods + Revenue */}
+      <div className="flex items-center justify-between gap-3 pt-2"
+        style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex flex-wrap gap-1">
+          {(customer.paymentMethods as string[] || []).slice(0, 3).map((pm: string, i: number) => (
+            <span key={i} className="flex items-center gap-0.5 text-[9px] font-bold rounded-lg px-1.5 py-1"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: SILVER }}>
+              <span className="material-symbols-outlined text-[11px]">{pmIcon(pm)}</span>
+              {pm.toUpperCase().includes('PIX') ? 'Pix' : pm.toUpperCase().includes('CREDIT') ? 'Crédito' : pm.toUpperCase().includes('BOLETO') ? 'Boleto' : pm}
+            </span>
           ))}
         </div>
-      )}
-
-      {/* Products */}
-      <div className="flex-1 flex flex-wrap gap-1 min-w-0">
-        {(customer.products as string[] || []).map((p: string, i: number) => (
-          <span key={i} className="text-[9px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-md px-2 py-0.5 whitespace-nowrap">{p}</span>
-        ))}
-      </div>
-
-      {/* Payment methods + Revenue */}
-      <div className="flex items-center justify-between md:contents gap-4">
-        <div className="flex-shrink-0 flex items-center flex-wrap gap-1">
-          {(customer.paymentMethods as string[] || []).map((pm: string, i: number) => {
-            const { icon, label } = pmIcon(pm);
-            return (
-              <span key={i} title={label} className="flex items-center gap-0.5 text-[9px] font-bold text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-1.5 py-1 whitespace-nowrap">
-                <span className="material-symbols-outlined text-[11px] text-slate-400">{icon}</span>
-                {label}
-              </span>
-            );
-          })}
-        </div>
-
-        {/* Revenue + count */}
-        <div className="flex-shrink-0 text-right md:ml-2">
-          <p className="font-black text-slate-900 text-sm leading-none">{R(customer.totalRevenue)}</p>
-          <p className="text-[10px] text-blue-500 font-bold mt-0.5">{customer.purchaseCount || customer.count} compras</p>
+        <div className="text-right flex-shrink-0">
+          <p className="font-black text-[15px] leading-none" style={{ color: GOLD }}>
+            {(customer.totalRevenue || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 })}
+          </p>
+          <p className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>
+            {customer.purchaseCount || customer.count} compra{(customer.purchaseCount || customer.count) !== 1 ? 's' : ''}
+          </p>
         </div>
       </div>
     </div>
   );
 }
+
+
+
+
 
 const GREETINGS = [
   'Diagnóstico preciso começa com dados confiáveis.',
