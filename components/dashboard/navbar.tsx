@@ -85,24 +85,24 @@ export function Navbar() {
 
   // ── Shared link style helpers ────────────────────────────
   const menuLinkStyle = (active: boolean): React.CSSProperties => ({
-    color: active ? GOLD : SILVER,
-    background: active ? 'rgba(232,177,79,0.07)' : 'transparent',
+    color: active ? GOLD : NAVY,
+    background: active ? 'rgba(232,177,79,0.12)' : 'transparent',
   });
 
   // ── Top bar: Navy glossy ───────────────────────────────────
   const topbarStyle: React.CSSProperties = {
-    background: 'linear-gradient(90deg, rgba(0,10,28,0.98) 0%, rgba(0,22,55,0.98) 60%, rgba(0,14,38,0.98) 100%)',
-    borderBottom: '1px solid rgba(232,177,79,0.14)',
-    boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset',
+    background: 'linear-gradient(90deg, #b8761e 0%, #E8B14F 40%, #d4a03a 70%, #c8922a 100%)',
+    borderBottom: '1px solid rgba(255,255,255,0.25)',
+    boxShadow: '0 2px 24px rgba(200,146,42,0.5), 0 1px 0 rgba(255,255,255,0.35) inset',
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
   };
 
   // ── Menu bar: Charcoal glossy ──────────────────────────────
   const menubarStyle: React.CSSProperties = {
-    background: 'linear-gradient(90deg, rgba(14,19,35,0.98) 0%, rgba(10,15,28,0.98) 60%, rgba(16,20,36,0.98) 100%)',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05) inset',
+    background: 'rgba(255,255,255,0.70)',
+    borderBottom: '1px solid rgba(255,255,255,0.4)',
+    boxShadow: '0 4px 24px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.6) inset',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
   };
@@ -123,10 +123,10 @@ export function Navbar() {
 
         {/* Left: Logo + Data Center */}
         <Link href={homePage} className="flex items-center gap-3 group transition-opacity hover:opacity-80">
-          <img src="/logo_radexperts.png" alt="RadExperts" className="h-9 object-contain" />
+          <img src="/logo_radexperts.png" alt="RadExperts" className="h-9 object-contain drop-shadow-md" />
           <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse hidden sm:block" style={{ background: GOLD }} />
-            <span className="text-[8px] font-black uppercase tracking-[0.4em]" style={{ color: GOLD }}>Data Center</span>
+            <span className="w-2 h-2 rounded-full animate-pulse hidden sm:block" style={{ background: NAVY, opacity: 0.6 }} />
+            <span className="text-[9px] font-black uppercase tracking-[0.4em]" style={{ color: NAVY }}>Data Center</span>
           </div>
         </Link>
 
@@ -136,13 +136,13 @@ export function Navbar() {
           {/* Date presets — hidden on small screens */}
           <div className="hidden lg:flex items-center gap-1.5 relative" ref={customRef}>
             <div className="flex items-center gap-0.5 p-0.5 rounded-xl border"
-              style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)' }}>
+              style={{ background: 'rgba(0,26,53,0.08)', borderColor: 'rgba(0,26,53,0.15)' }}>
               {presets.map(p => (
                 <button key={p.label} onClick={() => applyPreset(p)}
                   className="px-3 py-1.5 rounded-lg font-black text-[8px] uppercase tracking-widest transition-all"
                   style={activePreset === p.label
-                    ? { background: GOLD, color: NAVY, boxShadow: `0 2px 8px rgba(232,177,79,0.35)` }
-                    : { color: SILVER }
+                    ? { background: NAVY, color: '#fff', boxShadow: '0 2px 8px rgba(0,26,53,0.4)' }
+                    : { color: NAVY, opacity: 0.7 }
                   }>
                   {p.label}
                 </button>
@@ -152,8 +152,8 @@ export function Navbar() {
             <button onClick={() => setShowCustom(v => !v)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[8px] uppercase tracking-widest transition-all border"
               style={activePreset === 'Personalizado'
-                ? { background: GOLD, color: NAVY, borderColor: GOLD }
-                : { background: 'rgba(255,255,255,0.05)', color: SILVER, borderColor: 'rgba(255,255,255,0.1)' }
+                ? { background: NAVY, color: '#fff', borderColor: NAVY }
+                : { background: 'rgba(0,26,53,0.08)', color: NAVY, borderColor: 'rgba(0,26,53,0.2)' }
               }>
               <span className="material-symbols-outlined text-[15px] leading-none">calendar_month</span>
               <span className="hidden xl:inline">Calendário</span>
@@ -182,14 +182,14 @@ export function Navbar() {
             )}
           </div>
 
-          <div className="hidden lg:block w-px h-5" style={{ background: 'rgba(255,255,255,0.1)' }} />
+          <div className="hidden lg:block w-px h-5" style={{ background: 'rgba(0,26,53,0.2)' }} />
 
           {/* User info */}
           <div className="hidden md:flex items-center gap-2">
             <div className="flex flex-col items-end leading-tight">
-              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: 'rgba(168,178,192,0.6)' }}>Olá,</span>
-              <span className="text-[9px] font-black flex items-center gap-1" style={{ color: '#22c55e' }}>
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: 'rgba(0,26,53,0.55)' }}>Olá,</span>
+              <span className="text-[9px] font-black flex items-center gap-1" style={{ color: NAVY }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#15803d' }} />
                 {userName || 'Usuário'}
               </span>
             </div>
@@ -198,25 +198,25 @@ export function Navbar() {
           {showAdmin && (
             <Link href="/admin" title="Gerenciar Usuários"
               className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
-              style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', color: SILVER }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}>
+              style={{ background: 'rgba(0,26,53,0.1)', borderColor: 'rgba(0,26,53,0.2)', color: NAVY }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,26,53,0.2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,26,53,0.1)'; }}>
               <span className="material-symbols-outlined text-[15px]">manage_accounts</span>
             </Link>
           )}
 
           <button onClick={logout} title="Sair"
             className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
-            style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.08)', color: SILVER }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}>
+            style={{ background: 'rgba(0,26,53,0.1)', borderColor: 'rgba(0,26,53,0.2)', color: NAVY }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = NAVY; e.currentTarget.style.borderColor = 'rgba(0,26,53,0.2)'; }}>
             <span className="material-symbols-outlined text-[15px]">logout</span>
           </button>
 
           {/* Hamburger — mobile only */}
           <button onClick={() => setMobileOpen(v => !v)}
             className="md:hidden w-7 h-7 rounded-lg flex items-center justify-center border"
-            style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', color: SILVER }}>
+            style={{ background: 'rgba(0,26,53,0.1)', borderColor: 'rgba(0,26,53,0.2)', color: NAVY }}>
             <span className="material-symbols-outlined text-[18px]">{mobileOpen ? 'close' : 'menu'}</span>
           </button>
         </div>
