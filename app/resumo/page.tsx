@@ -96,8 +96,8 @@ export default function ResumoPage() {
           zIndex: 0,
           transition: 'filter 0.08s linear',
         }}>
-          {/* Navy overlay — página principal */}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(0,12,40,0.60) 0%, rgba(0,22,60,0.50) 100%)', pointerEvents: 'none' }} />
+          {/* Charcoal overlay — cinza chumbo */}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(8,8,12,0.72) 0%, rgba(18,18,24,0.65) 100%)', pointerEvents: 'none' }} />
           {/* Gradiente dissolve para navy */}
           <div style={{
             position: 'absolute', inset: 0,
