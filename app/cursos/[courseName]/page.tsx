@@ -2385,6 +2385,39 @@ function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
   );
 }
 
+const VENDEDORES = ['Nackson', 'Samuel', 'Alba', 'Pacheco', 'Ana'];
+
+function EditSelect({ label, value, onChange, icon, options }: {
+  label: string; value: string; onChange: (v: string) => void;
+  icon: string; options: string[];
+}) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
+        textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <span className="material-symbols-outlined" style={{
+          position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 15, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>{icon}</span>
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          style={{
+            width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, fontSize: 13,
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
+            color: 'white', outline: 'none', boxSizing: 'border-box', cursor: 'pointer',
+          }}
+        >
+          <option value="" style={{ background: '#001a35' }}>— Selecione —</option>
+          {options.map(v => (
+            <option key={v} value={v} style={{ background: '#001a35' }}>{v}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 // ── Edit Student Modal ────────────────────────────────────────────────────────
 function normaliseEmDia(v?: string): string {
   const raw = (v || '').trim(); const u = raw.toUpperCase();
@@ -2644,7 +2677,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
 
         {/* Buyer Persona */}
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 12, marginTop: 20 }}>Buyer Persona</p>
-        <EditField label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} onEnter={handleSave} placeholder="Nome do vendedor" />
+        <EditSelect label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} options={VENDEDORES} />
         {!isManual && <>
           <EditField label="Valor Total (R$)" icon="payments" value={bpValor} onChange={setBpValor} onEnter={handleSave} placeholder="Ex: 30000" />
           <EditField label="Tipo de Pagamento" icon="account_balance" value={bpPag} onChange={setBpPag} onEnter={handleSave} placeholder="Ex: PIX, Hotmart 12x" />
