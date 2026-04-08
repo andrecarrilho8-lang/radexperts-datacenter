@@ -119,7 +119,7 @@ export function CustomerCard({ customer, rank }: { customer: any; rank: number }
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             {studentLink ? (
-              <a href={studentLink} target="_blank" rel="noopener noreferrer"
+              <a href={studentLink}
                 className="font-black text-white text-[17px] uppercase tracking-tight leading-snug hover:underline decoration-amber-400 underline-offset-2">
                 {customer.name || customer.email}
               </a>
