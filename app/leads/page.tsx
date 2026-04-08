@@ -297,18 +297,10 @@ function LeadsPage() {
   const colCount = tab === 'melhores' ? 6 : 5;
 
   return (
-    <div className="min-h-screen" style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, rgba(0,10,28,0.92) 0%, rgba(0,18,40,0.88) 50%, rgba(0,10,28,0.95) 100%)',
-      position: 'relative',
-    }}>
-      {/* Background image — same as other pages */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 0,
-        backgroundImage: 'url(/rad.jpg)',
-        backgroundSize: 'cover', backgroundPosition: 'center',
-        filter: 'brightness(0.35) saturate(0.8)',
-      }} />
+    <div className="min-h-screen" style={{ minHeight: '100vh', position: 'relative' }}>
+      {/* Black overlay — leads técnico */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        background: 'linear-gradient(160deg, rgba(0,0,8,0.65) 0%, rgba(5,8,20,0.58) 100%)' }} />
       <div style={{ position: 'relative', zIndex: 1 }}>
       <Navbar />
       <div className="h-[146px]" />

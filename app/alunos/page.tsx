@@ -171,7 +171,7 @@ export default function AlunosPage() {
           backgroundPosition: 'top center', backgroundRepeat: 'no-repeat',
           pointerEvents: 'none', zIndex: 0,
         }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,20,0.55)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(0,12,40,0.60) 0%, rgba(0,22,60,0.50) 100%)' }} />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, transparent 50%, #001a35 95%)' }} />
         </div>
 

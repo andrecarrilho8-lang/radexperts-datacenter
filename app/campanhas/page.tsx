@@ -63,7 +63,10 @@ export default function CampanhasPage() {
 
   return (
     <LoginWrapper>
-      <div style={{ minHeight: '100vh' }}>
+      {/* Black overlay — tráfego técnico */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+        background: 'linear-gradient(160deg, rgba(0,0,8,0.65) 0%, rgba(5,8,20,0.58) 100%)' }} />
+      <div style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}>
         <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10 pb-24">
