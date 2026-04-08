@@ -3022,7 +3022,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
     <LoginWrapper>
       <div style={{ minHeight: '100vh' }}>
         <Navbar />
-        <div className="h-[80px]" />
+        <div className="h-[110px]" />
         <main className="px-4 md:px-6 max-w-[1700px] mx-auto pt-10 pb-24">
 
           {/* Page header */}

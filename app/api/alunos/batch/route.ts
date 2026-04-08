@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/app/lib/db';
+import { setCache } from '@/app/lib/metaApi';
+
+function bustCursosCache() { setCache('cursos_list_v10', { data: null, expires_at: 0, stale_until: 0 }); }
 
 export const dynamic = 'force-dynamic';
 export const runtime  = 'nodejs';
@@ -268,5 +271,6 @@ export async function POST(request: Request) {
     }
   }
 
+  if (results.saved > 0 || results.enriched > 0) bustCursosCache();
   return NextResponse.json(results);
 }

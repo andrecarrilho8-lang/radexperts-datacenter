@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getDb, ensureSchema } from '@/app/lib/db';
+import { setCache } from '@/app/lib/metaApi';
+
+// Bust cursos list so next visit reflects the new student immediately
+function bustCursosCache() { setCache('cursos_list_v10', { data: null, expires_at: 0, stale_until: 0 }); }
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -90,6 +94,7 @@ export async function POST(request: Request) {
          ${notes}, ${currency}, ${down_payment}, ${now}, ${now})
       RETURNING *
     `) as any[];
+    bustCursosCache();
     return NextResponse.json({ student: rows[0] }, { status: 201 });
   } catch (e: any) {
     if (e.message?.includes('duplicate') || e.message?.includes('unique')) {
