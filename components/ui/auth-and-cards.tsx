@@ -59,10 +59,12 @@ export function CustomerCard({ customer, rank }: { customer: any; rank: number }
     return { icon: 'payments', label: pm || '—' };
   };
 
+  const sources: string[] = customer.sources || [];
+
   return (
     <div className={`group flex flex-col md:flex-row md:items-center gap-3 md:gap-4 px-4 md:px-5 py-4 md:py-3.5 rounded-2xl border transition-all hover:shadow-md hover:border-indigo-200 ${rank <= 3 ? 'bg-gradient-to-r from-slate-50 to-white border-slate-200' : 'bg-white border-slate-100'}`}>
 
-      {/* Rank + Name row (mobile: side by side) */}
+      {/* Rank + Name row */}
       <div className="flex items-start gap-3 md:contents">
         {/* Rank */}
         <div className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shadow-sm ${
@@ -71,15 +73,32 @@ export function CustomerCard({ customer, rank }: { customer: any; rank: number }
           rank === 3 ? 'bg-orange-400 text-white' :
           'bg-slate-800 text-white'}`}>{rank}</div>
 
-        {/* Name + Email */}
-        <div className="flex-1 md:flex-shrink-0 md:w-[200px] min-w-0">
+        {/* Name + Email + Phone */}
+        <div className="flex-1 md:flex-shrink-0 md:w-[220px] min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
             <p className="font-black text-slate-900 text-[12px] uppercase tracking-tight leading-snug">{customer.name}</p>
             <span className={`flex-shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${scoreBg}`}>{customer.score}</span>
           </div>
           <p className="text-[10px] text-slate-400 font-medium lowercase truncate">{customer.email}</p>
+          {customer.phone && (
+            <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+              📞 {customer.phone}
+            </p>
+          )}
         </div>
       </div>
+
+      {/* Fontes */}
+      {sources.length > 0 && (
+        <div className="flex flex-wrap gap-1 flex-shrink-0">
+          {sources.map((s: string, i: number) => (
+            <span key={i} className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+              s === 'Hotmart' ? 'bg-orange-100 text-orange-600' :
+              s === 'Manual'  ? 'bg-sky-100    text-sky-600'    :
+              'bg-slate-100 text-slate-500'}`}>{s}</span>
+          ))}
+        </div>
+      )}
 
       {/* Products */}
       <div className="flex-1 flex flex-wrap gap-1 min-w-0">
@@ -88,9 +107,8 @@ export function CustomerCard({ customer, rank }: { customer: any; rank: number }
         ))}
       </div>
 
-      {/* Payment methods + Revenue: side by side on mobile */}
+      {/* Payment methods + Revenue */}
       <div className="flex items-center justify-between md:contents gap-4">
-        {/* Payment methods */}
         <div className="flex-shrink-0 flex items-center flex-wrap gap-1">
           {(customer.paymentMethods as string[] || []).map((pm: string, i: number) => {
             const { icon, label } = pmIcon(pm);

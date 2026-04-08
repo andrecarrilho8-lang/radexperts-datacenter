@@ -41,7 +41,7 @@ export default function HistoricoPage() {
     const fp = force ? '1' : '0';
     let url = `/api/meta/historico?type=${type}&force=${fp}`;
     if (type === 'EXTRATO')     url = `/api/meta/historico/mensal?year=${currentYear}&force=${fp}`;
-    if (type === 'RECORRENCIA') url = `/api/hotmart/historico/recorrencia?force=${fp}`;
+    if (type === 'RECORRENCIA') url = `/api/historico/ltv?force=${fp}`;
     fetch(url)
       .then(r => r.json())
       .then(j => {
