@@ -60,7 +60,7 @@ export default function HistoricoPage() {
     <LoginWrapper>
       <div className="min-h-screen pb-20">
         <Navbar />
-        <div className="h-[106px]" />
+        <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10">
 
           {/* Page title */}

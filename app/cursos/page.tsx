@@ -64,7 +64,7 @@ export default function CursosPage() {
     <LoginWrapper>
       <div style={{ minHeight: '100vh' }}>
         <Navbar />
-        <div className="h-[106px]" />
+        <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1400px] mx-auto pt-6 sm:pt-10 pb-24">
 
           {/* ── Header ─────────────────────────────────── */}

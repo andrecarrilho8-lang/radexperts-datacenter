@@ -200,6 +200,8 @@ function LeadsPage() {
   const [error, setError]       = useState('');
   const [page, setPage]         = useState(0);
   const [search, setSearch]     = useState('');
+  const [sortField, setSortField] = useState<'tagCount' | 'createdAt' | null>(null);
+  const [sortDir,   setSortDir]   = useState<'asc' | 'desc'>('desc');
 
   const fetchPage = useCallback(async (pageIndex: number) => {
     setLoading(true); setError('');
@@ -245,16 +247,40 @@ function LeadsPage() {
 
   // Client-side search filter
   const filtered = useMemo(() => {
-    if (!search.trim()) return currentContacts;
-    const q = search.toLowerCase().trim();
-    return currentContacts.filter(c =>
-      c.email.includes(q) ||
-      c.firstName.toLowerCase().includes(q) ||
-      c.lastName.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      c.tags.some(t => t.toLowerCase().includes(q))
-    );
-  }, [currentContacts, search]);
+    let result = currentContacts;
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      result = result.filter(c =>
+        c.email.includes(q) ||
+        c.firstName.toLowerCase().includes(q) ||
+        c.lastName.toLowerCase().includes(q) ||
+        c.phone.includes(q) ||
+        c.tags.some(t => t.toLowerCase().includes(q))
+      );
+    }
+    if (sortField && tab === 'geral') {
+      result = [...result].sort((a, b) => {
+        if (sortField === 'tagCount') return sortDir === 'desc' ? b.tagCount - a.tagCount : a.tagCount - b.tagCount;
+        if (sortField === 'createdAt') {
+          const da = new Date(a.createdAt).getTime(), db = new Date(b.createdAt).getTime();
+          return sortDir === 'desc' ? db - da : da - db;
+        }
+        return 0;
+      });
+    }
+    return result;
+  }, [currentContacts, search, sortField, sortDir, tab]);
+
+  const toggleSort = (field: 'tagCount' | 'createdAt') => {
+    if (sortField === field) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+    else { setSortField(field); setSortDir('desc'); }
+  };
+
+  const SortIcon = ({ field }: { field: 'tagCount' | 'createdAt' }) => (
+    <span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: 'middle', marginLeft: 3, opacity: sortField === field ? 1 : 0.3, color: sortField === field ? GOLD : SILVER }}>
+      {sortField === field && sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward'}
+    </span>
+  );
 
   // Stats — counted from current page
   const alunoCount = currentContacts.filter(c => c.isAluno).length;
@@ -272,11 +298,21 @@ function LeadsPage() {
 
   return (
     <div className="min-h-screen" style={{
-      background: 'linear-gradient(135deg, #000a1c 0%, #001224 40%, #000f20 100%)',
       minHeight: '100vh',
+      background: 'linear-gradient(135deg, rgba(0,10,28,0.92) 0%, rgba(0,18,40,0.88) 50%, rgba(0,10,28,0.95) 100%)',
+      position: 'relative',
     }}>
+      {/* Background image — same as other pages */}
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 0,
+        backgroundImage: 'url(/rad.jpg)',
+        backgroundSize: 'cover', backgroundPosition: 'center',
+        filter: 'brightness(0.35) saturate(0.8)',
+      }} />
+      <div style={{ position: 'relative', zIndex: 1 }}>
       <Navbar />
-      <main className="px-3 sm:px-6 pb-20" style={{ paddingTop: 100, maxWidth: 1440, margin: '0 auto' }}>
+      <div className="h-[146px]" />
+      <main className="px-3 sm:px-6 pb-20" style={{ maxWidth: 1440, margin: '0 auto' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
@@ -414,8 +450,16 @@ function LeadsPage() {
                   <TH>Contato</TH>
                   <TH>Telefone</TH>
                   <TH>Tags</TH>
-                  <TH center>Nº Tags</TH>
-                  <TH>Cadastro</TH>
+                  <TH center>
+                    <button onClick={() => toggleSort('tagCount')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 900, fontSize: 9, letterSpacing: '0.15em', padding: 0 }}>
+                      Nº Tags <SortIcon field="tagCount" />
+                    </button>
+                  </TH>
+                  <TH>
+                    <button onClick={() => toggleSort('createdAt')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontWeight: 900, fontSize: 9, letterSpacing: '0.15em', padding: 0 }}>
+                      Cadastro <SortIcon field="createdAt" />
+                    </button>
+                  </TH>
                 </tr>
               </thead>
               <tbody>
@@ -443,6 +487,7 @@ function LeadsPage() {
         </div>
 
       </main>
+      </div>
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 0.4 } 50% { opacity: 0.85 } }
