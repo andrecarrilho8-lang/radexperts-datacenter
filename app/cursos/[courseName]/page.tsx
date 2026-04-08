@@ -1850,7 +1850,12 @@ function BatchAddModal({ courseName, existingEmails, onClose, onSaved }: {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 12 }}>
                  <div>
                   <label style={{ display: 'block', fontSize: 10, color: SILVER, marginBottom: 4 }}>Vendedor</label>
-                  <input style={IN} placeholder="Ex: Samuel" value={bpVendedor} onChange={e => setBpVendedor(e.target.value)} />
+                  <select style={IN} value={bpVendedor} onChange={e => setBpVendedor(e.target.value)}>
+                    <option value="">— Selecione —</option>
+                    {['Nackson','Samuel','Alba','Pacheco','Ana'].map(v => (
+                      <option key={v} value={v}>{v}</option>
+                    ))}
+                  </select>
                  </div>
                  <div>
                   <label style={{ display: 'block', fontSize: 10, color: SILVER, marginBottom: 4 }}>Modelo</label>
@@ -2226,8 +2231,13 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
             <div>
               <label style={LABEL}>Vendedor *</label>
-              <input style={INPUT} placeholder="Ex: Samuel" value={form.bp_vendedor}
-                onChange={e => setForm(f => ({ ...f, bp_vendedor: e.target.value }))} required />
+              <select style={{ ...INPUT, cursor: 'pointer' }} value={form.bp_vendedor}
+                onChange={e => setForm(f => ({ ...f, bp_vendedor: e.target.value }))} required>
+                <option value="" style={{ background: NAVY }}>— Selecione —</option>
+                {['Nackson','Samuel','Alba','Pacheco','Ana'].map(v => (
+                  <option key={v} value={v} style={{ background: NAVY }}>{v}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label style={LABEL}>Modelo *</label>

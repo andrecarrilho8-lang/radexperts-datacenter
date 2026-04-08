@@ -23,6 +23,15 @@ const STATUS_OPTIONS = [
   { value: 'Quitado',     label: '✔ Quitado',      color: '#38bdf8' },
 ];
 
+const VENDEDOR_OPTIONS = [
+  { value: '',        label: '— Selecione —' },
+  { value: 'Nackson', label: 'Nackson' },
+  { value: 'Samuel',  label: 'Samuel'  },
+  { value: 'Alba',    label: 'Alba'    },
+  { value: 'Pacheco', label: 'Pacheco' },
+  { value: 'Ana',     label: 'Ana'     },
+];
+
 const CURRENCIES = ['BRL', 'USD', 'COP', 'BOB', 'MXN', 'ARS', 'CLP', 'PEN', 'UYU'];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -549,7 +558,7 @@ export function EditManualStudentModal({
             {sectionHeader('manage_accounts', 'Buyer Persona')}
             <div className="grid grid-cols-2 gap-4">
               <Field>
-                <Input label="Vendedor" value={vendedor} onChange={setVendedor} placeholder="Nome do vendedor" />
+                <Select label="Vendedor" value={vendedor} onChange={setVendedor} options={VENDEDOR_OPTIONS} />
               </Field>
               <Field>
                 <Input label="Modelo" value={modelo} onChange={setModelo} placeholder="ex: Presencial, Online…" />
