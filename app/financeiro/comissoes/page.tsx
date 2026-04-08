@@ -230,9 +230,9 @@ export default function ComissoesPage() {
 
   return (
     <LoginWrapper>
-      {/* Navy overlay */}
+      {/* Charcoal overlay — cinza chumbo quase preto */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-        background: 'linear-gradient(160deg, rgba(0,12,40,0.58) 0%, rgba(0,22,60,0.48) 100%)' }} />
+        background: 'linear-gradient(160deg, rgba(8,8,12,0.72) 0%, rgba(18,18,24,0.65) 100%)' }} />
 
       <div className="min-h-screen pb-24" style={{ position: 'relative', zIndex: 1 }}>
         <Navbar />

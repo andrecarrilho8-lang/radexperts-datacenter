@@ -100,9 +100,33 @@ export async function GET(request: Request) {
       const vendedor = vendedorByEmail[email];
       if (!vendedor) return; // sem vendedor cadastrado → pula
 
-      const netValue = s.purchase?.producer_net
-        ?? (s.purchase?.price?.value - (s.purchase?.hotmart_fee?.total ?? 0));
-      const grossValue = s.purchase?.price?.value ?? 0;
+      const currency = (s.purchase?.price?.currency_code || 'BRL').toUpperCase();
+      const isBrl    = currency === 'BRL';
+
+      // ── Valor líquido ────────────────────────────────────────────────────
+      // BRL: producer_net → fallback (price.value - hotmart_fee.total)
+      // LATAM/intl: producer_net_brl → fallback converted_value × (1 - fee%)
+      let netValue: number;
+      if (isBrl) {
+        const pn = s.purchase?.producer_net;
+        if (pn != null) {
+          netValue = pn;
+        } else {
+          const gross = s.purchase?.price?.value ?? 0;
+          const fee   = s.purchase?.hotmart_fee_total ?? s.purchase?.hotmart_fee?.total ?? 0;
+          netValue = Math.max(0, gross - fee);
+        }
+      } else {
+        const pnBrl = s.purchase?.producer_net_brl;
+        if (pnBrl != null) {
+          netValue = pnBrl;
+        } else {
+          const converted = s.purchase?.price?.converted_value || 0;
+          const feePct    = s.purchase?.hotmart_fee?.percentage ?? 0;
+          netValue = converted * (1 - feePct / 100);
+        }
+      }
+
       const data = new Date(s.purchase?.approved_date || s.purchase?.order_date).toISOString().slice(0, 10);
 
       const entry = getOrCreate(vendedor);
@@ -114,7 +138,7 @@ export async function GET(request: Request) {
         email,
         produto: s.product?.name || '—',
         valor:   netValue ?? 0,
-        bruto:   grossValue,
+        bruto:   netValue ?? 0,
         data,
       });
     });
