@@ -85,24 +85,25 @@ export function Navbar() {
 
   // ── Shared link style helpers ────────────────────────────
   const menuLinkStyle = (active: boolean): React.CSSProperties => ({
-    color: active ? GOLD : NAVY,
-    background: active ? 'rgba(232,177,79,0.12)' : 'transparent',
+    color: active ? '#fff' : NAVY,
+    background: active ? 'rgba(0,0,0,0.18)' : 'transparent',
+    fontWeight: 900,
   });
 
   // ── Top bar: Navy glossy ───────────────────────────────────
   const topbarStyle: React.CSSProperties = {
-    background: 'linear-gradient(90deg, #b8761e 0%, #E8B14F 40%, #d4a03a 70%, #c8922a 100%)',
-    borderBottom: '1px solid rgba(255,255,255,0.25)',
-    boxShadow: '0 2px 24px rgba(200,146,42,0.5), 0 1px 0 rgba(255,255,255,0.35) inset',
+    background: 'linear-gradient(90deg, rgba(18,22,36,0.97) 0%, rgba(24,28,42,0.97) 50%, rgba(18,22,36,0.97) 100%)',
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: '0 2px 20px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.06) inset',
     backdropFilter: 'blur(24px)',
     WebkitBackdropFilter: 'blur(24px)',
   };
 
   // ── Menu bar: Charcoal glossy ──────────────────────────────
   const menubarStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.70)',
-    borderBottom: '1px solid rgba(255,255,255,0.4)',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.6) inset',
+    background: 'linear-gradient(90deg, rgba(232,177,79,0.72) 0%, rgba(216,160,50,0.75) 50%, rgba(232,177,79,0.72) 100%)',
+    borderBottom: '1px solid rgba(255,255,255,0.3)',
+    boxShadow: '0 4px 24px rgba(200,146,42,0.35), 0 1px 0 rgba(255,255,255,0.4) inset',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
   };
@@ -123,10 +124,10 @@ export function Navbar() {
 
         {/* Left: Logo + Data Center */}
         <Link href={homePage} className="flex items-center gap-3 group transition-opacity hover:opacity-80">
-          <img src="/logo_radexperts.png" alt="RadExperts" className="h-9 object-contain drop-shadow-md" />
+          <img src="/logo_radexperts.png" alt="RadExperts" className="h-9 object-contain" />
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full animate-pulse hidden sm:block" style={{ background: NAVY, opacity: 0.6 }} />
-            <span className="text-[9px] font-black uppercase tracking-[0.4em]" style={{ color: NAVY }}>Data Center</span>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse hidden sm:block" style={{ background: GOLD }} />
+            <span className="text-[9px] font-black uppercase tracking-[0.4em]" style={{ color: GOLD }}>Data Center</span>
           </div>
         </Link>
 
@@ -136,13 +137,13 @@ export function Navbar() {
           {/* Date presets — hidden on small screens */}
           <div className="hidden lg:flex items-center gap-1.5 relative" ref={customRef}>
             <div className="flex items-center gap-0.5 p-0.5 rounded-xl border"
-              style={{ background: 'rgba(0,26,53,0.08)', borderColor: 'rgba(0,26,53,0.15)' }}>
+              style={{ background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)' }}>
               {presets.map(p => (
                 <button key={p.label} onClick={() => applyPreset(p)}
                   className="px-3 py-1.5 rounded-lg font-black text-[8px] uppercase tracking-widest transition-all"
                   style={activePreset === p.label
-                    ? { background: NAVY, color: '#fff', boxShadow: '0 2px 8px rgba(0,26,53,0.4)' }
-                    : { color: NAVY, opacity: 0.7 }
+                    ? { background: GOLD, color: NAVY, boxShadow: '0 2px 8px rgba(232,177,79,0.4)' }
+                    : { color: SILVER }
                   }>
                   {p.label}
                 </button>
@@ -152,8 +153,8 @@ export function Navbar() {
             <button onClick={() => setShowCustom(v => !v)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-black text-[8px] uppercase tracking-widest transition-all border"
               style={activePreset === 'Personalizado'
-                ? { background: NAVY, color: '#fff', borderColor: NAVY }
-                : { background: 'rgba(0,26,53,0.08)', color: NAVY, borderColor: 'rgba(0,26,53,0.2)' }
+                ? { background: GOLD, color: NAVY, borderColor: GOLD }
+                : { background: 'rgba(255,255,255,0.06)', color: SILVER, borderColor: 'rgba(255,255,255,0.1)' }
               }>
               <span className="material-symbols-outlined text-[15px] leading-none">calendar_month</span>
               <span className="hidden xl:inline">Calendário</span>
@@ -182,14 +183,14 @@ export function Navbar() {
             )}
           </div>
 
-          <div className="hidden lg:block w-px h-5" style={{ background: 'rgba(0,26,53,0.2)' }} />
+          <div className="hidden lg:block w-px h-5" style={{ background: 'rgba(255,255,255,0.12)' }} />
 
           {/* User info */}
           <div className="hidden md:flex items-center gap-2">
             <div className="flex flex-col items-end leading-tight">
-              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: 'rgba(0,26,53,0.55)' }}>Olá,</span>
-              <span className="text-[9px] font-black flex items-center gap-1" style={{ color: NAVY }}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#15803d' }} />
+              <span className="text-[8px] font-bold uppercase tracking-widest" style={{ color: 'rgba(168,178,192,0.6)' }}>Olá,</span>
+              <span className="text-[9px] font-black flex items-center gap-1" style={{ color: '#22c55e' }}>
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                 {userName || 'Usuário'}
               </span>
             </div>
@@ -198,25 +199,25 @@ export function Navbar() {
           {showAdmin && (
             <Link href="/admin" title="Gerenciar Usuários"
               className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
-              style={{ background: 'rgba(0,26,53,0.1)', borderColor: 'rgba(0,26,53,0.2)', color: NAVY }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,26,53,0.2)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,26,53,0.1)'; }}>
+              style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', color: SILVER }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}>
               <span className="material-symbols-outlined text-[15px]">manage_accounts</span>
             </Link>
           )}
 
           <button onClick={logout} title="Sair"
             className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
-            style={{ background: 'rgba(0,26,53,0.1)', borderColor: 'rgba(0,26,53,0.2)', color: NAVY }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = NAVY; e.currentTarget.style.borderColor = 'rgba(0,26,53,0.2)'; }}>
+            style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', color: SILVER }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}>
             <span className="material-symbols-outlined text-[15px]">logout</span>
           </button>
 
           {/* Hamburger — mobile only */}
           <button onClick={() => setMobileOpen(v => !v)}
             className="md:hidden w-7 h-7 rounded-lg flex items-center justify-center border"
-            style={{ background: 'rgba(0,26,53,0.1)', borderColor: 'rgba(0,26,53,0.2)', color: NAVY }}>
+            style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', color: SILVER }}>
             <span className="material-symbols-outlined text-[18px]">{mobileOpen ? 'close' : 'menu'}</span>
           </button>
         </div>
@@ -237,10 +238,10 @@ export function Navbar() {
               <Link key={item.href} href={item.href}
                 className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative flex items-center px-4 h-full"
                 style={menuLinkStyle(isActive)}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; }}}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; }}}>
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; }}}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = NAVY; e.currentTarget.style.background = 'transparent'; }}}>
                 {item.label}
-                {isActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />}
+                {isActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
               </Link>
             );
           })}
@@ -252,10 +253,10 @@ export function Navbar() {
                 onMouseEnter={() => setTrafegoOpen(true)}
                 onClick={() => setTrafegoOpen(o => !o)}
                 className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative h-full flex items-center gap-1 px-4"
-                style={{ color: isTrafegoActive ? GOLD : trafegoOpen ? GOLD : SILVER, background: isTrafegoActive || trafegoOpen ? 'rgba(232,177,79,0.07)' : 'transparent' }}>
+                style={{ color: isTrafegoActive ? '#fff' : trafegoOpen ? '#fff' : NAVY, background: isTrafegoActive || trafegoOpen ? 'rgba(0,0,0,0.18)' : 'transparent' }}>
                 Tráfego
                 <span className={`material-symbols-outlined text-[14px] transition-transform duration-200 ${trafegoOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                {isTrafegoActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />}
+                {isTrafegoActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
               </button>
               {trafegoOpen && (
                 <div className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl" style={dropdownStyle}>
@@ -283,10 +284,10 @@ export function Navbar() {
             <Link href="/cursos"
               className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative flex items-center px-4 h-full"
               style={menuLinkStyle(isCursosActive)}
-              onMouseEnter={e => { if (!isCursosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; }}}
-              onMouseLeave={e => { if (!isCursosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; }}}>
+              onMouseEnter={e => { if (!isCursosActive) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; }}}
+              onMouseLeave={e => { if (!isCursosActive) { e.currentTarget.style.color = NAVY; e.currentTarget.style.background = 'transparent'; }}}>
               Cursos
-              {isCursosActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />}
+              {isCursosActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
             </Link>
           )}
 
@@ -295,10 +296,10 @@ export function Navbar() {
             <Link href="/alunos"
               className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative flex items-center px-4 h-full"
               style={menuLinkStyle(isAlunosActive)}
-              onMouseEnter={e => { if (!isAlunosActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; }}}
-              onMouseLeave={e => { if (!isAlunosActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; }}}>
+              onMouseEnter={e => { if (!isAlunosActive) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; }}}
+              onMouseLeave={e => { if (!isAlunosActive) { e.currentTarget.style.color = NAVY; e.currentTarget.style.background = 'transparent'; }}}>
               Alunos
-              {isAlunosActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />}
+              {isAlunosActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
             </Link>
           )}
 
@@ -309,10 +310,10 @@ export function Navbar() {
               <Link href="/leads"
                 className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative flex items-center px-4 h-full"
                 style={menuLinkStyle(isActive)}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.05)'; }}}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; }}}>
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; }}}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = NAVY; e.currentTarget.style.background = 'transparent'; }}}>
                 Leads
-                {isActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />}
+                {isActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
               </Link>
             );
           })()}
@@ -324,10 +325,10 @@ export function Navbar() {
                 onMouseEnter={() => setFinanceiroOpen(true)}
                 onClick={() => setFinanceiroOpen(o => !o)}
                 className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative h-full flex items-center gap-1 px-4"
-                style={{ color: isFinanceiroActive ? GOLD : financeiroOpen ? GOLD : SILVER, background: isFinanceiroActive || financeiroOpen ? 'rgba(232,177,79,0.07)' : 'transparent' }}>
+                style={{ color: isFinanceiroActive ? '#fff' : financeiroOpen ? '#fff' : NAVY, background: isFinanceiroActive || financeiroOpen ? 'rgba(0,0,0,0.18)' : 'transparent' }}>
                 Financeiro
                 <span className={`material-symbols-outlined text-[14px] transition-transform duration-200 ${financeiroOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                {isFinanceiroActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />}
+                {isFinanceiroActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
               </button>
               {financeiroOpen && (
                 <div className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl" style={dropdownStyle}>
