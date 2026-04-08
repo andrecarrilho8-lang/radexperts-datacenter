@@ -88,8 +88,7 @@ export const parseMetrics = (data: any) => {
 
 // ── SDK init helper ──────────────────────────────────────────────────────────
 export function initSDK(accessToken: string) {
-  const api = bizSdk.FacebookAdsApi.init(accessToken);
-  api.setVersion('v19.0');
+  bizSdk.FacebookAdsApi.init(accessToken);
   return { AdAccount: bizSdk.AdAccount, Campaign: bizSdk.Campaign };
 }
 
