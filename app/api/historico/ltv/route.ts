@@ -163,6 +163,12 @@ export async function GET(request: Request) {
   }
 
   // ── 3. Build sorted result ────────────────────────────────────────────────
+  // studentId = base64url(email) — same encoding used by /alunos/[id]/page.tsx
+  function toStudentId(email: string): string {
+    return Buffer.from(email).toString('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
   const results = Array.from(customerMap.values())
     .map(c => {
       const rev   = c.totalRevenue;
@@ -173,6 +179,7 @@ export async function GET(request: Request) {
         name:           c.name,
         email:          c.email,
         phone:          c.phone,
+        studentId:      toStudentId(c.email),
         totalRevenue:   Math.round(rev * 100) / 100,
         purchaseCount:  c.purchaseCount,
         products:       Array.from(c.products),
