@@ -119,6 +119,16 @@ export async function ensureWebhookSchema() {
 
   // Safe migration for pre-existing tables (adds columns only if missing)
   await ensureBuyerPersonaColumns();
+
+  // SCK → Vendedor mapping table
+  await sql`
+    CREATE TABLE IF NOT EXISTS sck_vendedor_map (
+      sck        TEXT PRIMARY KEY,
+      vendedor   TEXT NOT NULL,
+      created_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT * 1000,
+      updated_at BIGINT NOT NULL DEFAULT EXTRACT(EPOCH FROM NOW())::BIGINT * 1000
+    )
+  `;
 }
 
 /** Adds buyer-persona columns to buyer_profiles if they don't exist yet (idempotent). */

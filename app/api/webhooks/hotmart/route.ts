@@ -171,6 +171,26 @@ export async function POST(request: Request) {
     } catch (e: any) {
       console.error('[webhook] Failed to upsert buyer_profile:', e.message);
     }
+
+    // ── Auto-fill vendedor via SCK mapping ────────────────────────────────
+    if (f.sck) {
+      try {
+        const map = await sql`
+          SELECT vendedor FROM sck_vendedor_map WHERE sck = ${f.sck} LIMIT 1
+        ` as any[];
+        if (map.length > 0) {
+          await sql`
+            UPDATE buyer_profiles
+            SET vendedor   = ${map[0].vendedor},
+                updated_at = ${Date.now()}
+            WHERE email = ${f.email}
+              AND (vendedor IS NULL OR TRIM(vendedor) = '')
+          `;
+        }
+      } catch (e: any) {
+        console.error('[webhook] SCK→vendedor lookup failed:', e.message);
+      }
+    }
   }
 
   // Always return 200 so Hotmart doesn't retry
