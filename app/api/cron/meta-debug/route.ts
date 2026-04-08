@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const until = searchParams.get('until') || '2026-04-07';
 
     const insights = await account.getInsights(
-      [...INSIGHT_FIELDS, 'cpm', 'campaign_name', 'campaign_id'],
+      [...INSIGHT_FIELDS, 'cpm'],
       {
         time_range: { since, until },
         level: 'campaign',
@@ -38,13 +38,12 @@ export async function GET(request: Request) {
         spend:         r.spend,
         impressions:   r.impressions,
         clicks:        r.clicks,
-        raw_keys:      Object.keys(r),
       });
     }
 
     // Test 2: Try date_preset last_7d
     const insightsPreset = await account.getInsights(
-      ['campaign_id', 'campaign_name', 'spend', 'impressions'],
+      [...INSIGHT_FIELDS, 'cpm'],
       { date_preset: 'last_7d', level: 'campaign', limit: 20 }
     );
 
