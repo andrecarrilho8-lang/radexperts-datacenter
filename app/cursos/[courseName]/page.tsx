@@ -821,9 +821,9 @@ function detectFlagAndCurrency(phone: string): { flag: string; currency: string 
 }
 
 // ── Convert ManualStudent → Student shape ────────────────────────────────────
-function manualToStudent(ms: ManualStudent): Student {
+function manualToStudent(ms: any): Student {
   // IMPORTANT: Postgres returns bigint/numeric as strings in JSON. Always Number() cast.
-  const dates   = (ms.installment_dates || []).map(d => ({
+  const dates   = ((ms.installment_dates || []) as any[]).map((d: any) => ({
     ...d,
     due_ms:  Number(d.due_ms),
     paid_ms: d.paid_ms != null ? Number(d.paid_ms) : null,
@@ -838,12 +838,14 @@ function manualToStudent(ms: ManualStudent): Student {
     overdue ? 'OVERDUE' : 'ACTIVE';
 
   const instAmt = Number(ms.installment_amount) || Number(ms.total_amount);
+  const msCurrency = ms.currency || detectFlagAndCurrency(ms.phone || '').currency;
+  const msFlag     = detectFlagAndCurrency(ms.phone || '').flag;
+
   return {
     name: ms.name, email: ms.email,
     entryDate:   Number(ms.entry_date), lastPayDate: lastPaid,
     turma: 'Manual', valor: instAmt, valorBRL: Number(ms.total_amount),
-    // Detect country + currency from phone prefix
-    ...(() => { const { flag, currency } = detectFlagAndCurrency(ms.phone || ''); return { currency, flag }; })(),
+    currency: msCurrency, flag: msFlag,
     transaction: `MANUAL_${ms.id}`,
     phone: ms.phone, source: 'manual', manualId: ms.id,
     manualInstallments: dates,
@@ -861,11 +863,19 @@ function manualToStudent(ms: ManualStudent): Student {
       date: d.paid_ms ?? d.due_ms, valor: instAmt,
       recurrencyNumber: i + 1, index: i,
     })),
-  
-    bpEmDia:            ms.bp_em_dia ?? undefined,  // joined from buyer_profiles
+    // Extra fields for pre-filling the edit modal (not in Student type, accessed via `as any`)
+    down_payment:       Number(ms.down_payment)       || 0,
+    installment_amount: Number(ms.installment_amount) || 0,
+    installment_dates:  dates,
+    notes:              ms.notes    || '',
+    document:           ms.document || '',
+
+    bpEmDia:            ms.bp_em_dia ?? undefined,
     bpProximoPagamento: ms.bp_proximo_pagamento != null ? Number(ms.bp_proximo_pagamento) : undefined,
-  };
+  } as any as Student;
+
 }
+
 
 // ── Add Student Modal ─────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
