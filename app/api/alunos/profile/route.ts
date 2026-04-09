@@ -69,20 +69,22 @@ export async function PATCH(request: Request) {
         0, ${now}, ${now}
       )
       ON CONFLICT (email) DO UPDATE SET
-        phone               = CASE WHEN ${phone}::text           IS NOT NULL THEN ${phone}               ELSE buyer_profiles.phone               END,
-        name                = CASE WHEN ${name}::text            IS NOT NULL THEN ${name}                ELSE buyer_profiles.name                END,
-        document            = CASE WHEN ${document}::text        IS NOT NULL THEN ${document}            ELSE buyer_profiles.document            END,
-        country             = CASE WHEN ${country}::text         IS NOT NULL THEN ${country}             ELSE buyer_profiles.country             END,
-        vendedor            = CASE WHEN ${vendedor}::text        IS NOT NULL THEN ${vendedor}            ELSE buyer_profiles.vendedor            END,
-        bp_valor            = CASE WHEN ${bpValor}::numeric      IS NOT NULL THEN ${bpValor}            ELSE buyer_profiles.bp_valor            END,
-        bp_pagamento        = CASE WHEN ${bpPagamento}::text     IS NOT NULL THEN ${bpPagamento}        ELSE buyer_profiles.bp_pagamento        END,
-        bp_modelo           = CASE WHEN ${bpModelo}::text        IS NOT NULL THEN ${bpModelo}           ELSE buyer_profiles.bp_modelo           END,
-        bp_parcela          = CASE WHEN ${bpParcela}::numeric    IS NOT NULL THEN ${bpParcela}          ELSE buyer_profiles.bp_parcela          END,
-        bp_em_dia           = CASE WHEN ${bpEmDia}::text         IS NOT NULL THEN ${bpEmDia}            ELSE buyer_profiles.bp_em_dia           END,
-        bp_primeira_parcela = CASE WHEN ${bpPrimeiraParcela}::bigint IS NOT NULL THEN ${bpPrimeiraParcela} ELSE buyer_profiles.bp_primeira_parcela END,
-        bp_ultimo_pagamento = CASE WHEN ${bpUltimoPagamento}::bigint IS NOT NULL THEN ${bpUltimoPagamento} ELSE buyer_profiles.bp_ultimo_pagamento END,
-        bp_proximo_pagamento= CASE WHEN ${bpProximoPagamento}::bigint IS NOT NULL THEN ${bpProximoPagamento} ELSE buyer_profiles.bp_proximo_pagamento END,
-        notes               = CASE WHEN ${notes}::text            IS NOT NULL THEN ${notes}               ELSE buyer_profiles.notes               END,
+        -- "user-editable" fields: ALWAYS overwrite (including NULL to clear)
+        phone               = ${phone},
+        document            = ${document},
+        vendedor            = ${vendedor},
+        bp_valor            = ${bpValor},
+        bp_pagamento        = ${bpPagamento},
+        bp_modelo           = ${bpModelo},
+        bp_parcela          = ${bpParcela},
+        bp_em_dia           = ${bpEmDia},
+        bp_primeira_parcela = ${bpPrimeiraParcela},
+        bp_ultimo_pagamento = ${bpUltimoPagamento},
+        bp_proximo_pagamento= ${bpProximoPagamento},
+        notes               = ${notes},
+        -- name: only overwrite if provided (Hotmart name is the source of truth)
+        name                = CASE WHEN ${name}::text IS NOT NULL THEN ${name} ELSE buyer_profiles.name END,
+        country             = CASE WHEN ${country}::text IS NOT NULL THEN ${country} ELSE buyer_profiles.country END,
         updated_at          = ${now}
     `;
 
