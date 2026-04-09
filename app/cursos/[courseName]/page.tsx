@@ -2495,7 +2495,17 @@ function EditStudentModal({ student, onClose, onSaved }: {
   const [entryDate,  setEntryDate]  = React.useState(student.entry_date ? new Date(student.entry_date).toISOString().slice(0,10) : '');
 
   const isPix   = payType === 'PIX';
-  const instAmt = (!isPix && insts > 0 && Number(totalAmt) > 0) ? ((Number(totalAmt) - Number(downPay || 0)) / insts) : 0;
+  const autoInstAmt = (!isPix && insts > 0 && Number(totalAmt) > 0) ? ((Number(totalAmt) - Number(downPay || 0)) / insts) : 0;
+
+  // Editable installment amount — auto-calculated but overridable
+  const [manualInstAmt, setManualInstAmt] = React.useState(student.installment_amount ? String(student.installment_amount) : '');
+  React.useEffect(() => {
+    if (autoInstAmt > 0) setManualInstAmt(autoInstAmt.toFixed(2));
+    else setManualInstAmt('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalAmt, downPay, insts, payType]);
+
+  const instAmt = parseFloat(manualInstAmt || '0') || autoInstAmt;
 
   // Sync installment_dates count when insts changes (preserve existing)
   React.useEffect(() => {
@@ -2674,33 +2684,66 @@ function EditStudentModal({ student, onClose, onSaved }: {
             {!isPix && <EditField label={`Entrada (${currency})`} icon="arrow_downward" value={downPay} onChange={setDownPay} placeholder="0" />}
           </div>
 
-          {/* Installments (not PIX) */}
+          {/* Installments — select + editable amount + list with checkboxes */}
           {!isPix && (<>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER, marginBottom: 8 }}>
-                Parcelas — <span style={{ color: GOLD }}>{insts}× de {fmtMoneyByCurrency(instAmt, currency)}</span>
-              </label>
-              <input type="range" min={1} max={60} value={insts} onChange={e => setInsts(Number(e.target.value))} style={{ width: '100%', accentColor: GOLD }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: SILVER, marginTop: 4 }}>
-                <span>1×</span><span>60×</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Nº de Parcelas</label>
+                <select value={insts} onChange={e => setInsts(Number(e.target.value))} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'white', outline: 'none', cursor: 'pointer' }}>
+                  {Array.from({ length: 60 }, (_, i) => i + 1).map(n => (
+                    <option key={n} value={n} style={{ background: NAVY }}>{n}x</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Valor da Parcela</label>
+                <input type="number" step="0.01" min="0"
+                  value={manualInstAmt}
+                  onChange={e => setManualInstAmt(e.target.value)}
+                  placeholder={autoInstAmt > 0 ? autoInstAmt.toFixed(2) : '--'}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13, fontWeight: 900, color: GOLD, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', outline: 'none', boxSizing: 'border-box' }} />
               </div>
             </div>
             {instDates.length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER, marginBottom: 8 }}>
-                  Tracker de Parcelas <span style={{ color: GREEN }}>({instDates.filter(d => d.paid).length} pagas)</span>
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(44px, 1fr))', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <label style={{ fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER }}>Parcelas Geradas — marque as já pagas</label>
+                  <span style={{ fontSize: 10, fontWeight: 900, padding: '2px 8px', borderRadius: 99, background: 'rgba(74,222,128,0.12)', color: GREEN }}>
+                    {instDates.filter(d => d.paid).length}/{insts} pagas
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
                   {instDates.map((d, i) => (
-                    <button key={i} type="button" onClick={() => togglePaid(i)} style={{
-                      borderRadius: 10, padding: '8px 4px', fontSize: 10, fontWeight: 900, cursor: 'pointer', transition: 'all 0.15s',
-                      background: d.paid ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${d.paid ? '#4ade80' : 'rgba(255,255,255,0.12)'}`,
-                      color: d.paid ? '#4ade80' : SILVER, textAlign: 'center',
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10,
+                      background: d.paid ? 'rgba(74,222,128,0.07)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${d.paid ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.08)'}`,
+                      transition: 'all 0.15s',
                     }}>
-                      <div>{i + 1}</div>
-                      <div style={{ fontSize: 8, marginTop: 2 }}>{d.paid ? '✓' : '○'}</div>
-                    </button>
+                      {/* Checkbox */}
+                      <div onClick={() => togglePaid(i)} style={{
+                        width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                        background: d.paid ? 'rgba(74,222,128,0.2)' : 'rgba(255,255,255,0.06)',
+                        border: `1.5px solid ${d.paid ? '#4ade80' : 'rgba(255,255,255,0.2)'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', fontSize: 11, color: '#4ade80',
+                      }}>
+                        {d.paid && <span className="material-symbols-outlined" style={{ fontSize: 12, color: NAVY, fontVariationSettings: '"FILL" 1' }}>check</span>}
+                      </div>
+                      {/* Label */}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: d.paid ? '#4ade80' : SILVER, flexShrink: 0, minWidth: 52 }}>Parcela {i + 1}</span>
+                      {/* Date */}
+                      <input type="date" value={new Date(d.due_ms).toISOString().slice(0, 10)}
+                        onChange={e => {
+                          const ms = new Date(e.target.value + 'T12:00:00').getTime();
+                          if (!isNaN(ms)) setInstDates(prev => prev.map((x, idx) => idx === i ? { ...x, due_ms: ms } : x));
+                        }}
+                        style={{ flex: 1, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: d.paid ? '#4ade80' : 'white', fontSize: 11, fontWeight: 700, outline: 'none' }} />
+                      {/* Amount */}
+                      <span style={{ fontSize: 11, fontWeight: 900, color: GOLD, flexShrink: 0, minWidth: 76, textAlign: 'right' }}>
+                        {fmtMoneyByCurrency(instAmt, currency)}
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -2712,10 +2755,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 12, marginTop: 20 }}>Vendedor</p>
         <EditSelect label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} options={VENDEDORES} />
         {isManual && (<>
-          <EditField label="Valor Total (R$)" icon="payments" value={bpValor} onChange={setBpValor} onEnter={handleSave} placeholder="Ex: 30000" />
-          <EditField label="Tipo de Pagamento" icon="account_balance" value={bpPag} onChange={setBpPag} onEnter={handleSave} placeholder="Ex: PIX, Hotmart 12x" />
-          <EditField label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} onEnter={handleSave} placeholder="Ex: 12x, 1x" />
-          <EditField label="Valor da Parcela (R$)" icon="receipt" value={bpParcela} onChange={setBpParcela} onEnter={handleSave} placeholder="Ex: 2500" />
+          <EditField label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} onEnter={handleSave} placeholder="Recorrência, Assinatura, 1x…" />
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Status</label>
             <select value={bpEmDia} onChange={e => setBpEmDia(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'white', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
@@ -2724,9 +2764,6 @@ function EditStudentModal({ student, onClose, onSaved }: {
               <option value="Quitado" style={{ background: NAVY }}>Quitado</option>
             </select>
           </div>
-          <EditDateField label="1ª Parcela (DD/MM/AAAA)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} />
-          <EditDateField label="Último Pagamento (DD/MM/AAAA)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} />
-          <EditDateField label="Próximo Pagamento (DD/MM/AAAA)" icon="schedule" value={bpProximo} onChange={setBpProximo} />
         </>)}
 
         {/* Observações */}
