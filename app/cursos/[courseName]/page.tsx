@@ -488,10 +488,21 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
     return 'INADIMPLENTE';
   }
 
-  // No bp_em_dia: use Hotmart payment logic
-  const base = getPayStatus(s);
-  if ((s as any).source === 'manual') return 'ADIMPLENTE'; // manual without bp = default ADIMPLENTE
-  return base;
+  // No bp_em_dia: for manual students, check installment_dates for overdue (15+ days)
+  if ((s as any).source === 'manual') {
+    const dates: InstallmentDate[] = (s as any).manualInstallments || [];
+    if (dates.length > 0) {
+      const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
+      const hasOverdue = dates.some(d => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
+      if (hasOverdue) return 'INADIMPLENTE';
+      const allPaid = dates.every(d => d.paid);
+      if (allPaid) return 'QUITADO';
+    }
+    return 'ADIMPLENTE'; // no installments = default ADIMPLENTE
+  }
+
+  // Hotmart payment logic
+  return getPayStatus(s);
 }
 
 // ── Shared helper: compute all export fields for one student row ─────────────
@@ -2944,14 +2955,16 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   const [statusFilter, setStatusFilter] = useState<'' | 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO'>('');
 
   // Tooltip — single global mouse tracker, no React state for position
-  const [tooltipSt,  setTooltipSt]  = useState<Student | null>(null);
-  const tipTimer = React.useRef<any>(null);
-  const openTip  = (_e: React.MouseEvent, s: Student) => { clearTimeout(tipTimer.current); setTooltipSt(s); };
-  const closeTip = () => { tipTimer.current = setTimeout(() => setTooltipSt(null), 150); };
+  const [tooltipSt,   setTooltipSt]  = useState<Student | null>(null);
+  const tipTimer   = React.useRef<any>(null);
+  const tipPinned  = React.useRef(false); // true = mouse is over the tooltip, freeze position
+  const openTip    = (_e: React.MouseEvent, s: Student) => { clearTimeout(tipTimer.current); tipPinned.current = false; setTooltipSt(s); };
+  const closeTip   = () => { tipTimer.current = setTimeout(() => { tipPinned.current = false; setTooltipSt(null); }, 300); };
 
-  // One listener tracks mouse and moves tooltip div directly — no React state involved
+  // One listener tracks mouse and moves tooltip div directly — freezes when mouse is over tooltip
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
+      if (tipPinned.current) return; // frozen while mouse is inside the tooltip card
       const tip = document.getElementById('name-tooltip');
       if (!tip) return;
       const tw = tip.offsetWidth  || 300;
@@ -3788,8 +3801,8 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
       {tooltipSt && typeof window !== 'undefined' && createPortal(
         <NameTooltip
           s={tooltipSt}
-          onHoverIn={() => clearTimeout(tipTimer.current)}
-          onHoverOut={closeTip}
+          onHoverIn={() => { tipPinned.current = true; clearTimeout(tipTimer.current); }}
+          onHoverOut={() => { tipPinned.current = false; closeTip(); }}
         />,
         document.body
       )}
