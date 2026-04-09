@@ -3561,7 +3561,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         const badgeBorder= isOk ? 'rgba(74,222,128,0.3)' : isQuit ? 'rgba(56,189,248,0.3)' : isNok ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.15)';
                         const badgeLabel = isOk ? '● Adimplente' : isQuit ? '✔ Quitado' : isNok ? '✗ Inadimplente' : (emVal ? emVal : '—');
                         const modelo = (s as any).bpModelo ?? bp.modelo ?? '';
-                        const obs    = (s as any).notes ?? '';
+                        // Filter out legacy CPF data that was stored in notes during migration
+                        const rawObs = (s as any).notes ?? '';
+                        const obs = rawObs.split('\n')
+                          .filter((line: string) => !line.trim().toUpperCase().startsWith('CPF:'))
+                          .join('\n')
+                          .trim();
                         return (
                           <div className="flex flex-col gap-0.5 pt-1">
                             <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
