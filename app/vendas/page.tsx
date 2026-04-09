@@ -1005,8 +1005,8 @@ export default function VendasPage() {
                   <col style={{ width:'110px' }} />
                   <col style={{ width:'90px' }} />
                   <col style={{ width:'160px' }} />
-                  <col style={{ width:'130px' }} />
-                  <col style={{ width:'110px' }} />
+                  <col style={{ width:'140px' }} />
+                  <col style={{ width:'120px' }} />
                   <col style={{ width:'300px' }} />
                   <col style={{ width:'180px' }} />
                 </colgroup>
