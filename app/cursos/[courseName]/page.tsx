@@ -2958,21 +2958,43 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   // Tooltip — single global mouse tracker, no React state for position
   const [tooltipSt,   setTooltipSt]  = useState<Student | null>(null);
   const tipTimer   = React.useRef<any>(null);
-  const tipPinned  = React.useRef(false); // true = mouse is over the tooltip, freeze position
-  const openTip    = (_e: React.MouseEvent, s: Student) => { clearTimeout(tipTimer.current); tipPinned.current = false; setTooltipSt(s); };
-  const closeTip   = () => { tipTimer.current = setTimeout(() => { tipPinned.current = false; setTooltipSt(null); }, 300); };
+  const tipPinned  = React.useRef(false);
 
-  // One listener tracks mouse and moves tooltip div directly — freezes when mouse is over tooltip
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (tipPinned.current) return; // frozen while mouse is inside the tooltip card
+  // Open: renders the tooltip then pins its position on the next frame so it never moves
+  const openTip = (e: React.MouseEvent, s: Student) => {
+    clearTimeout(tipTimer.current);
+    const cx = e.clientX;
+    const cy = e.clientY;
+    tipPinned.current = false;
+    setTooltipSt(s);
+    // After React renders the tooltip, pin its position immediately
+    requestAnimationFrame(() => {
       const tip = document.getElementById('name-tooltip');
       if (!tip) return;
-      const tw = tip.offsetWidth  || 300;
-      const th = tip.offsetHeight || 200;
-      let x = e.clientX + 16;
-      let y = e.clientY + 12;
-      if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - 8;
+      const tw = tip.offsetWidth  || 320;
+      const th = tip.offsetHeight || 240;
+      let x = cx + 20;
+      let y = cy + 14;
+      if (x + tw > window.innerWidth  - 8) x = cx - tw - 12;
+      if (y + th > window.innerHeight - 8) y = cy - th - 8;
+      tip.style.left = x + 'px';
+      tip.style.top  = y + 'px';
+      tipPinned.current = true; // freeze immediately — tooltip no longer follows cursor
+    });
+  };
+  const closeTip = () => { tipTimer.current = setTimeout(() => { tipPinned.current = false; setTooltipSt(null); }, 400); };
+
+  // mousemove listener only moves tooltip when NOT pinned (i.e. while tooltip is hidden)
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (tipPinned.current) return;
+      const tip = document.getElementById('name-tooltip');
+      if (!tip) return;
+      const tw = tip.offsetWidth  || 320;
+      const th = tip.offsetHeight || 240;
+      let x = e.clientX + 20;
+      let y = e.clientY + 14;
+      if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - 12;
       if (y + th > window.innerHeight - 8) y = e.clientY - th - 8;
       tip.style.left = x + 'px';
       tip.style.top  = y + 'px';
