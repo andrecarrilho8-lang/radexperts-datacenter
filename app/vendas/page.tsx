@@ -102,6 +102,12 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  const togglePaid = (idx: number) => {
+    setInstDates(prev => prev.map((d, i) =>
+      i !== idx ? d : { ...d, paid: !d.paid, paid_ms: !d.paid ? Date.now() : null }
+    ));
+  };
+
   const isPix     = form.payment_type === 'PIX_AVISTA';
   const isPixCard = form.payment_type === 'PIX_CARTAO';
   const totalAmt  = parseFloat(form.total_amount || '0');
@@ -109,11 +115,11 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
   const remaining = Math.max(0, totalAmt - downAmt);
   const instAmt   = form.installments > 0 ? remaining / form.installments : remaining;
 
-  const PAY_BTNS: { key: PayType; label: string }[] = [
-    { key: 'PIX_AVISTA',  label: 'PIX a Vista'     },
-    { key: 'PIX_CARTAO',  label: 'PIX + Cartão'    },
-    { key: 'CREDIT_CARD', label: 'Cartão de Crédito'},
-    { key: 'PIX_MENSAL',  label: 'PIX Mensal'      },
+  const PAY_BTNS: { key: PayType; icon: string; label: string; col: string }[] = [
+    { key: 'PIX_AVISTA',  icon: 'pix',              label: 'PIX a Vista',       col: GREEN     },
+    { key: 'PIX_CARTAO',  icon: 'currency_exchange', label: 'PIX + Cartao',      col: '#38bdf8' },
+    { key: 'CREDIT_CARD', icon: 'credit_card',       label: 'Cartao de Credito', col: GOLD      },
+    { key: 'PIX_MENSAL',  icon: 'autorenew',         label: 'PIX Mensal',        col: '#c084fc' },
   ];
 
   const handleSave = async () => {
@@ -153,6 +159,7 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar');
       onSaved(data.student);
+      onClose();
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -244,69 +251,121 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
         </div>
 
         {/* FORMA DE PAGAMENTO */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={LABEL}>Forma de Pagamento *</label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-            {PAY_BTNS.map(pt => (
-              <button key={pt.key} type="button" onClick={() => set('payment_type', pt.key)}
-                style={{
-                  padding: '10px 6px', borderRadius: 12, fontWeight: 900, fontSize: 10, cursor: 'pointer',
-                  background: form.payment_type === pt.key ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${form.payment_type === pt.key ? 'rgba(74,222,128,0.6)' : 'rgba(255,255,255,0.1)'}`,
-                  color: form.payment_type === pt.key ? GREEN : SILVER, transition: 'all 0.15s',
-                }}>
-                {pt.label}
-              </button>
-            ))}
-          </div>
+        <label style={{ ...LABEL, marginBottom: 12 }}>Forma de Pagamento *</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
+          {PAY_BTNS.map(({ key, icon, label, col }) => (
+            <button key={key} type="button"
+              onClick={() => { set('payment_type', key); set('installments', 1); }}
+              style={{
+                padding: '10px 12px', borderRadius: 12, fontWeight: 800, fontSize: 11, cursor: 'pointer',
+                background: form.payment_type === key ? `${col}22` : 'rgba(255,255,255,0.05)',
+                border: `1.5px solid ${form.payment_type === key ? col : 'rgba(255,255,255,0.1)'}`,
+                color: form.payment_type === key ? col : SILVER,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s',
+              }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{icon}</span>
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* MOEDA */}
         <div style={{ marginBottom: 18 }}>
           <label style={LABEL}>Moeda *</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {CURRENCIES_PILLS.map(c => (
               <button key={c} type="button" onClick={() => set('currency', c)}
                 style={{
-                  padding: '6px 14px', borderRadius: 999, fontWeight: 900, fontSize: 12, cursor: 'pointer',
-                  background: form.currency === c ? GOLD : 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${form.currency === c ? GOLD : 'rgba(255,255,255,0.12)'}`,
-                  color: form.currency === c ? NAVY : SILVER, transition: 'all 0.15s',
-                }}>
-                {c}
+                  padding: '6px 14px', borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                  background: form.currency === c ? 'rgba(232,177,79,0.18)' : 'rgba(255,255,255,0.05)',
+                  border: `1.5px solid ${form.currency === c ? GOLD : 'rgba(255,255,255,0.1)'}`,
+                  color: form.currency === c ? GOLD : SILVER, transition: 'all 0.2s',
+                }}>{c}
               </button>
             ))}
           </div>
         </div>
 
-        {/* VALOR TOTAL */}
-        <div style={{ marginBottom: 18 }}>
-          <label style={LABEL}>Valor Total ({form.currency}) *</label>
-          <input style={INPUT} placeholder="997.00" value={form.total_amount}
-            onChange={e => set('total_amount', e.target.value)} />
+        {/* VALOR + PARCELAS em grid (igual ao AddStudentModal) */}
+        <div style={{ display: 'grid',
+          gridTemplateColumns: isPix ? '1fr' : isPixCard ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr',
+          gap: 14, marginBottom: 14 }}>
+          <div>
+            <label style={LABEL}>Valor Total ({form.currency}) *</label>
+            <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00" value={form.total_amount}
+              onChange={e => set('total_amount', e.target.value)} />
+          </div>
+          {isPixCard && (
+            <div>
+              <label style={LABEL}>Entrada PIX ({form.currency})</label>
+              <input style={INPUT} type="number" step="0.01" min="0" placeholder="0.00" value={form.down_payment}
+                onChange={e => set('down_payment', e.target.value)} />
+            </div>
+          )}
+          {!isPix && (<>
+            <div>
+              <label style={LABEL}>{form.payment_type === 'PIX_MENSAL' ? 'Meses' : 'Parcelas'}</label>
+              <select style={{ ...INPUT, cursor: 'pointer' }} value={form.installments}
+                onChange={e => set('installments', parseInt(e.target.value))}>
+                {Array.from({ length: form.payment_type === 'PIX_MENSAL' ? 60 : 24 }, (_, i) => i + 1).map(n => (
+                  <option key={n} value={n} style={{ background: NAVY, color: 'white' }}>{n}x</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={LABEL}>{isPixCard ? 'Parcela Cartao' : 'Valor/Parcela'}</label>
+              <div style={{ ...INPUT, color: GOLD, fontWeight: 900, display: 'flex', alignItems: 'center' }}>
+                {form.total_amount ? `${form.currency} ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+              </div>
+            </div>
+          </>)}
         </div>
 
-        {/* ENTRADA (PIX+Cartão) */}
-        {isPixCard && (
+        {/* DATA DO 1o PAGAMENTO */}
+        {!isPix && (
           <div style={{ marginBottom: 18 }}>
-            <label style={LABEL}>Entrada PIX (R$)</label>
-            <input style={INPUT} placeholder="0" value={form.down_payment}
-              onChange={e => set('down_payment', e.target.value)} />
+            <label style={LABEL}>Data do 1o pagamento *</label>
+            <input style={{ ...INPUT, maxWidth: 220 }} type="date" value={form.first_payment_date}
+              onChange={e => set('first_payment_date', e.target.value)} />
+            <p style={{ fontSize: 10, color: SILVER, marginTop: 6, fontWeight: 600 }}>
+              As demais parcelas serao calculadas mensalmente a partir desta data.
+            </p>
           </div>
         )}
 
-        {/* PARCELAS */}
-        {!isPix && (
-          <div style={{ marginBottom: 18 }}>
-            <label style={LABEL}>
-              Parcelas — <span style={{ color: GOLD }}>{form.installments}× de {form.currency === 'BRL' ? `R$ ${instAmt.toFixed(2)}` : `${instAmt.toFixed(2)} ${form.currency}`}</span>
-            </label>
-            <input type="range" min={1} max={60} value={form.installments}
-              onChange={e => set('installments', Number(e.target.value))}
-              style={{ width: '100%', accentColor: GOLD }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: SILVER, marginTop: 4 }}>
-              <span>1×</span><span>60×</span>
+        {/* INSTALLMENT TRACKER */}
+        {!isPix && instDates.length > 0 && (
+          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
+            <p style={{ ...LABEL, marginBottom: 12 }}>Parcelas geradas - marque as ja pagas</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+              {instDates.map((d, i) => (
+                <div key={i} onClick={() => togglePaid(i)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    background: d.paid ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${d.paid ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)'}` }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 6, border: `2px solid ${d.paid ? GREEN : 'rgba(255,255,255,0.2)'}`,
+                    background: d.paid ? GREEN : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.15s', flexShrink: 0 }}>
+                    {d.paid && <span className="material-symbols-outlined" style={{ fontSize: 12, color: NAVY }}>check</span>}
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: d.paid ? GREEN : SILVER }}>Parcela {i + 1}</span>
+                  <span style={{ fontSize: 11, color: SILVER, marginLeft: 4 }}>
+                    {new Date(d.due_ms).toLocaleDateString('pt-BR')}
+                  </span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: d.paid ? GREEN : GOLD }}>
+                    {form.currency} {instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              ))}
             </div>
+            {isPixCard && downAmt > 0 && (
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 10, paddingTop: 10,
+                fontSize: 11, fontWeight: 700, color: '#38bdf8', display: 'flex', justifyContent: 'space-between' }}>
+                <span>Entrada PIX paga no ato</span>
+                <span>{form.currency} {downAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
           </div>
         )}
 
