@@ -2224,7 +2224,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
                       {new Date(d.due_ms).toLocaleDateString('pt-BR')}
                     </span>
                     <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: d.paid ? GREEN : GOLD }}>
-                      {form.currency} {instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {form.currency} {displayInstAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 ))}
