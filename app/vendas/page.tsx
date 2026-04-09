@@ -52,73 +52,103 @@ function OriginBadge({ origin }: { origin: 'hotmart' | 'manual' }) {
 }
 
 type InstallmentDate = { due_ms: number; paid: boolean; paid_ms: number | null };
-const PAY_TYPES = [
-  { key: 'PIX',         label: 'PIX',          icon: 'bolt',         color: TEAL   },
-  { key: 'PIX_CARTAO',  label: 'PIX + Cartão',  icon: 'credit_card',  color: '#a78bfa' },
-  { key: 'CREDIT_CARD', label: 'Cartão',         icon: 'credit_score', color: GOLD   },
-  { key: 'PIX_MENSAL',  label: 'PIX Mensal',     icon: 'repeat',       color: GREEN  },
-];
-const CURRENCIES = ['BRL','USD','ARS','EUR','GBP','COP','MXN','PEN','CLP','BOB','PYG','UYU'];
+
+const CURRENCIES_PILLS = ['BRL','USD','ARS','COP','CLP','EUR','MXN','PEN'];
+const VENDEDORES_LIST   = ['Nackson','Samuel','Alba','Pacheco','Ana'];
 
 // ── Add Manual Sale Modal ───────────────────────────────────────────────────
 function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved: (s: any) => void }) {
-  const [courses, setCourses]     = useState<string[]>([]);
-  const [course,  setCourse]      = useState('');
-  const [name,    setName]        = useState('');
-  const [email,   setEmail]       = useState('');
-  const [phone,   setPhone]       = useState('');
-  const [payType, setPayType]     = useState('PIX');
-  const [currency, setCurrency]   = useState('BRL');
-  const [totalAmt, setTotalAmt]   = useState('');
-  const [downPay,  setDownPay]    = useState('0');
-  const [insts,    setInsts]      = useState(1);
-  const [entryDate,setEntryDate]  = useState(() => new Date().toISOString().slice(0,10));
-  const [notes,   setNotes]       = useState('');
-  const [instDates,setInstDates]  = useState<InstallmentDate[]>([]);
-  const [saving,  setSaving]      = useState(false);
-  const [error,   setError]       = useState('');
-
-  const isPix   = payType === 'PIX';
-  const instAmt = (!isPix && insts > 0 && Number(totalAmt) > 0)
-    ? ((Number(totalAmt) - Number(downPay || 0)) / insts) : 0;
+  type PayType = 'PIX_AVISTA' | 'PIX_CARTAO' | 'CREDIT_CARD' | 'PIX_MENSAL';
+  const [courses, setCourses] = useState<string[]>([]);
+  const [form, setForm] = useState({
+    course_name:        '',
+    name:               '',
+    email:              '',
+    phone:              '',
+    cpf:                '',
+    entry_date:         new Date().toISOString().slice(0, 10),
+    first_payment_date: new Date().toISOString().slice(0, 10),
+    payment_type:       'PIX_AVISTA' as PayType,
+    currency:           'BRL',
+    total_amount:       '',
+    down_payment:       '',
+    installments:       1,
+    notes:              '',
+    bp_vendedor:        '',
+    bp_modelo:          '',
+    bp_em_dia:          'Adimplente',
+  });
+  const [instDates, setInstDates] = useState<InstallmentDate[]>([]);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState('');
 
   useEffect(() => {
     fetch('/api/cursos').then(r => r.json()).then(d => {
       const names: string[] = (d.courses || []).map((c: any) => c.name).sort();
       setCourses(names);
-      if (names.length > 0) setCourse(names[0]);
+      if (names.length > 0) setForm(f => ({ ...f, course_name: names[0] }));
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (isPix) { setInstDates([]); return; }
-    const entry = entryDate ? new Date(entryDate).getTime() : Date.now();
-    setInstDates(() => {
-      const next: InstallmentDate[] = [];
-      for (let i = 0; i < insts; i++) {
-        next.push({ due_ms: entry + (i + 1) * 30 * 86400000, paid: false, paid_ms: null });
-      }
-      return next;
-    });
-  }, [insts, isPix, entryDate]);
+    const needsDates = ['PIX_CARTAO', 'CREDIT_CARD', 'PIX_MENSAL'].includes(form.payment_type);
+    if (!needsDates || form.installments < 1) { setInstDates([]); return; }
+    const [py, pm, pd] = form.first_payment_date.split('-').map(Number);
+    setInstDates(Array.from({ length: form.installments }, (_, i) => {
+      const d = new Date(py, pm - 1 + i, pd, 12, 0, 0);
+      return { due_ms: d.getTime(), paid: false, paid_ms: null } as InstallmentDate;
+    }));
+  }, [form.installments, form.first_payment_date, form.payment_type, form.total_amount, form.down_payment]);
+
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const isPix     = form.payment_type === 'PIX_AVISTA';
+  const isPixCard = form.payment_type === 'PIX_CARTAO';
+  const totalAmt  = parseFloat(form.total_amount || '0');
+  const downAmt   = isPixCard ? parseFloat(form.down_payment || '0') : 0;
+  const remaining = Math.max(0, totalAmt - downAmt);
+  const instAmt   = form.installments > 0 ? remaining / form.installments : remaining;
+
+  const PAY_BTNS: { key: PayType; label: string }[] = [
+    { key: 'PIX_AVISTA',  label: 'PIX a Vista'     },
+    { key: 'PIX_CARTAO',  label: 'PIX + Cartão'    },
+    { key: 'CREDIT_CARD', label: 'Cartão de Crédito'},
+    { key: 'PIX_MENSAL',  label: 'PIX Mensal'      },
+  ];
 
   const handleSave = async () => {
-    if (!course) { setError('Selecione um curso'); return; }
-    if (!name.trim() || !email.trim()) { setError('Nome e email são obrigatórios'); return; }
-    if (!totalAmt || Number(totalAmt) <= 0) { setError('Informe o valor'); return; }
+    if (!form.course_name) { setError('Selecione um curso'); return; }
+    if (!form.name.trim() || !form.email.trim() || !form.total_amount) {
+      setError('Preencha Nome, Email e Valor.'); return;
+    }
     setSaving(true); setError('');
     try {
+      const [ey, em, ed] = form.entry_date.split('-').map(Number);
+      const entryTs = new Date(ey, em - 1, ed, 12, 0, 0).getTime();
+      const dbPayType = isPix ? 'PIX' : isPixCard ? 'PIX_CARTAO' : form.payment_type === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX';
+      const body = {
+        course_name:        form.course_name,
+        name:               form.name.trim().toUpperCase(),
+        email:              form.email.trim().toLowerCase(),
+        phone:              form.phone.trim(),
+        document:           form.cpf.trim(),
+        entry_date:         entryTs,
+        payment_type:       dbPayType,
+        currency:           form.currency,
+        total_amount:       totalAmt,
+        down_payment:       downAmt,
+        installments:       isPix ? 1 : form.installments,
+        installment_amount: isPix ? totalAmt : instAmt,
+        installment_dates:  isPix ? [{ due_ms: entryTs, paid: true, paid_ms: entryTs }] : instDates,
+        notes:              form.notes.trim(),
+        bp_vendedor:        form.bp_vendedor,
+        bp_modelo:          form.bp_modelo,
+        bp_em_dia:          isPix ? 'Quitado' : (form.bp_em_dia || 'Adimplente'),
+        bp_valor:           form.total_amount,
+        bp_pagamento:       isPix ? 'Pix' : isPixCard ? 'Pix + Cartao' : form.payment_type === 'CREDIT_CARD' ? 'Cartao' : 'Pix Mensal',
+      };
       const res = await fetch('/api/alunos/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          course_name: course, name: name.trim(), email: email.trim().toLowerCase(),
-          phone: phone.trim() || '', entry_date: new Date(entryDate).getTime(),
-          payment_type: payType, currency, total_amount: Number(totalAmt),
-          down_payment: Number(downPay) || 0, installments: isPix ? 1 : insts,
-          installment_amount: isPix ? Number(totalAmt) : instAmt,
-          installment_dates: instDates, notes: notes.trim(),
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar');
@@ -127,140 +157,217 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
     finally { setSaving(false); }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13,
-    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-    color: 'white', outline: 'none', boxSizing: 'border-box',
+  const GLASS: React.CSSProperties = {
+    background: 'linear-gradient(160deg, rgba(0,22,55,0.97) 0%, rgba(0,12,35,0.98) 100%)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.08) inset',
+    borderRadius: 28,
   };
-  const LabelBox = ({ children }: { children: React.ReactNode }) => (
-    <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em',
-      textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>{children}</label>
-  );
+  const INPUT: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 12, color: 'white', padding: '10px 14px', width: '100%', outline: 'none',
+    fontSize: 13, fontWeight: 600, boxSizing: 'border-box',
+  };
+  const LABEL: React.CSSProperties = {
+    fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.15em', color: SILVER,
+    display: 'block', marginBottom: 6,
+  };
 
   return createPortal(
-    <div style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', alignItems: 'center',
-      justifyContent: 'center', padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.9)', backdropFilter: 'blur(14px)' }} />
-      <div style={{ position: 'relative', width: '100%', maxWidth: 560, borderRadius: 24,
-        background: 'linear-gradient(160deg, rgba(8,15,30,0.98) 0%, rgba(4,10,20,0.99) 100%)',
-        border: '1px solid rgba(167,139,250,0.25)',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(167,139,250,0.08)',
-        padding: 32, maxHeight: '90vh', overflowY: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.85)', backdropFilter: 'blur(12px)' }} />
+      <div style={{ ...GLASS, position: 'relative', width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto', padding: 32 }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', background: 'rgba(167,139,250,0.12)', border: '1px solid rgba(167,139,250,0.25)', flexShrink: 0 }}>
-            <span className="material-symbols-outlined" style={{ color: '#a78bfa', fontSize: 20 }}>add_shopping_cart</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)' }}>
+              <span className="material-symbols-outlined" style={{ color: GREEN, fontSize: 22 }}>person_add</span>
+            </div>
+            <div>
+              <h2 style={{ color: 'white', fontWeight: 900, fontSize: 18, margin: 0 }}>Adicionar Venda Manual</h2>
+              <p style={{ color: SILVER, fontSize: 11, margin: '3px 0 0', fontWeight: 700 }}>
+                {form.course_name || 'Selecione o curso abaixo'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Adicionar Venda Manual</h3>
-            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>Registrar venda fora da Hotmart</p>
-          </div>
-          <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: SILVER, cursor: 'pointer', padding: 4 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-          </button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10, width: 32, height: 32, cursor: 'pointer', color: SILVER, fontSize: 18,
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
 
-        {/* Curso */}
-        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#a78bfa', marginBottom: 12 }}>Curso</p>
-        <div style={{ marginBottom: 16 }}>
-          <LabelBox>Selecionar Curso</LabelBox>
-          <select value={course} onChange={e => setCourse(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+        {/* CURSO */}
+        <div style={{ marginBottom: 22, padding: '12px 16px', borderRadius: 14,
+          background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.15)' }}>
+          <label style={{ ...LABEL, color: GREEN }}>Curso *</label>
+          <select value={form.course_name} onChange={e => set('course_name', e.target.value)}
+            style={{ ...INPUT, cursor: 'pointer' }}>
             {courses.length === 0 && <option value="">Carregando...</option>}
             {courses.map(c => <option key={c} value={c} style={{ background: NAVY }}>{c}</option>)}
           </select>
         </div>
 
-        {/* Dados Pessoais */}
-        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: TEAL, marginBottom: 12, marginTop: 20 }}>Dados Pessoais</p>
-        {[
-          { label: 'Nome Completo *', val: name, set: setName, icon: 'person', ph: 'Nome do aluno' },
-          { label: 'Email *', val: email, set: setEmail, icon: 'email', ph: 'email@exemplo.com' },
-          { label: 'Telefone', val: phone, set: setPhone, icon: 'phone', ph: '(11) 99999-9999' },
-        ].map(f => (
-          <div key={f.label} style={{ marginBottom: 14 }}>
-            <LabelBox>{f.label}</LabelBox>
-            <div style={{ position: 'relative' }}>
-              <span className="material-symbols-outlined" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', fontSize: 15, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>{f.icon}</span>
-              <input value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
-                style={{ ...inputStyle, paddingLeft: 34 }} />
-            </div>
+        {/* Row 1: Nome + Email */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <div>
+            <label style={LABEL}>Nome *</label>
+            <input style={INPUT} placeholder="Nome completo" value={form.name}
+              onChange={e => set('name', e.target.value)} />
           </div>
-        ))}
-
-        {/* Pagamento */}
-        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 12, marginTop: 20 }}>Pagamento</p>
-
-        {/* Data entrada */}
-        <div style={{ marginBottom: 14 }}>
-          <LabelBox>Data da Venda</LabelBox>
-          <input type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} style={inputStyle} />
+          <div>
+            <label style={LABEL}>Email *</label>
+            <input style={INPUT} type="email" placeholder="email@exemplo.com" value={form.email}
+              onChange={e => set('email', e.target.value)} />
+          </div>
         </div>
 
-        {/* Pay type */}
-        <div style={{ marginBottom: 14 }}>
-          <LabelBox>Forma de Pagamento</LabelBox>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
-            {PAY_TYPES.map(pt => (
-              <button key={pt.key} type="button" onClick={() => setPayType(pt.key)} style={{
-                padding: '10px 6px', borderRadius: 12, fontWeight: 900, fontSize: 10, cursor: 'pointer',
-                background: payType === pt.key ? `${pt.color}18` : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${payType === pt.key ? pt.color : 'rgba(255,255,255,0.1)'}`,
-                color: payType === pt.key ? pt.color : SILVER, transition: 'all 0.15s',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-              }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{pt.icon}</span>
-                <span style={{ textAlign: 'center', lineHeight: 1.2 }}>{pt.label}</span>
+        {/* Row 2: Telefone + Data de Entrada */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <div>
+            <label style={LABEL}>Telefone *</label>
+            <input style={INPUT} placeholder="(11) 99999-9999" value={form.phone}
+              onChange={e => set('phone', e.target.value)} />
+          </div>
+          <div>
+            <label style={LABEL}>Data de Entrada *</label>
+            <input style={INPUT} type="date" value={form.entry_date}
+              onChange={e => set('entry_date', e.target.value)} />
+          </div>
+        </div>
+
+        {/* Row 3: CPF */}
+        <div style={{ marginBottom: 22 }}>
+          <label style={LABEL}>CPF</label>
+          <input style={INPUT} placeholder="000.000.000-00" value={form.cpf}
+            onChange={e => set('cpf', e.target.value)} />
+        </div>
+
+        {/* FORMA DE PAGAMENTO */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={LABEL}>Forma de Pagamento *</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+            {PAY_BTNS.map(pt => (
+              <button key={pt.key} type="button" onClick={() => set('payment_type', pt.key)}
+                style={{
+                  padding: '10px 6px', borderRadius: 12, fontWeight: 900, fontSize: 10, cursor: 'pointer',
+                  background: form.payment_type === pt.key ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${form.payment_type === pt.key ? 'rgba(74,222,128,0.6)' : 'rgba(255,255,255,0.1)'}`,
+                  color: form.payment_type === pt.key ? GREEN : SILVER, transition: 'all 0.15s',
+                }}>
+                {pt.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Moeda + Valor */}
-        <div style={{ display: 'grid', gridTemplateColumns: isPix ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-          <div>
-            <LabelBox>Moeda</LabelBox>
-            <select value={currency} onChange={e => setCurrency(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-              {CURRENCIES.map(c => <option key={c} value={c} style={{ background: NAVY }}>{c}</option>)}
-            </select>
+        {/* MOEDA */}
+        <div style={{ marginBottom: 18 }}>
+          <label style={LABEL}>Moeda *</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {CURRENCIES_PILLS.map(c => (
+              <button key={c} type="button" onClick={() => set('currency', c)}
+                style={{
+                  padding: '6px 14px', borderRadius: 999, fontWeight: 900, fontSize: 12, cursor: 'pointer',
+                  background: form.currency === c ? GOLD : 'rgba(255,255,255,0.06)',
+                  border: `1px solid ${form.currency === c ? GOLD : 'rgba(255,255,255,0.12)'}`,
+                  color: form.currency === c ? NAVY : SILVER, transition: 'all 0.15s',
+                }}>
+                {c}
+              </button>
+            ))}
           </div>
-          <div>
-            <LabelBox>Valor Total</LabelBox>
-            <input value={totalAmt} onChange={e => setTotalAmt(e.target.value)} placeholder="Ex: 2500" style={inputStyle} />
-          </div>
-          {!isPix && (
-            <div>
-              <LabelBox>Entrada</LabelBox>
-              <input value={downPay} onChange={e => setDownPay(e.target.value)} placeholder="0" style={inputStyle} />
-            </div>
-          )}
         </div>
 
-        {/* Parcelas */}
+        {/* VALOR TOTAL */}
+        <div style={{ marginBottom: 18 }}>
+          <label style={LABEL}>Valor Total ({form.currency}) *</label>
+          <input style={INPUT} placeholder="997.00" value={form.total_amount}
+            onChange={e => set('total_amount', e.target.value)} />
+        </div>
+
+        {/* ENTRADA (PIX+Cartão) */}
+        {isPixCard && (
+          <div style={{ marginBottom: 18 }}>
+            <label style={LABEL}>Entrada PIX (R$)</label>
+            <input style={INPUT} placeholder="0" value={form.down_payment}
+              onChange={e => set('down_payment', e.target.value)} />
+          </div>
+        )}
+
+        {/* PARCELAS */}
         {!isPix && (
-          <div style={{ marginBottom: 14 }}>
-            <LabelBox>Parcelas — <span style={{ color: GOLD }}>{insts}× de {currency === 'BRL' ? `R$ ${instAmt.toFixed(2)}` : `${instAmt.toFixed(2)} ${currency}`}</span></LabelBox>
-            <input type="range" min={1} max={60} value={insts} onChange={e => setInsts(Number(e.target.value))} style={{ width: '100%', accentColor: GOLD }} />
+          <div style={{ marginBottom: 18 }}>
+            <label style={LABEL}>
+              Parcelas — <span style={{ color: GOLD }}>{form.installments}× de {form.currency === 'BRL' ? `R$ ${instAmt.toFixed(2)}` : `${instAmt.toFixed(2)} ${form.currency}`}</span>
+            </label>
+            <input type="range" min={1} max={60} value={form.installments}
+              onChange={e => set('installments', Number(e.target.value))}
+              style={{ width: '100%', accentColor: GOLD }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: SILVER, marginTop: 4 }}>
               <span>1×</span><span>60×</span>
             </div>
           </div>
         )}
 
-        {/* Observações */}
-        <div style={{ marginBottom: 16 }}>
-          <LabelBox>Observações</LabelBox>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anotações extras..." style={{ ...inputStyle, resize: 'vertical', minHeight: 56 }} />
+        {/* INFORMAÇÕES ADICIONAIS */}
+        <div style={{ marginBottom: 18, padding: '14px 16px', borderRadius: 14,
+          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase',
+            color: SILVER, marginBottom: 12, marginTop: 0 }}>Informações Adicionais (Planilha)</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            <div>
+              <label style={LABEL}>Vendedor *</label>
+              <select value={form.bp_vendedor} onChange={e => set('bp_vendedor', e.target.value)}
+                style={{ ...INPUT, cursor: 'pointer' }}>
+                <option value="" style={{ background: NAVY }}>— Selecione —</option>
+                {VENDEDORES_LIST.map(v => (
+                  <option key={v} value={v} style={{ background: NAVY }}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={LABEL}>Modelo *</label>
+              <input style={INPUT} placeholder="1x / Recorrência" value={form.bp_modelo}
+                onChange={e => set('bp_modelo', e.target.value)} />
+            </div>
+            <div>
+              <label style={LABEL}>Status *</label>
+              <select value={form.bp_em_dia} onChange={e => set('bp_em_dia', e.target.value)}
+                style={{ ...INPUT, cursor: 'pointer' }}>
+                <option value="Adimplente" style={{ background: NAVY }}>Adimplente</option>
+                <option value="Inadimplente" style={{ background: NAVY }}>Inadimplente</option>
+                <option value="Quitado" style={{ background: NAVY }}>Quitado</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* OBSERVAÇÕES */}
+        <div style={{ marginBottom: 22 }}>
+          <label style={LABEL}>Observações</label>
+          <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
+            placeholder="Anotações extras..." rows={3}
+            style={{ ...INPUT, resize: 'vertical' }} />
         </div>
 
         {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>{error}</p>}
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-          <button onClick={onClose} disabled={saving} style={{ flex: 1, padding: '11px 0', borderRadius: 12, fontWeight: 800, fontSize: 12, cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>Cancelar</button>
-          <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: '11px 0', borderRadius: 12, fontWeight: 900, fontSize: 12, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, background: 'rgba(167,139,250,0.12)', border: '1.5px solid rgba(167,139,250,0.4)', color: '#a78bfa', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 15 }}>{saving ? 'progress_activity' : 'save'}</span>
-            {saving ? 'Salvando...' : 'Registrar Venda'}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button onClick={onClose} disabled={saving}
+            style={{ flex: 1, padding: '12px 0', borderRadius: 14, fontWeight: 800, fontSize: 13,
+              cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ flex: 2, padding: '12px 0', borderRadius: 14, fontWeight: 900, fontSize: 13,
+              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+              background: 'rgba(74,222,128,0.15)', border: '1.5px solid rgba(74,222,128,0.4)', color: GREEN,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+              {saving ? 'progress_activity' : 'person_add'}
+            </span>
+            {saving ? 'Salvando...' : 'Adicionar Aluno'}
           </button>
         </div>
       </div>
@@ -270,6 +377,9 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
 }
 
 const PAGE_SIZE_OPTIONS = [50, 100, 150, 200];
+
+
+
 
 export default function VendasPage() {
   const { dateFrom, dateTo } = useDashboard();
