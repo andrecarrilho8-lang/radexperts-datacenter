@@ -1037,12 +1037,26 @@ export default function VendasPage() {
 
       {/* Modal: Editar Venda Manual */}
       {editingManual && typeof window !== 'undefined' && (() => {
+        // Helper: coerce string/number timestamps to number safely
+        const toMs = (v: any): number | null => {
+          if (!v) return null;
+          const n = Number(v);
+          return isNaN(n) ? null : n;
+        };
+
         // Parse installment_dates safely — DB may return JSON string or array
         let instDates: any[] = [];
         try {
           const raw = editingManual.installment_dates;
-          if (Array.isArray(raw)) instDates = raw;
-          else if (typeof raw === 'string' && raw.trim().startsWith('[')) instDates = JSON.parse(raw);
+          const arr = Array.isArray(raw) ? raw
+            : (typeof raw === 'string' && raw.trim().startsWith('[')) ? JSON.parse(raw)
+            : [];
+          // Also coerce due_ms/paid_ms in each installment to numbers
+          instDates = arr.map((d: any) => ({
+            due_ms:  Number(d.due_ms)  || 0,
+            paid:    Boolean(d.paid),
+            paid_ms: d.paid_ms ? Number(d.paid_ms) : null,
+          }));
         } catch { instDates = []; }
 
         const studentData: ManualStudentFields = {
@@ -1061,10 +1075,10 @@ export default function VendasPage() {
           vendedor:             editingManual.vendedor || '',
           bp_modelo:            editingManual.bp_modelo || '',
           bp_em_dia:            editingManual.bp_em_dia || 'Adimplente',
-          bp_primeira_parcela:  editingManual.bp_primeira_parcela ?? null,
-          bp_ultimo_pagamento:  editingManual.bp_ultimo_pagamento ?? null,
-          bp_proximo_pagamento: editingManual.bp_proximo_pagamento ?? null,
-          entry_date:           editingManual.entry_date || Date.now(),
+          bp_primeira_parcela:  toMs(editingManual.bp_primeira_parcela),
+          bp_ultimo_pagamento:  toMs(editingManual.bp_ultimo_pagamento),
+          bp_proximo_pagamento: toMs(editingManual.bp_proximo_pagamento),
+          entry_date:           toMs(editingManual.entry_date) ?? Date.now(),
         };
         return (
           <EditManualStudentModal
@@ -1079,6 +1093,7 @@ export default function VendasPage() {
           />
         );
       })()}
+
 
 
 
