@@ -1977,6 +1977,16 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   const remaining = Math.max(0, totalAmt - downAmt);
   const instAmt   = form.installments > 0 ? remaining / form.installments : remaining;
 
+  // Editable installment amount — auto-calculated but overridable
+  const [manualInstAmt, setManualInstAmt] = useState('');
+  useEffect(() => {
+    if (instAmt > 0) setManualInstAmt(instAmt.toFixed(2));
+    else setManualInstAmt('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.total_amount, form.down_payment, form.installments, form.payment_type]);
+
+  const displayInstAmt = parseFloat(manualInstAmt || '0') || instAmt;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.total_amount) {
@@ -2002,7 +2012,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
         total_amount:       totalAmt,
         down_payment:       downAmt,
         installments:       isPix ? 1 : form.installments,
-        installment_amount: isPix ? totalAmt : instAmt,
+        installment_amount: isPix ? totalAmt : displayInstAmt,
         installment_dates:  isPix
           ? [{ due_ms: entryTs, paid: true, paid_ms: entryTs }]
           : instDates,
@@ -2170,9 +2180,13 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
               </div>
               <div>
                 <label style={LABEL}>{form.payment_type === 'PIX_CARTAO' ? 'Parcela Cartao' : 'Valor/Parcela'}</label>
-                <div style={{ ...INPUT, color: GOLD, fontWeight: 900, display: 'flex', alignItems: 'center' }}>
-                  {form.total_amount ? `${form.currency} ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
-                </div>
+                <input
+                  style={{ ...INPUT, color: GOLD, fontWeight: 900 }}
+                  type="number" step="0.01" min="0"
+                  placeholder={instAmt > 0 ? instAmt.toFixed(2) : '--'}
+                  value={manualInstAmt}
+                  onChange={e => setManualInstAmt(e.target.value)}
+                />
               </div>
             </>)}
           </div>
