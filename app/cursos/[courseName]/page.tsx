@@ -2592,11 +2592,13 @@ function EditStudentModal({ student, onClose, onSaved }: {
           </button>
         </div>
 
-        {/* Dados Pessoais */}
+        {/* Dados Pessoais — manual only */}
+        {isManual && (<>
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: TEAL, marginBottom: 12 }}>Dados Pessoais</p>
         <EditField label="Nome" icon="person" value={name} onChange={setName} onEnter={handleSave} placeholder="Nome completo" />
         <EditField label="Telefone" icon="phone" value={phone} onChange={setPhone} onEnter={handleSave} placeholder="(11) 99999-9999" />
         <EditField label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum} onEnter={handleSave} placeholder="000.000.000-00" />
+        </>)}
 
         {/* Pagamento — manual students only */}
         {isManual && (<>
@@ -2676,25 +2678,25 @@ function EditStudentModal({ student, onClose, onSaved }: {
         </>)}
 
         {/* Buyer Persona */}
-        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 12, marginTop: 20 }}>Buyer Persona</p>
+        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 12, marginTop: 20 }}>Vendedor</p>
         <EditSelect label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} options={VENDEDORES} />
-        {!isManual && <>
+        {isManual && (<>
           <EditField label="Valor Total (R$)" icon="payments" value={bpValor} onChange={setBpValor} onEnter={handleSave} placeholder="Ex: 30000" />
           <EditField label="Tipo de Pagamento" icon="account_balance" value={bpPag} onChange={setBpPag} onEnter={handleSave} placeholder="Ex: PIX, Hotmart 12x" />
           <EditField label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} onEnter={handleSave} placeholder="Ex: 12x, 1x" />
           <EditField label="Valor da Parcela (R$)" icon="receipt" value={bpParcela} onChange={setBpParcela} onEnter={handleSave} placeholder="Ex: 2500" />
-        </>}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Status</label>
-          <select value={bpEmDia} onChange={e => setBpEmDia(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'white', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
-            <option value="Adimplente" style={{ background: NAVY }}>Adimplente</option>
-            <option value="Inadimplente" style={{ background: NAVY }}>Inadimplente</option>
-            <option value="Quitado" style={{ background: NAVY }}>Quitado</option>
-          </select>
-        </div>
-        <EditDateField label="1ª Parcela (DD/MM/AAAA)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} />
-        <EditDateField label="Último Pagamento (DD/MM/AAAA)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} />
-        <EditDateField label="Próximo Pagamento (DD/MM/AAAA)" icon="schedule" value={bpProximo} onChange={setBpProximo} />
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: SILVER, marginBottom: 6 }}>Status</label>
+            <select value={bpEmDia} onChange={e => setBpEmDia(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: 10, fontSize: 13, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'white', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>
+              <option value="Adimplente" style={{ background: NAVY }}>Adimplente</option>
+              <option value="Inadimplente" style={{ background: NAVY }}>Inadimplente</option>
+              <option value="Quitado" style={{ background: NAVY }}>Quitado</option>
+            </select>
+          </div>
+          <EditDateField label="1ª Parcela (DD/MM/AAAA)" icon="event" value={bpPrimeira} onChange={setBpPrimeira} />
+          <EditDateField label="Último Pagamento (DD/MM/AAAA)" icon="event_available" value={bpUltimo} onChange={setBpUltimo} />
+          <EditDateField label="Próximo Pagamento (DD/MM/AAAA)" icon="schedule" value={bpProximo} onChange={setBpProximo} />
+        </>)}
 
         {/* Observações */}
         <div style={{ marginBottom: 16, marginTop: 4 }}>
