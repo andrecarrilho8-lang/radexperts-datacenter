@@ -2357,9 +2357,9 @@ function EditDateField({ label, value, onChange, icon }: {
 }
 
 // ── Field helper for EditStudentModal (must be at module scope — NOT inside render) ──
-function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
+function EditField({ label, value, onChange, placeholder, icon, onEnter, disabled }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; icon: string; onEnter?: () => void;
+  placeholder?: string; icon: string; onEnter?: () => void; disabled?: boolean;
 }) {
   return (
     <div style={{ marginBottom: 16 }}>
@@ -2371,13 +2371,16 @@ function EditField({ label, value, onChange, placeholder, icon, onEnter }: {
           fontSize: 15, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>{icon}</span>
         <input
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={e => !disabled && onChange(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && onEnter?.()}
           placeholder={placeholder || ''}
+          disabled={disabled}
           style={{
             width: '100%', padding: '10px 12px 10px 34px', borderRadius: 10, fontSize: 13,
-            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)',
-            color: 'white', outline: 'none', boxSizing: 'border-box',
+            background: disabled ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: disabled ? 'rgba(255,255,255,0.35)' : 'white',
+            outline: 'none', boxSizing: 'border-box', cursor: disabled ? 'default' : 'text',
           }}
         />
       </div>
@@ -2599,6 +2602,13 @@ function EditStudentModal({ student, onClose, onSaved }: {
         <EditField label="Telefone" icon="phone" value={phone} onChange={setPhone} onEnter={handleSave} placeholder="(11) 99999-9999" />
         <EditField label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum} onEnter={handleSave} placeholder="000.000.000-00" />
         </>)}
+        {!isManual && (<>
+        <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: TEAL, marginBottom: 12 }}>Dados Pessoais</p>
+        <EditField label="Nome" icon="person" value={name} onChange={setName} onEnter={handleSave} placeholder="Nome completo" disabled />
+        <EditField label="Telefone" icon="phone" value={phone} onChange={setPhone} onEnter={handleSave} placeholder="(11) 99999-9999" />
+        <EditField label="CPF / Documento" icon="badge" value={docNum} onChange={setDocNum} onEnter={handleSave} placeholder="000.000.000-00" />
+        </>)}
+
 
         {/* Pagamento — manual students only */}
         {isManual && (<>
