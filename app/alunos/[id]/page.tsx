@@ -280,7 +280,7 @@ export default function AlunoPage() {
   const showEmail   = data?.name && data.email !== data.name;
   const approvedCount = (data?.purchases || []).filter((p: any) =>
     ['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED'].includes((p.status||'').toUpperCase())
-  ).length;
+  ).length + (data?.manualStudents?.length || 0);
 
   return (
     <LoginWrapper>
@@ -789,6 +789,168 @@ export default function AlunoPage() {
                   </div>
                 </div>
               )}
+
+              {/* ── Compras Manuais ────────────────────────────────── */}
+              {(data.manualStudents || []).length > 0 && (() => {
+                function ptLabel(pt: string) {
+                  const p = (pt || '').toUpperCase();
+                  if (p === 'PIX' || p === 'PIX_AVISTA') return 'PIX à Vista';
+                  if (p === 'PIX_CARTAO')  return 'PIX + Cartão';
+                  if (p === 'CREDIT_CARD') return 'Cartão de Crédito';
+                  if (p === 'PIX_MENSAL')  return 'PIX Mensal';
+                  return pt || 'PIX';
+                }
+                function msEffectiveStatus(ms: any): 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO' {
+                  const dates: any[] = ms.installment_dates || [];
+                  if (dates.length > 0) {
+                    if (dates.every((d: any) => d.paid)) return 'QUITADO';
+                    const GRACE = 15 * 24 * 60 * 60 * 1000;
+                    if (dates.some((d: any) => !d.paid && Number(d.due_ms) + GRACE < Date.now())) return 'INADIMPLENTE';
+                    return 'ADIMPLENTE';
+                  }
+                  const bp = data.buyerPersona;
+                  const up = ((bp?.em_dia) || '').toUpperCase().trim();
+                  if (up === 'QUITADO') return 'QUITADO';
+                  if (up === 'NÃO' || up === 'NAO' || up === 'INADIMPLENTE') return 'INADIMPLENTE';
+                  return 'ADIMPLENTE';
+                }
+                const GREEN_CARD = 'rgba(74,222,128,0.12)';
+                const RED_CARD   = 'rgba(239,68,68,0.12)';
+                const BLUE_CARD  = 'rgba(56,189,248,0.12)';
+                return (
+                  <div style={{ ...card, padding: 0 }}>
+                    <div className="px-7 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                      <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: GOLD }}>
+                        <span className="material-symbols-outlined text-sm">edit_note</span>
+                        Compras Manuais · {data.manualStudents.length} {data.manualStudents.length === 1 ? 'registro' : 'registros'}
+                        <span className="ml-auto text-[9px]" style={{ color: SILVER }}>
+                          Total: {R(data.manualStudents.reduce((s: number, ms: any) => s + (Number(ms.total_amount) || 0), 0))}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                      {data.manualStudents.map((ms: any, idx: number) => {
+                        const st = msEffectiveStatus(ms);
+                        const isOk   = st === 'ADIMPLENTE';
+                        const isNok  = st === 'INADIMPLENTE';
+                        const isQuit = st === 'QUITADO';
+                        const stBg    = isOk ? GREEN_CARD : isQuit ? BLUE_CARD : RED_CARD;
+                        const stColor = isOk ? '#4ade80' : isQuit ? '#38bdf8' : '#f87171';
+                        const stLabel = isOk ? '● Adimplente' : isQuit ? '✔ Quitado' : '✗ Inadimplente';
+                        const stBorder= isOk ? 'rgba(74,222,128,0.3)' : isQuit ? 'rgba(56,189,248,0.3)' : 'rgba(239,68,68,0.3)';
+
+                        const ptRaw   = ms.payment_type || 'PIX';
+                        const ptUp    = ptRaw.toUpperCase();
+                        const hasDp   = (ms.down_payment || 0) > 0 && (ptUp === 'PIX_CARTAO' || ptUp === 'PIX_MENSAL');
+                        const dates: any[] = ms.installment_dates || [];
+                        const paidCount    = dates.filter((d: any) => d.paid).length;
+
+                        // Filter CPF from notes
+                        const obs = (ms.notes || '').split('\n')
+                          .filter((l: string) => !l.trim().toUpperCase().startsWith('CPF:'))
+                          .join('\n').trim();
+
+                        return (
+                          <div key={idx} className="px-7 py-5">
+                            {/* Row 1: course + status badge + total */}
+                            <div className="flex flex-wrap items-center gap-3 mb-3">
+                              <span className="font-black text-white text-[13px] leading-tight flex-1">{ms.course_name || '—'}</span>
+                              <span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{ background: stBg, color: stColor, border: `1px solid ${stBorder}` }}>{stLabel}</span>
+                              <span className="font-black text-[14px]" style={{ color: '#4ade80' }}>{R(Number(ms.total_amount) || 0)}</span>
+                            </div>
+
+                            {/* Row 2: payment meta */}
+                            <div className="flex flex-wrap gap-4 mb-4">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Forma</span>
+                                <span className="text-[11px] font-black text-white">{ptLabel(ptRaw)}</span>
+                              </div>
+                              {ms.entry_date && (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Entrada em</span>
+                                  <span className="text-[11px] font-black text-white">{new Date(Number(ms.entry_date)).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                              )}
+                              {hasDp && (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Entrada</span>
+                                  <span className="text-[11px] font-black text-white">{R(Number(ms.down_payment))}</span>
+                                </div>
+                              )}
+                              {ms.installments > 1 && (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Parcelas</span>
+                                  <span className="text-[11px] font-black text-white">{ms.installments}× {R(Number(ms.installment_amount))}</span>
+                                </div>
+                              )}
+                              {dates.length > 0 && (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Pagas</span>
+                                  <span className="text-[11px] font-black" style={{ color: paidCount === dates.length ? '#4ade80' : GOLD }}>{paidCount}/{dates.length}</span>
+                                </div>
+                              )}
+                              {data.buyerPersona?.modelo && (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Modelo</span>
+                                  <span className="text-[11px] font-black text-white">{data.buyerPersona.modelo}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Grid de parcelas */}
+                            {dates.length > 0 && (
+                              <div className="grid gap-2 mb-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))' }}>
+                                {dates.map((d: any, di: number) => {
+                                  const now  = Date.now();
+                                  const due  = Number(d.due_ms);
+                                  const GRACE = 15 * 24 * 60 * 60 * 1000;
+                                  const overdue   = !d.paid && due + GRACE < now;
+                                  const upcoming  = !d.paid && due > now;
+                                  const grace     = !d.paid && !overdue && !upcoming; // within 15d grace
+                                  const bg      = d.paid ? 'rgba(74,222,128,0.08)' : overdue ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)';
+                                  const border  = d.paid ? 'rgba(74,222,128,0.25)' : overdue ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)';
+                                  const icon    = d.paid ? 'check_circle' : overdue ? 'error' : grace ? 'schedule' : 'pending';
+                                  const iconClr = d.paid ? '#4ade80'     : overdue ? '#f87171' : GOLD;
+                                  return (
+                                    <div key={di} className="rounded-xl p-2.5" style={{ background: bg, border: `1px solid ${border}` }}>
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <span className="material-symbols-outlined text-[13px]" style={{ color: iconClr }}>{icon}</span>
+                                        <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: iconClr }}>
+                                          Parcela {di + 1}
+                                        </span>
+                                      </div>
+                                      <p className="text-[10px] font-bold text-white">
+                                        Venc: {due > 0 ? new Date(due).toLocaleDateString('pt-BR') : '—'}
+                                      </p>
+                                      {d.paid && d.paid_ms && (
+                                        <p className="text-[9px] font-bold" style={{ color: '#4ade80' }}>
+                                          ✓ {new Date(Number(d.paid_ms)).toLocaleDateString('pt-BR')}
+                                        </p>
+                                      )}
+                                      {!d.paid && overdue && (
+                                        <p className="text-[9px] font-bold" style={{ color: '#f87171' }}>
+                                          {Math.floor((now - due) / 86_400_000)}d atraso
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {/* Observações */}
+                            {obs && (
+                              <p className="text-[10px] font-medium leading-relaxed mt-1" style={{ color: SILVER }}>
+                                <span className="font-black text-[9px] uppercase tracking-widest mr-2" style={{ color: SILVER }}>Obs:</span>{obs}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* ── Histórico completo de compras ─────────────────────── */}
               <div style={{ ...card, padding: 0 }}>
