@@ -348,7 +348,8 @@ export async function GET() {
       return ptype || 'PIX';
     }
 
-    const bpEmDiaOverdueSet = new Set<string>(); // track emails already added
+    const bpEmDiaOverdueSet  = new Set<string>(); // emails already added via installments
+    const hasInstallDatesSet = new Set<string>(); // emails that have installment_dates — skip bp_em_dia fallback
 
     try {
       const db = getDb();
@@ -382,63 +383,76 @@ export async function GET() {
         } catch { /* ignore */ }
 
         const paidCount = instDates.filter(d => d.paid).length;
+        const GRACE_15  = 15 * 24 * 60 * 60 * 1000; // 15 days in ms
 
-        if (totalInst === 1 || instDates.length === 0) {
-          // Single / PIX — use bp_proximo_pagamento
+        // ── Hierarchy: installment_dates first, then bp_em_dia fallback ──────
+        if (instDates.length > 0) {
+          // installment_dates is ground truth — track email, use it exclusively
+          hasInstallDatesSet.add(email);
+          const allPaid = instDates.every(d => d.paid);
+          if (allPaid) continue; // QUITADO — skip entirely (not overdue, not upcoming)
+
+          const unpaid = instDates
+            .map((d, i) => ({ ...d, idx: i }))
+            .filter(d => !d.paid)
+            .sort((a, b) => a.due_ms - b.due_ms);
+
+          const nextUnpaid = unpaid[0];
+          if (!nextUnpaid) continue;
+
+          if (nextUnpaid.due_ms > nowMs) {
+            // Future installment — upcoming
+            manualUpcoming.push({
+              name, email, product,
+              dueDate: nextUnpaid.due_ms, amount: instAmt,
+              installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
+              paymentType: ptype, paymentLabel: label,
+              paidCount,
+              source: 'manual',
+            });
+          } else if (Number(nextUnpaid.due_ms) + GRACE_15 < nowMs) {
+            // Overdue by more than 15 days
+            const daysOverdue = Math.floor((nowMs - nextUnpaid.due_ms) / 86_400_000);
+            bpEmDiaOverdueSet.add(email);
+            manualOverdue.push({
+              name, email, product,
+              dueDate: nextUnpaid.due_ms, daysOverdue, amount: instAmt,
+              installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
+              paymentType: ptype, paymentLabel: label,
+              paidCount,
+              source: 'manual',
+            });
+          }
+          // else: due within last 15 days (grace period) — ADIMPLENTE, skip
+        } else {
+          // ── Fallback: no installment_dates → use bp_em_dia + bp_proximo_pagamento ──
           const nextMs = toEpochMs(row.bp_proximo_pagamento);
           const emUp   = (row.bp_em_dia || '').toUpperCase().trim();
           const isInadimplente = emUp === 'NÃO' || emUp === 'NAO' || emUp === 'INADIMPLENTE';
 
           if (nextMs > nowMs) {
+            // Future — upcoming
             manualUpcoming.push({
               name, email, product,
               dueDate: nextMs, amount: instAmt,
               installmentNum: 1, totalInstallments: 1,
               paymentType: ptype, paymentLabel: label,
-              paidCount: 1,
-              source: 'manual',
-            });
-          } else if (nextMs > 0 && nextMs <= nowMs && isInadimplente) {
-            // bp_proximo_pagamento is in the past + marked Inadimplente → overdue
-            const daysOverdue = Math.floor((nowMs - nextMs) / 86_400_000);
-            bpEmDiaOverdueSet.add(email);
-            manualOverdue.push({
-              name, email, product,
-              dueDate: nextMs, daysOverdue, amount: instAmt,
-              installmentNum: 1, totalInstallments: 1,
-              paymentType: ptype, paymentLabel: label,
               paidCount: paidCount || 1,
               source: 'manual',
             });
-          }
-        } else {
-          // Installment-based: find next UNPAID
-          const unpaid = instDates
-            .map((d, i) => ({ ...d, idx: i }))
-            .filter(d => !d.paid);
-          const nextUnpaid = unpaid.sort((a, b) => a.due_ms - b.due_ms)[0];
-          if (nextUnpaid) {
-            if (nextUnpaid.due_ms > nowMs) {
-              manualUpcoming.push({
-                name, email, product,
-                dueDate: nextUnpaid.due_ms, amount: instAmt,
-                installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
-                paymentType: ptype, paymentLabel: label,
-                paidCount,
-                source: 'manual',
-              });
-            } else {
-              const daysOverdue = Math.floor((nowMs - nextUnpaid.due_ms) / 86_400_000);
-              bpEmDiaOverdueSet.add(email);
-              manualOverdue.push({
-                name, email, product,
-                dueDate: nextUnpaid.due_ms, daysOverdue, amount: instAmt,
-                installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
-                paymentType: ptype, paymentLabel: label,
-                paidCount,
-                source: 'manual',
-              });
-            }
+          } else if (isInadimplente) {
+            // Manually marked Inadimplente with no installment_dates
+            const dueDate     = nextMs > 0 ? nextMs : nowMs;
+            const daysOverdue = nextMs > 0 ? Math.floor((nowMs - nextMs) / 86_400_000) : 0;
+            bpEmDiaOverdueSet.add(email);
+            manualOverdue.push({
+              name, email, product,
+              dueDate, daysOverdue, amount: instAmt,
+              installmentNum: 1, totalInstallments: 1,
+              paymentType: ptype, paymentLabel: label,
+              paidCount: paidCount || 0,
+              source: 'manual',
+            });
           }
         }
       }
@@ -446,7 +460,8 @@ export async function GET() {
       // Also add Inadimplente students from bp_em_dia that weren't caught above
       for (const row of rows) {
         const email   = (row.email || '').toLowerCase().trim();
-        if (bpEmDiaOverdueSet.has(email)) continue; // already added via installments
+        if (bpEmDiaOverdueSet.has(email)) continue;  // already added via installments
+        if (hasInstallDatesSet.has(email)) continue;  // has installment_dates — first loop is authoritative
         const emUp = (row.bp_em_dia || '').toUpperCase().trim();
         if (emUp !== 'NÃO' && emUp !== 'NAO' && emUp !== 'INADIMPLENTE') continue;
         const nextMs = toEpochMs(row.bp_proximo_pagamento);

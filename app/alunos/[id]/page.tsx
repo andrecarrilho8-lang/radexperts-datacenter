@@ -504,16 +504,36 @@ export default function AlunoPage() {
                     const bp  = data.buyerPersona;
                     const ms  = (data.manualStudents || [])[0]; // primary manual record
 
-                    // Status badge logic
-                    const emDia = (bp.em_dia || '').toUpperCase();
-                    const isOk   = emDia === 'SIM' || emDia === 'ADIMPLENTE';
-                    const isNok  = emDia === 'NÃO' || emDia === 'NAO' || emDia === 'INADIMPLENTE';
-                    const isQuit = emDia === 'QUITADO';
+                    // ── Effective status: same hierarchy as cursos/page.tsx effectiveStatusFor ──
+                    // Priority: installment_dates (ground truth) > bp_em_dia fallback
+                    let effectiveStatus: 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO' = 'ADIMPLENTE';
+                    const instDates: any[] = ms?.installment_dates || [];
+                    if (instDates.length > 0) {
+                      const allPaid = instDates.every((d: any) => d.paid);
+                      if (allPaid) {
+                        effectiveStatus = 'QUITADO';
+                      } else {
+                        const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
+                        const hasOverdue = instDates.some((d: any) => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
+                        if (hasOverdue) effectiveStatus = 'INADIMPLENTE';
+                        // else stays ADIMPLENTE
+                      }
+                    } else if (bp.em_dia) {
+                      // No installment_dates: fall back to bp_em_dia
+                      const up = (bp.em_dia || '').toUpperCase().trim();
+                      if (up === 'QUITADO') effectiveStatus = 'QUITADO';
+                      else if (up === 'NÃO' || up === 'NAO' || up === 'INADIMPLENTE') effectiveStatus = 'INADIMPLENTE';
+                      else if (up === 'SIM' || up === 'ADIMPLENTE') effectiveStatus = 'ADIMPLENTE';
+                    }
+
+                    const isOk   = effectiveStatus === 'ADIMPLENTE';
+                    const isNok  = effectiveStatus === 'INADIMPLENTE';
+                    const isQuit = effectiveStatus === 'QUITADO';
 
                     // Only show Modelo and Observações (notes from manual_students)
                     const rows = [
-                      { label: 'Modelo',       value: bp.modelo },
-                      { label: 'Observações',   value: ms?.notes },
+                      { label: 'Modelo',      value: bp.modelo },
+                      { label: 'Observações', value: ms?.notes },
                     ].filter(r => r.value);
 
                     return (
