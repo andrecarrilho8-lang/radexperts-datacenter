@@ -1036,38 +1036,50 @@ export default function VendasPage() {
       )}
 
       {/* Modal: Editar Venda Manual */}
-      {editingManual && typeof window !== 'undefined' && (
-        <EditManualStudentModal
-          student={{
-            manualId:             String(editingManual.id),
-            email:                editingManual.email || '',
-            name:                 editingManual.name || '',
-            phone:                editingManual.phone || '',
-            payment_type:         editingManual.payment_type || 'PIX',
-            currency:             editingManual.currency || 'BRL',
-            total_amount:         Number(editingManual.total_amount) || 0,
-            down_payment:         Number(editingManual.down_payment) || 0,
-            installments:         Number(editingManual.installments) || 1,
-            installment_amount:   Number(editingManual.installment_amount) || 0,
-            installment_dates:    editingManual.installment_dates || [],
-            notes:                editingManual.notes || '',
-            vendedor:             editingManual.vendedor || '',
-            bp_modelo:            editingManual.bp_modelo || '',
-            bp_em_dia:            editingManual.bp_em_dia || 'Adimplente',
-            bp_primeira_parcela:  editingManual.bp_primeira_parcela || null,
-            bp_ultimo_pagamento:  editingManual.bp_ultimo_pagamento || null,
-            bp_proximo_pagamento: editingManual.bp_proximo_pagamento || null,
-            entry_date:           editingManual.entry_date || Date.now(),
-          } satisfies ManualStudentFields}
-          onClose={() => setEditingManual(null)}
-          onSaved={(updated) => {
-            setManualSales(prev => prev.map(s =>
-              String(s.id) === String(editingManual.id) ? { ...s, ...updated, id: s.id } : s
-            ));
-            setEditingManual(null);
-          }}
-        />
-      )}
+      {editingManual && typeof window !== 'undefined' && (() => {
+        // Parse installment_dates safely — DB may return JSON string or array
+        let instDates: any[] = [];
+        try {
+          const raw = editingManual.installment_dates;
+          if (Array.isArray(raw)) instDates = raw;
+          else if (typeof raw === 'string' && raw.trim().startsWith('[')) instDates = JSON.parse(raw);
+        } catch { instDates = []; }
+
+        const studentData: ManualStudentFields = {
+          manualId:             String(editingManual.id),
+          email:                editingManual.email || '',
+          name:                 editingManual.name || '',
+          phone:                editingManual.phone || '',
+          payment_type:         editingManual.payment_type || 'PIX',
+          currency:             editingManual.currency || 'BRL',
+          total_amount:         Number(editingManual.total_amount) || 0,
+          down_payment:         Number(editingManual.down_payment) || 0,
+          installments:         Number(editingManual.installments) || 1,
+          installment_amount:   Number(editingManual.installment_amount) || 0,
+          installment_dates:    instDates,
+          notes:                editingManual.notes || '',
+          vendedor:             editingManual.vendedor || '',
+          bp_modelo:            editingManual.bp_modelo || '',
+          bp_em_dia:            editingManual.bp_em_dia || 'Adimplente',
+          bp_primeira_parcela:  editingManual.bp_primeira_parcela ?? null,
+          bp_ultimo_pagamento:  editingManual.bp_ultimo_pagamento ?? null,
+          bp_proximo_pagamento: editingManual.bp_proximo_pagamento ?? null,
+          entry_date:           editingManual.entry_date || Date.now(),
+        };
+        return (
+          <EditManualStudentModal
+            student={studentData}
+            onClose={() => setEditingManual(null)}
+            onSaved={(updated) => {
+              setManualSales(prev => prev.map(s =>
+                String(s.id) === String(editingManual.id) ? { ...s, ...updated, id: s.id } : s
+              ));
+              setEditingManual(null);
+            }}
+          />
+        );
+      })()}
+
 
 
       {/* Modal: Confirmar Exclusão */}
