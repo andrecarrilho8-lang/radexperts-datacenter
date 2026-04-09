@@ -882,6 +882,7 @@ function manualToStudent(ms: any): Student {
     document:           ms.document || '',
 
     bpEmDia:            ms.bp_em_dia ?? undefined,
+    bpModelo:           ms.bp_modelo ?? undefined,
     bpProximoPagamento: ms.bp_proximo_pagamento != null ? Number(ms.bp_proximo_pagamento) : undefined,
   } as any as Student;
 
@@ -3542,36 +3543,61 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         );
                       })()}
                     </div>
-                    {/* Pagamento — buyer_persona overrides Hotmart */}
+                    {/* STATUS coluna — manual: só badge + modelo + obs · Hotmart LATAM: display completo */}
                     {(() => {
                       const bp = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
-                      const isHotmartBRLpay = (s as any).source !== 'manual' && s.currency === 'BRL';
+                      const isManual = (s as any).source === 'manual';
+                      const isHotmartBRLpay = !isManual && s.currency === 'BRL';
+
+                      // ── Manual students: show only Status badge + Modelo + Observações ──
+                      if (isManual) {
+                        const emVal = (s as any).bpEmDia ?? bp.em_dia ?? '';
+                        const emUp  = String(emVal).toUpperCase().trim();
+                        const isOk   = emUp === 'SIM' || emUp === 'ADIMPLENTE';
+                        const isNok  = emUp === 'NÃO' || emUp === 'NAO' || emUp === 'INADIMPLENTE';
+                        const isQuit = emUp === 'QUITADO';
+                        const badgeBg    = isOk ? 'rgba(74,222,128,0.12)' : isQuit ? 'rgba(56,189,248,0.12)' : isNok ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.07)';
+                        const badgeColor = isOk ? GREEN : isQuit ? '#38bdf8' : isNok ? '#f87171' : SILVER;
+                        const badgeBorder= isOk ? 'rgba(74,222,128,0.3)' : isQuit ? 'rgba(56,189,248,0.3)' : isNok ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.15)';
+                        const badgeLabel = isOk ? '● Adimplente' : isQuit ? '✔ Quitado' : isNok ? '✗ Inadimplente' : (emVal ? emVal : '—');
+                        const modelo = (s as any).bpModelo ?? bp.modelo ?? '';
+                        const obs    = (s as any).notes ?? '';
+                        return (
+                          <div className="flex flex-col gap-0.5 pt-1">
+                            <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
+                              background: badgeBg, color: badgeColor,
+                              border: `1px solid ${badgeBorder}`, width: 'fit-content',
+                            }}>{badgeLabel}</span>
+                            {modelo && <span className="text-[9px] font-bold" style={{ color: SILVER }}>{modelo}</span>}
+                            {obs    && <span className="text-[9px] italic" style={{ color: SILVER }}>{obs}</span>}
+                          </div>
+                        );
+                      }
+
+                      // ── Hotmart LATAM (non-BRL): show buyer_persona payment info ──
                       if (!isHotmartBRLpay && (bp.pagamento || bp.em_dia != null || bp.proximo_pagamento || bp.ultimo_pagamento)) {
                         const emDia = bp.em_dia;
                         return (
                           <div className="flex flex-col gap-0.5 pt-1">
                             {bp.pagamento && <span className="text-[11px] font-bold" style={{ color: 'white' }}>{bp.pagamento}</span>}
-                        {emDia != null && (() => {
-                            // Handle both old format (SIM/NÃO/QUITADO) and new normalized (Adimplente/Inadimplente/Quitado)
-                            const emUp = String(emDia).toUpperCase().trim();
-                            const isOk     = emUp === 'SIM' || emUp === 'ADIMPLENTE';
-                            const isQuit   = emUp === 'QUITADO';
-                            const isGreen  = isOk || isQuit;
-                            // Also check proximo_pagamento before showing ATRASADO
-                            const proxRawBp = bp.proximo_pagamento;
-                            const proxMsBp  = toEpochMs(proxRawBp);
-                            const notYetBp  = proxMsBp != null && !isNaN(proxMsBp) && (proxMsBp + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
-                            const effectiveGreen = isGreen || (!isQuit && notYetBp);
-                            const label = isOk ? '✓ Em dia' : isQuit ? '✓ Quitado' : notYetBp ? '✓ Em dia' : '✗ Atrasado';
-                            return (
-                              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
-                                background: effectiveGreen ? 'rgba(74,222,128,0.12)' : 'rgba(239,68,68,0.12)',
-                                color:      effectiveGreen ? GREEN : '#f87171',
-                                border:     `1px solid ${effectiveGreen ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                                width: 'fit-content',
-                              }}>{label}</span>
-                            );
-                          })()}
+                            {emDia != null && (() => {
+                              const emUp = String(emDia).toUpperCase().trim();
+                              const isOk   = emUp === 'SIM' || emUp === 'ADIMPLENTE';
+                              const isQuit = emUp === 'QUITADO';
+                              const proxRawBp = bp.proximo_pagamento;
+                              const proxMsBp  = toEpochMs(proxRawBp);
+                              const notYetBp  = proxMsBp != null && !isNaN(proxMsBp) && (proxMsBp + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
+                              const effectiveGreen = isOk || isQuit || (!isQuit && notYetBp);
+                              const label = isOk ? '✓ Em dia' : isQuit ? '✓ Quitado' : notYetBp ? '✓ Em dia' : '✗ Atrasado';
+                              return (
+                                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
+                                  background: effectiveGreen ? 'rgba(74,222,128,0.12)' : 'rgba(239,68,68,0.12)',
+                                  color:      effectiveGreen ? GREEN : '#f87171',
+                                  border:     `1px solid ${effectiveGreen ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                                  width: 'fit-content',
+                                }}>{label}</span>
+                              );
+                            })()}
                             {bp.proximo_pagamento && (
                               <span className="text-[9px]" style={{ color: SILVER }}>
                                 Próx: {new Date(bp.proximo_pagamento).toLocaleDateString('pt-BR')}
@@ -3580,6 +3606,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           </div>
                         );
                       }
+
                       return <PaymentCell s={s} statusOverride={status} />;
                     })()}
                     {/* Delete action — all students */}
