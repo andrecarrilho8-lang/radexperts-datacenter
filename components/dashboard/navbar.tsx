@@ -66,7 +66,7 @@ export function Navbar() {
 
   const topNavItems = [
     { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL', 'TRAFEGO'] },
-    { label: 'Hotmart', href: '/hotmart', roles: ['TOTAL', 'COMERCIAL'] },
+    { label: 'Vendas',  href: '/vendas',  roles: ['TOTAL', 'COMERCIAL'] },
   ];
   const navItems = topNavItems.filter(i => i.roles.includes(userRole));
 
@@ -82,7 +82,7 @@ export function Navbar() {
 
   const homePage =
     userRole === 'TRAFEGO'   ? '/campanhas' :
-    userRole === 'COMERCIAL' ? '/hotmart'   : '/resumo';
+    userRole === 'COMERCIAL' ? '/vendas'    : '/resumo';
 
   // ── Shared link style helpers ────────────────────────────
   const menuLinkStyle = (active: boolean): React.CSSProperties => ({
