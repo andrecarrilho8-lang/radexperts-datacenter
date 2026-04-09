@@ -435,6 +435,176 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
   );
 }
 
+// ── Edit Manual Sale Modal ──────────────────────────────────────────────────
+function EditManualSaleModal({ sale, onClose, onSaved }: { sale: any; onClose: () => void; onSaved: (s: any) => void }) {
+  const [form, setForm] = useState({
+    name:         sale.name || '',
+    phone:        sale.phone || '',
+    notes:        sale.notes || '',
+    bp_vendedor:  sale.vendedor || '',
+    bp_modelo:    sale.bp_modelo || '',
+    bp_em_dia:    sale.bp_em_dia || 'Adimplente',
+    total_amount: String(sale.total_amount || ''),
+    currency:     sale.currency || 'BRL',
+    payment_type: sale.payment_type || 'PIX',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true); setError('');
+    try {
+      const r = await fetch(`/api/alunos/manual/${sale.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:         form.name,
+          phone:        form.phone,
+          notes:        form.notes,
+          total_amount: parseFloat(form.total_amount || '0'),
+          currency:     form.currency,
+          payment_type: form.payment_type,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Erro ao salvar');
+      // Also update buyer_profiles if vendedor/modelo/status changed
+      await fetch('/api/alunos/bp-patch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: sale.email,
+          course_name: sale.course_name,
+          bp_vendedor: form.bp_vendedor,
+          bp_modelo:   form.bp_modelo,
+          bp_em_dia:   form.bp_em_dia,
+        }),
+      }).catch(() => {});
+      onSaved({ ...sale, ...form, name: form.name, vendedor: form.bp_vendedor });
+      onClose();
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const GLASS: React.CSSProperties = {
+    background: 'linear-gradient(160deg, rgba(0,22,55,0.97) 0%, rgba(0,12,35,0.98) 100%)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+    borderRadius: 28,
+  };
+  const INPUT: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 12, color: 'white', padding: '10px 14px', width: '100%', outline: 'none',
+    fontSize: 13, fontWeight: 600, boxSizing: 'border-box',
+  };
+  const LABEL: React.CSSProperties = {
+    fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.15em', color: SILVER,
+    display: 'block', marginBottom: 6,
+  };
+
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.85)', backdropFilter: 'blur(12px)' }} />
+      <div style={{ ...GLASS, position: 'relative', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', padding: 32 }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(232,177,79,0.12)', border: '1px solid rgba(232,177,79,0.3)' }}>
+              <span className="material-symbols-outlined" style={{ color: GOLD, fontSize: 22 }}>edit</span>
+            </div>
+            <div>
+              <h2 style={{ color: 'white', fontWeight: 900, fontSize: 18, margin: 0 }}>Editar Venda Manual</h2>
+              <p style={{ color: SILVER, fontSize: 11, margin: '3px 0 0', fontWeight: 700 }}>{sale.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 10, width: 32, height: 32, cursor: 'pointer', color: SILVER, fontSize: 18,
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+
+        {/* Nome + Telefone */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <div><label style={LABEL}>Nome</label>
+            <input style={INPUT} value={form.name} onChange={e => set('name', e.target.value)} /></div>
+          <div><label style={LABEL}>Telefone</label>
+            <input style={INPUT} value={form.phone} onChange={e => set('phone', e.target.value)} /></div>
+        </div>
+
+        {/* Valor + Moeda */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <div>
+            <label style={LABEL}>Valor Total</label>
+            <input style={INPUT} type="number" step="0.01" value={form.total_amount} onChange={e => set('total_amount', e.target.value)} />
+          </div>
+          <div>
+            <label style={LABEL}>Moeda</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {(['BRL','USD','ARS','COP','CLP','EUR','MXN','PEN'] as const).map(c => (
+                <button key={c} type="button" onClick={() => set('currency', c)}
+                  style={{ padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                    background: form.currency === c ? 'rgba(232,177,79,0.18)' : 'rgba(255,255,255,0.05)',
+                    border: `1.5px solid ${form.currency === c ? GOLD : 'rgba(255,255,255,0.1)'}`,
+                    color: form.currency === c ? GOLD : SILVER }}>{c}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Informações Adicionais */}
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '16px 0' }} />
+        <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: SILVER, marginBottom: 12 }}>Informações Adicionais (Planilha)</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <div><label style={LABEL}>Vendedor</label>
+            <select style={{ ...INPUT, cursor: 'pointer' }} value={form.bp_vendedor} onChange={e => set('bp_vendedor', e.target.value)}>
+              <option value="" style={{ background: NAVY }}>— Selecione —</option>
+              {VENDEDORES_LIST.map(v => <option key={v} value={v} style={{ background: NAVY }}>{v}</option>)}
+            </select>
+          </div>
+          <div><label style={LABEL}>Modelo</label>
+            <input style={INPUT} placeholder="1x / Recorrência" value={form.bp_modelo} onChange={e => set('bp_modelo', e.target.value)} />
+          </div>
+          <div><label style={LABEL}>Status</label>
+            <select style={{ ...INPUT, cursor: 'pointer' }} value={form.bp_em_dia} onChange={e => set('bp_em_dia', e.target.value)}>
+              <option value="Adimplente" style={{ background: NAVY }}>Adimplente</option>
+              <option value="Inadimplente" style={{ background: NAVY }}>Inadimplente</option>
+              <option value="Quitado" style={{ background: NAVY }}>Quitado</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Observações */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={LABEL}>Observações</label>
+          <textarea style={{ ...INPUT, resize: 'vertical', minHeight: 60 }} value={form.notes} onChange={e => set('notes', e.target.value)} />
+        </div>
+
+        {error && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 12 }}>{error}</p>}
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '12px 0', borderRadius: 14, fontWeight: 800, fontSize: 12,
+            cursor: 'pointer', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: SILVER }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            style={{ flex: 2, padding: '12px 0', borderRadius: 14, fontWeight: 900, fontSize: 13,
+              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+              background: 'rgba(232,177,79,0.12)', border: `1.5px solid ${GOLD}`, color: GOLD,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{saving ? 'progress_activity' : 'save'}</span>
+            {saving ? 'Salvando...' : 'Salvar Alterações'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 const PAGE_SIZE_OPTIONS = [50, 100, 150, 200];
 
 
@@ -453,6 +623,9 @@ export default function VendasPage() {
   const [originFilter, setOriginFilter] = useState<'all' | 'hotmart' | 'manual'>('all');
   const [vendedorFilter, setVendedorFilter] = useState('');
   const [showAddModal, setShowAddModal]  = useState(false);
+  const [editingManual, setEditingManual] = useState<any | null>(null);
+  const [deletingManualId, setDeletingManualId] = useState<string | null>(null);
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
 
   // Vendedor map: email.toLowerCase() → vendedor name
   const [vendedorMap,   setVendedorMap]   = useState<Record<string, string>>({});
@@ -586,7 +759,8 @@ export default function VendasPage() {
   const pagedRows   = clientFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const resetPage   = () => setPage(1);
 
-  // Products & intl currencies (Hotmart only)
+  // colgroup widths: Data, Origem, Faturamento, Pagamento, Vendedor, Cliente, Curso
+  // Cliente aumentado para 300px, Curso reduzido para 180px
   const uniqueProducts: string[] = useMemo(() => {
     const map: Record<string, number> = {};
     (data.hotmartSales || []).forEach((s: any) => {
@@ -831,10 +1005,10 @@ export default function VendasPage() {
                   <col style={{ width:'110px' }} />
                   <col style={{ width:'90px' }} />
                   <col style={{ width:'160px' }} />
-                  <col style={{ width:'140px' }} />
-                  <col style={{ width:'120px' }} />
-                  <col style={{ width:'260px' }} />
-                  <col />
+                  <col style={{ width:'130px' }} />
+                  <col style={{ width:'110px' }} />
+                  <col style={{ width:'300px' }} />
+                  <col style={{ width:'180px' }} />
                 </colgroup>
                 <thead>
                   <tr style={{ borderBottom:`1px solid ${cardBorder}` }}>
@@ -947,6 +1121,23 @@ export default function VendasPage() {
                             <div className="flex flex-col">
                               <span className="text-sm font-black text-white uppercase">{s.name}</span>
                               <span className="text-[10px] font-bold" style={{ color:SILVER }}>{s.email}</span>
+                              {/* Botões Editar / Excluir — só para vendas manuais */}
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <button onClick={() => setEditingManual(s)}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all"
+                                  style={{ background:'rgba(232,177,79,0.1)', border:'1px solid rgba(232,177,79,0.3)', color:GOLD, cursor:'pointer' }}
+                                  onMouseEnter={e => e.currentTarget.style.background='rgba(232,177,79,0.2)'}
+                                  onMouseLeave={e => e.currentTarget.style.background='rgba(232,177,79,0.1)'}>
+                                  <span className="material-symbols-outlined" style={{ fontSize:11 }}>edit</span>Editar
+                                </button>
+                                <button onClick={() => setDeletingManualId(s.id)}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all"
+                                  style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', color:'#f87171', cursor:'pointer' }}
+                                  onMouseEnter={e => e.currentTarget.style.background='rgba(239,68,68,0.18)'}
+                                  onMouseLeave={e => e.currentTarget.style.background='rgba(239,68,68,0.08)'}>
+                                  <span className="material-symbols-outlined" style={{ fontSize:11 }}>delete</span>Excluir
+                                </button>
+                              </div>
                             </div>
                           </td>
                           <td className="py-3 px-4">
@@ -998,7 +1189,7 @@ export default function VendasPage() {
         </main>
       </div>
 
-      {/* Modal */}
+      {/* Modal: Adicionar Venda */}
       {showAddModal && typeof window !== 'undefined' && (
         <AddManualSaleModal
           onClose={() => setShowAddModal(false)}
@@ -1011,6 +1202,80 @@ export default function VendasPage() {
           }}
         />
       )}
+
+      {/* Modal: Editar Venda Manual */}
+      {editingManual && typeof window !== 'undefined' && (
+        <EditManualSaleModal
+          sale={editingManual}
+          onClose={() => setEditingManual(null)}
+          onSaved={(updated) => {
+            setManualSales(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s));
+            setEditingManual(null);
+          }}
+        />
+      )}
+
+      {/* Modal: Confirmar Exclusão */}
+      {deletingManualId && typeof window !== 'undefined' && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,5,15,0.85)', backdropFilter: 'blur(12px)' }}
+            onClick={() => { if (!deleteConfirming) setDeletingManualId(null); }} />
+          <div style={{ position: 'relative', background: 'linear-gradient(160deg,rgba(0,22,55,0.98),rgba(0,12,35,0.99))',
+            border: '1px solid rgba(239,68,68,0.3)', borderRadius: 24, padding: 32, maxWidth: 400, width: '100%',
+            boxShadow: '0 32px 80px rgba(0,0,0,0.7)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:20 }}>
+              <div style={{ width:44, height:44, borderRadius:14, background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.3)',
+                display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <span className="material-symbols-outlined" style={{ color:'#f87171', fontSize:22 }}>delete_forever</span>
+              </div>
+              <div>
+                <h2 style={{ color:'white', fontWeight:900, fontSize:17, margin:0 }}>Excluir Venda Manual</h2>
+                <p style={{ color:SILVER, fontSize:11, margin:'3px 0 0', fontWeight:700 }}>Esta ação não pode ser desfeita.</p>
+              </div>
+            </div>
+            <p style={{ color:SILVER, fontSize:13, marginBottom:24 }}>
+              Tem certeza que deseja excluir esta venda manual? O aluno será removido do curso e dos registros financeiros.
+            </p>
+            <div style={{ display:'flex', gap:12 }}>
+              <button onClick={() => setDeletingManualId(null)} disabled={deleteConfirming}
+                style={{ flex:1, padding:'11px 0', borderRadius:14, fontWeight:800, fontSize:13, cursor:'pointer',
+                  background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:SILVER }}>
+                Cancelar
+              </button>
+              <button disabled={deleteConfirming}
+                onClick={async () => {
+                  setDeleteConfirming(true);
+                  try {
+                    const r = await fetch(`/api/alunos/manual/${deletingManualId}`, { method: 'DELETE' });
+                    if (r.ok) {
+                      const deleted = manualSales.find(s => s.id === deletingManualId);
+                      setManualSales(prev => prev.filter(s => s.id !== deletingManualId));
+                      if (deleted) {
+                        const amt = Number(deleted.total_amount) || 0;
+                        const isBrl = (deleted.currency || 'BRL').toUpperCase() === 'BRL';
+                        setManualBRL(prev => isBrl ? Math.max(0, prev - amt) : prev);
+                        setManualLatam(prev => !isBrl ? Math.max(0, prev - amt) : prev);
+                        setManualCount(prev => Math.max(0, prev - 1));
+                      }
+                      setDeletingManualId(null);
+                    }
+                  } finally { setDeleteConfirming(false); }
+                }}
+                style={{ flex:2, padding:'11px 0', borderRadius:14, fontWeight:900, fontSize:13,
+                  cursor: deleteConfirming ? 'not-allowed' : 'pointer', opacity: deleteConfirming ? 0.7 : 1,
+                  background:'rgba(239,68,68,0.15)', border:'1.5px solid rgba(239,68,68,0.5)', color:'#f87171',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                <span className="material-symbols-outlined" style={{ fontSize:16 }}>
+                  {deleteConfirming ? 'progress_activity' : 'delete_forever'}
+                </span>
+                {deleteConfirming ? 'Excluindo...' : 'Sim, excluir'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </LoginWrapper>
+
   );
 }
