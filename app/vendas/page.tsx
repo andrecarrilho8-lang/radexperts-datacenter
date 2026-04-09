@@ -282,7 +282,12 @@ export default function VendasPage() {
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage]         = useState(1);
   const [originFilter, setOriginFilter] = useState<'all' | 'hotmart' | 'manual'>('all');
+  const [vendedorFilter, setVendedorFilter] = useState('');
   const [showAddModal, setShowAddModal]  = useState(false);
+
+  // Vendedor map: email.toLowerCase() → vendedor name
+  const [vendedorMap,   setVendedorMap]   = useState<Record<string, string>>({});
+  const [vendedorList,  setVendedorList]  = useState<string[]>([]);
 
   // Manual sales state
   const [manualSales, setManualSales]       = useState<any[]>([]);
@@ -311,6 +316,13 @@ export default function VendasPage() {
   }, [fromMs, toMs]);
 
   useEffect(() => { loadManualSales(); }, [loadManualSales]);
+
+  // Load vendedor map once
+  useEffect(() => {
+    fetch('/api/alunos/vendedores').then(r => r.json()).then(d => {
+      if (d.ok) { setVendedorMap(d.map || {}); setVendedorList(d.vendedores || []); }
+    }).catch(() => {});
+  }, []);
 
   // Hotmart calcs
   const productFiltered = useMemo(() =>
@@ -378,10 +390,22 @@ export default function VendasPage() {
     return allRows;
   }, [allRows, originFilter]);
 
+  const vendorFiltered = useMemo(() => {
+    if (!vendedorFilter) return originFiltered;
+    return originFiltered.filter((s: any) => {
+      const email = s._origin === 'hotmart' ? (s.buyer?.email || '').toLowerCase() : (s.email || '').toLowerCase();
+      // Hotmart: lookup in vendedorMap; Manual: uses vendedor field from buyer_profiles join
+      const v = s._origin === 'hotmart'
+        ? (vendedorMap[email] || '')
+        : (s.vendedor || vendedorMap[email] || '');
+      return v.toLowerCase().includes(vendedorFilter.toLowerCase());
+    });
+  }, [originFiltered, vendedorFilter, vendedorMap]);
+
   const clientFiltered = useMemo(() => {
     const q = clientSearch.trim().toLowerCase();
-    if (!q) return originFiltered;
-    return originFiltered.filter((s: any) => {
+    if (!q) return vendorFiltered;
+    return vendorFiltered.filter((s: any) => {
       const name  = s._origin === 'hotmart' ? (s.buyer?.name || '') : (s.name || '');
       const email = s._origin === 'hotmart' ? (s.buyer?.email || '') : (s.email || '');
       return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
@@ -586,6 +610,15 @@ export default function VendasPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
+                {/* Filtro vendedor */}
+                {vendedorList.length > 0 && (
+                  <select value={vendedorFilter} onChange={e => { setVendedorFilter(e.target.value); resetPage(); }}
+                    className="py-2 px-3 rounded-xl text-[11px] font-black outline-none"
+                    style={{ background:'rgba(255,255,255,0.06)', border:`1px solid ${vendedorFilter ? GREEN+'66' : cardBorder}`, color: vendedorFilter ? GREEN : SILVER, cursor:'pointer' }}>
+                    <option value="" style={{ background:NAVY }}>Todos os Vendedores</option>
+                    {vendedorList.map(v => <option key={v} value={v} style={{ background:NAVY }}>{v}</option>)}
+                  </select>
+                )}
                 {/* Filtro origem */}
                 <div className="flex items-center gap-1 rounded-xl overflow-hidden" style={{ border:`1px solid ${cardBorder}` }}>
                   {(['all','hotmart','manual'] as const).map(o => (
@@ -628,9 +661,10 @@ export default function VendasPage() {
                 <colgroup>
                   <col style={{ width:'110px' }} />
                   <col style={{ width:'90px' }} />
-                  <col style={{ width:'180px' }} />
                   <col style={{ width:'160px' }} />
-                  <col style={{ width:'340px' }} />
+                  <col style={{ width:'140px' }} />
+                  <col style={{ width:'120px' }} />
+                  <col style={{ width:'260px' }} />
                   <col />
                 </colgroup>
                 <thead>
@@ -639,8 +673,9 @@ export default function VendasPage() {
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color:SILVER }}>Origem</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest text-right" style={{ color:SILVER }}>Faturamento</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color:SILVER }}>Pagamento</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color:SILVER }}>Vendedor</th>
                     <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color:SILVER }}>Cliente</th>
-                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color:SILVER }}>Produto/Curso</th>
+                    <th className="py-4 px-4 text-[10px] font-black uppercase tracking-widest" style={{ color:SILVER }}>Curso</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -678,6 +713,12 @@ export default function VendasPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4"><PaymentBadge method={paymentMethod} /></td>
+                          <td className="py-3 px-4">
+                            {(() => { const v = vendedorMap[(s.buyer?.email||'').toLowerCase()]; return v
+                              ? <span className="text-[11px] font-black uppercase" style={{ color:GREEN }}>{v}</span>
+                              : <span className="text-[10px]" style={{ color:'rgba(255,255,255,0.2)' }}>—</span>; })()
+                            }
+                          </td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
                               <button onClick={() => router.push(`/alunos/${emailToId(s.buyer.email)}`)}
@@ -727,6 +768,12 @@ export default function VendasPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4"><PaymentBadge method={s.payment_type || 'PIX'} /></td>
+                          <td className="py-3 px-4">
+                            {(() => { const v = s.vendedor || vendedorMap[(s.email||'').toLowerCase()]; return v
+                              ? <span className="text-[11px] font-black uppercase" style={{ color:GREEN }}>{v}</span>
+                              : <span className="text-[10px]" style={{ color:'rgba(255,255,255,0.2)' }}>—</span>; })()
+                            }
+                          </td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
                               <span className="text-sm font-black text-white uppercase">{s.name}</span>
