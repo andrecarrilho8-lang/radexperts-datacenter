@@ -49,6 +49,7 @@ export type ManualStudentFields = {
   installment_dates?: InstallmentDate[];
   notes?: string;
   // buyer_profiles fields
+  document?: string;        // CPF
   vendedor?: string;
   bp_modelo?: string;
   bp_pagamento?: string;
@@ -292,6 +293,7 @@ export function EditManualStudentModal({
   const [notes,       setNotes]       = useState(student.notes || '');
   const [entryDate,   setEntryDate]   = useState(fmtInputDate(student.entry_date));
   // BP fields
+  const [cpf,         setCpf]         = useState(student.document || '');
   const [vendedor,    setVendedor]    = useState(student.vendedor || '');
   const [modelo,      setModelo]      = useState(student.bp_modelo || '');
   const [status,      setStatus]      = useState(student.bp_em_dia || 'Adimplente');
@@ -359,12 +361,13 @@ export function EditManualStudentModal({
 
       // 2. Update buyer_profiles (PATCH)
       const bpPayload: Record<string, unknown> = {
-        vendedor:           vendedor.trim() || null,
-        bp_modelo:          modelo.trim()   || null,
-        bp_pagamento:       paymentType,
-        bp_em_dia:          status,
-        bp_primeira_parcela:parseInputDate(primParcela),
-        bp_ultimo_pagamento:parseInputDate(ultPagto),
+        document:            cpf.trim()       || null,
+        vendedor:            vendedor.trim()  || null,
+        bp_modelo:           modelo.trim()   || null,
+        bp_pagamento:        paymentType,
+        bp_em_dia:           status,
+        bp_primeira_parcela: parseInputDate(primParcela),
+        bp_ultimo_pagamento: parseInputDate(ultPagto),
         bp_proximo_pagamento:parseInputDate(proxPagto),
       };
 
@@ -389,6 +392,7 @@ export function EditManualStudentModal({
         installment_amount:  instAmt,
         installment_dates:   isParc ? instDates.slice(0, instCount) : [],
         notes:               notes.trim(),
+        document:            cpf.trim(),
         vendedor:            vendedor.trim(),
         bp_modelo:           modelo.trim(),
         bp_em_dia:           status,
@@ -561,7 +565,10 @@ export function EditManualStudentModal({
                 <Select label="Vendedor" value={vendedor} onChange={setVendedor} options={VENDEDOR_OPTIONS} />
               </Field>
               <Field>
-                <Input label="Modelo" value={modelo} onChange={setModelo} placeholder="ex: Presencial, Online…" />
+                <Input label="Modelo" value={modelo} onChange={setModelo} placeholder="Recorrência, Assinatura, 1x…" />
+              </Field>
+              <Field span={2}>
+                <Input label="CPF / Documento" value={cpf} onChange={setCpf} placeholder="000.000.000-00" />
               </Field>
               <Field span={2}>
                 <Select label="Status de Pagamento" value={status} onChange={setStatus}

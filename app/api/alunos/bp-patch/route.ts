@@ -34,6 +34,8 @@ export async function PATCH(request: Request) {
     // Build individual COALESCE-style update — only touch fields provided
     const rows = await sql`
       UPDATE buyer_profiles SET
+        document             = CASE WHEN ${Object.prototype.hasOwnProperty.call(body, 'document')}
+                                THEN ${body.document ?? null}::text    ELSE document             END,
         vendedor             = CASE WHEN ${Object.prototype.hasOwnProperty.call(body, 'vendedor')}
                                 THEN ${body.vendedor ?? null}::text    ELSE vendedor             END,
         bp_modelo            = CASE WHEN ${Object.prototype.hasOwnProperty.call(body, 'bp_modelo')}

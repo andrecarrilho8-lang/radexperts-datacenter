@@ -1948,6 +1948,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
     bp_vendedor:        '',
     bp_modelo:          '',
     bp_em_dia:          'Adimplente',
+    bp_cpf:             '',
   });
   const [instDates, setInstDates] = useState<InstallmentDate[]>([]);
   const [saving,   setSaving]   = useState(false);
@@ -2015,6 +2016,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           form.payment_type === 'PIX_CARTAO'  ? 'Pix + Cartao' :
           form.payment_type === 'CREDIT_CARD' ? 'Cartao' : 'Pix Mensal'
         ),
+        document:     form.bp_cpf || null,
       };
       const r = await fetch('/api/alunos/manual', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -2241,7 +2243,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
             </div>
             <div>
               <label style={LABEL}>Modelo *</label>
-              <input style={INPUT} placeholder="1x / Recorrência" value={form.bp_modelo}
+              <input style={INPUT} placeholder="Recorrência, Assinatura, 1x…" value={form.bp_modelo}
                 onChange={e => setForm(f => ({ ...f, bp_modelo: e.target.value }))} required />
             </div>
             <div>
@@ -2252,6 +2254,11 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
                 <option value="Inadimplente" style={{ background: NAVY, color: 'white' }}>Inadimplente</option>
                 <option value="Quitado" style={{ background: NAVY, color: 'white' }}>Quitado</option>
               </select>
+            </div>
+            <div style={{ gridColumn: 'span 3' }}>
+              <label style={LABEL}>CPF / Documento</label>
+              <input style={INPUT} placeholder="000.000.000-00" value={form.bp_cpf || ''}
+                onChange={e => setForm(f => ({ ...f, bp_cpf: e.target.value }))} />
             </div>
           </div>
 

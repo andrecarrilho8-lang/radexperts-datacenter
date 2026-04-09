@@ -388,7 +388,7 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
             </div>
             <div>
               <label style={LABEL}>Modelo *</label>
-              <input style={INPUT} placeholder="1x / Recorrência" value={form.bp_modelo}
+              <input style={INPUT} placeholder="Recorrência, Assinatura, 1x…" value={form.bp_modelo}
                 onChange={e => set('bp_modelo', e.target.value)} />
             </div>
             <div>
@@ -399,6 +399,11 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
                 <option value="Inadimplente" style={{ background: NAVY }}>Inadimplente</option>
                 <option value="Quitado" style={{ background: NAVY }}>Quitado</option>
               </select>
+            </div>
+            <div style={{ gridColumn: 'span 3' }}>
+              <label style={LABEL}>CPF / Documento</label>
+              <input style={INPUT} placeholder="000.000.000-00" value={form.cpf || ''}
+                onChange={e => set('cpf', e.target.value)} />
             </div>
           </div>
         </div>
