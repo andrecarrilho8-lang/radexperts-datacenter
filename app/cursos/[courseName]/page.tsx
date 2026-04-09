@@ -2464,7 +2464,14 @@ function EditStudentModal({ student, onClose, onSaved }: {
     installment_dates?: InstallmentDate[]; entry_date?: number;
   };
   onClose: () => void;
-  onSaved: (updated: { phone: string; name: string; document: string; vendedor: string; bp_modelo: string; bp_em_dia: string; notes: string }) => void;
+  onSaved: (updated: {
+    phone: string; name: string; document: string; vendedor: string;
+    bp_modelo: string; bp_em_dia: string; notes: string;
+    // payment fields
+    payment_type?: string; currency?: string; total_amount?: number;
+    down_payment?: number; installments?: number; installment_amount?: number;
+    installment_dates?: InstallmentDate[];
+  }) => void;
 }) {
   const isManual = !!student.manualId;
 
@@ -2497,13 +2504,12 @@ function EditStudentModal({ student, onClose, onSaved }: {
   const isPix   = payType === 'PIX';
   const autoInstAmt = (!isPix && insts > 0 && Number(totalAmt) > 0) ? ((Number(totalAmt) - Number(downPay || 0)) / insts) : 0;
 
-  // Editable installment amount — auto-calculated but overridable
-  const [manualInstAmt, setManualInstAmt] = React.useState(student.installment_amount ? String(student.installment_amount) : '');
-  React.useEffect(() => {
-    if (autoInstAmt > 0) setManualInstAmt(autoInstAmt.toFixed(2));
-    else setManualInstAmt('');
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalAmt, downPay, insts, payType]);
+  // Editable installment amount — manual entry only, no auto-recalc on field changes
+  const [manualInstAmt, setManualInstAmt] = React.useState(
+    student.installment_amount != null && student.installment_amount > 0
+      ? String(student.installment_amount)
+      : ''
+  );
 
   const instAmt = parseFloat(manualInstAmt || '0') || autoInstAmt;
 
@@ -2578,7 +2584,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
             payment_type: payType, currency, total_amount: Number(totalAmt) || null,
             down_payment: Number(downPay) || 0, installments: insts,
             installment_amount: instAmt || null, installment_dates: instDates,
-            entry_date: entryDate ? new Date(entryDate).getTime() : null,
+            entry_date: entryDate ? new Date(entryDate + 'T12:00:00').getTime() : null,
             phone: phone.trim() || null, name: name.trim() || null, notes: notes.trim() || null,
           }),
         });
@@ -2586,7 +2592,19 @@ function EditStudentModal({ student, onClose, onSaved }: {
       }
       const res = await fetch('/api/alunos/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) throw new Error((await res.json()).error || 'Erro ao salvar');
-      onSaved({ phone: phone.trim(), name: name.trim(), document: docNum.trim(), vendedor: vendedor.trim(), bp_modelo: bpModelo.trim(), bp_em_dia: bpEmDia, notes: notes.trim() });
+      onSaved({
+        phone: phone.trim(), name: name.trim(), document: docNum.trim(),
+        vendedor: vendedor.trim(), bp_modelo: bpModelo.trim(), bp_em_dia: bpEmDia, notes: notes.trim(),
+        // payment fields — used to update row in real-time
+        ...(isManual ? {
+          payment_type: payType, currency,
+          total_amount: Number(totalAmt) || undefined,
+          down_payment: Number(downPay) || 0,
+          installments: insts,
+          installment_amount: instAmt || undefined,
+          installment_dates: instDates,
+        } : {}),
+      });
       onClose();
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
@@ -3687,19 +3705,28 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         <EditStudentModal
           student={editTarget}
           onClose={() => setEditTarget(null)}
-          onSaved={({ phone, name, document, vendedor, bp_modelo, bp_em_dia, notes }) => {
+          onSaved={({ phone, name, document, vendedor, bp_modelo, bp_em_dia, notes,
+            payment_type, currency, total_amount, down_payment, installments, installment_amount, installment_dates }) => {
             const emailKey = (editTarget.email || '').toLowerCase();
             // Always update phoneCache (even when cleared)
             setPhoneCache(prev => ({ ...prev, [emailKey]: phone }));
             // Always update documentCache
             setDocumentCache(prev => ({ ...prev, [emailKey]: document }));
-            // Update manual_students for manual students
+            // Update manual_students for manual students — includes payment fields
             if (editTarget.manualId) {
-              setManualStudents(prev => prev.map(ms =>
-                ms.id === editTarget.manualId
-                  ? { ...ms, phone, name: name || ms.name, notes }
-                  : ms
-              ));
+              setManualStudents(prev => prev.map(ms => {
+                if (ms.id !== editTarget.manualId) return ms;
+                const paymentPatch = payment_type !== undefined ? {
+                  payment_type:       payment_type as 'PIX' | 'CREDIT_CARD',
+                  currency:           currency ?? (ms as any).currency,
+                  total_amount:       total_amount ?? ms.total_amount,
+                  down_payment:       down_payment ?? (ms as any).down_payment,
+                  installments:       installments ?? ms.installments,
+                  installment_amount: installment_amount ?? ms.installment_amount,
+                  installment_dates:  installment_dates ?? ms.installment_dates,
+                } : {};
+                return { ...ms, phone, name: name || ms.name, notes, ...paymentPatch } as any;
+              }));
             }
             // Always update buyerPersonaCache — use the saved value directly (no || fallback)
             setBuyerPersonaCache(prev => ({
