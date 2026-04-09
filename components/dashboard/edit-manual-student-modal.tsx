@@ -527,8 +527,8 @@ export function EditManualStudentModal({
                   type="number" placeholder="0.00" />
               </Field>
 
-              {/* PIX + Cartão: down payment */}
-              {(paymentType === 'PIX_CARTAO') && (
+              {/* Entrada — only for PIX + Cartão and PIX Mensal */}
+              {(paymentType === 'PIX_CARTAO' || paymentType === 'PIX_MENSAL') && (
                 <Field>
                   <Input label="Entrada PIX" value={downPayment} onChange={setDownPayment}
                     type="number" placeholder="0.00" />

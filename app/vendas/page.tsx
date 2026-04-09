@@ -296,7 +296,7 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
             <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00" value={form.total_amount}
               onChange={e => set('total_amount', e.target.value)} />
           </div>
-          {isPixCard && (
+          {(isPixCard || form.payment_type === 'PIX_MENSAL') && (
             <div>
               <label style={LABEL}>Entrada PIX ({form.currency})</label>
               <input style={INPUT} type="number" step="0.01" min="0" placeholder="0.00" value={form.down_payment}

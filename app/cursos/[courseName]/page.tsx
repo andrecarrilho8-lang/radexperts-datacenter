@@ -2171,7 +2171,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
               <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00" value={form.total_amount}
                 onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} required />
             </div>
-            {form.payment_type === 'PIX_CARTAO' && (
+            {(form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL') && (
               <div>
                 <label style={LABEL}>Entrada PIX ({form.currency})</label>
                 <input style={INPUT} type="number" step="0.01" min="0" placeholder="0.00" value={form.down_payment}
@@ -2709,7 +2709,7 @@ function EditStudentModal({ student, onClose, onSaved }: {
           {/* Total + Down payment */}
           <div style={{ display: 'grid', gridTemplateColumns: isPix ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <EditField label={`Valor Total (${currency})`} icon="payments" value={totalAmt} onChange={setTotalAmt} placeholder="Ex: 30000" />
-            {!isPix && <EditField label={`Entrada (${currency})`} icon="arrow_downward" value={downPay} onChange={setDownPay} placeholder="0" />}
+            {(payType === 'PIX_CARTAO' || payType === 'PIX_MENSAL') && <EditField label={`Entrada (${currency})`} icon="arrow_downward" value={downPay} onChange={setDownPay} placeholder="0" />}
           </div>
 
           {/* Installments — select + editable amount + list with checkboxes */}
