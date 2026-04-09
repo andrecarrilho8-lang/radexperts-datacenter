@@ -359,16 +359,22 @@ export function EditManualStudentModal({
         throw new Error(d.error || `Erro manual PUT: ${r1.status}`);
       }
 
+      // Derive BP date fields from the installment tracker (source of truth)
+      const effectiveDates = isParc ? instDates.slice(0, instCount) : [];
+      const firstDue    = effectiveDates[0]?.due_ms ?? null;
+      const lastPaid    = effectiveDates.filter(d => d.paid).pop()?.paid_ms ?? null;
+      const nextDue     = effectiveDates.find(d => !d.paid)?.due_ms ?? null;
+
       // 2. Update buyer_profiles (PATCH)
       const bpPayload: Record<string, unknown> = {
-        document:            cpf.trim()       || null,
-        vendedor:            vendedor.trim()  || null,
-        bp_modelo:           modelo.trim()   || null,
+        document:            cpf.trim()      || null,
+        vendedor:            vendedor.trim() || null,
+        bp_modelo:           modelo.trim()  || null,
         bp_pagamento:        paymentType,
         bp_em_dia:           status,
-        bp_primeira_parcela: parseInputDate(primParcela),
-        bp_ultimo_pagamento: parseInputDate(ultPagto),
-        bp_proximo_pagamento:parseInputDate(proxPagto),
+        bp_primeira_parcela: firstDue,
+        bp_ultimo_pagamento: lastPaid,
+        bp_proximo_pagamento:nextDue,
       };
 
       const r2 = await fetch(`/api/alunos/bp-patch?email=${encodeURIComponent(student.email)}`, {
@@ -390,15 +396,15 @@ export function EditManualStudentModal({
         down_payment:        downVal,
         installments:        instCount,
         installment_amount:  instAmt,
-        installment_dates:   isParc ? instDates.slice(0, instCount) : [],
+        installment_dates:   effectiveDates,
         notes:               notes.trim(),
         document:            cpf.trim(),
         vendedor:            vendedor.trim(),
         bp_modelo:           modelo.trim(),
         bp_em_dia:           status,
-        bp_primeira_parcela: parseInputDate(primParcela),
-        bp_ultimo_pagamento: parseInputDate(ultPagto),
-        bp_proximo_pagamento:parseInputDate(proxPagto),
+        bp_primeira_parcela: firstDue,
+        bp_ultimo_pagamento: lastPaid,
+        bp_proximo_pagamento:nextDue,
       });
       onClose();
     } catch (e: any) {
@@ -574,17 +580,9 @@ export function EditManualStudentModal({
                 <Select label="Status de Pagamento" value={status} onChange={setStatus}
                   options={STATUS_OPTIONS} />
               </Field>
-              <Field>
-                <Input label="1ª Parcela" value={primParcela} onChange={setPrimParcela} type="date" />
-              </Field>
-              <Field>
-                <Input label="Último Pagamento" value={ultPagto} onChange={setUltPagto} type="date" />
-              </Field>
-              <Field span={2}>
-                <Input label="Próximo Pagamento" value={proxPagto} onChange={setProxPagto} type="date" />
-              </Field>
             </div>
           </section>
+
 
           {/* ── Observações ── */}
           <section>
