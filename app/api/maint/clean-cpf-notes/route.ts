@@ -4,14 +4,15 @@ import { getDb, ensureSchema } from '@/app/lib/db';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// One-time migration: move CPF data from notes to document field
+// One-time migration: remove CPF lines from notes field in manual_students
+// (CPF belongs in buyer_profiles.bp_document, not in notes)
 export async function GET() {
   try {
     await ensureSchema();
     const db = getDb();
 
     const rows = await db`
-      SELECT id, name, email, notes, document
+      SELECT id, name, email, notes
       FROM manual_students
       WHERE notes IS NOT NULL AND UPPER(notes::text) LIKE '%CPF:%'
     ` as any[];
@@ -29,16 +30,13 @@ export async function GET() {
         .join('\n')
         .trim();
 
-      const newDoc = row.document || cpfVal;
-
       await db`
         UPDATE manual_students
-        SET notes    = ${cleanNotes || null},
-            document = ${newDoc}
+        SET notes = ${cleanNotes || ''}
         WHERE id = ${row.id}
       `;
 
-      results.push(`✓ ${row.name} → CPF: ${cpfVal} → document`);
+      results.push(`✓ ${row.name} (${row.email}) → CPF "${cpfVal}" removido das notas`);
     }
 
     return NextResponse.json({ updated: results.length, records: results });
