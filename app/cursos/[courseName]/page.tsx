@@ -458,50 +458,55 @@ function toEpochMs(val: any): number | null {
   return isNaN(d.getTime()) ? null : d.getTime();
 }
 
+
 function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, any>> = {}): PayStatus {
   // Use BOTH sources: server-side JOIN (s.bpEmDia) + client-side async cache (bpCache)
   const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
   const rawEmDia = ((s as any).bpEmDia ?? cacheEntry.em_dia);
 
-  // Helper: check if proximo_pagamento is still in the future (within grace)
-  const proxRaw = (s as any).bpProximoPagamento ?? cacheEntry.proximo_pagamento;
-  const proxMs  = toEpochMs(proxRaw);
-  const notYetOverdue = proxMs != null && !isNaN(proxMs) && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
+  // ── MANUAL STUDENTS WITH installment_dates: highest priority ──────────────
+  // installment_dates are the ground truth for payment control.
+  // Check them BEFORE bp_em_dia to avoid stale bp_proximo_pagamento overriding correct data.
+  if ((s as any).source === 'manual') {
+    const dates: InstallmentDate[] = (s as any).manualInstallments || [];
+    if (dates.length > 0) {
+      const allPaid = dates.every(d => d.paid);
+      if (allPaid) return 'QUITADO';
+      const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
+      const hasOverdue = dates.some(d => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
+      if (hasOverdue) return 'INADIMPLENTE';
+      return 'ADIMPLENTE';
+    }
+    // No installment_dates: fall back to bp_em_dia
+    if (rawEmDia != null && rawEmDia !== '') {
+      const up = String(rawEmDia).toUpperCase().trim();
+      if (up === 'QUITADO') return 'QUITADO';
+      if (up === 'NÃO' || up === 'NAO' || up === 'NÂO' || up === 'INADIMPLENTE') return 'INADIMPLENTE';
+      if (up === 'SIM' || up === 'ADIMPLENTE') return 'ADIMPLENTE';
+    }
+    return 'ADIMPLENTE';
+  }
 
-  // If bp_em_dia is set, it is the authoritative source
+  // ── HOTMART / non-manual students: bp_em_dia is authoritative ─────────────
   if (rawEmDia != null && rawEmDia !== '') {
     const up = String(rawEmDia).toUpperCase().trim();
-    // Handle BOTH old format (SIM / NÃO / NAO) AND new format (Adimplente / Inadimplente / Quitado)
+    const proxRaw = (s as any).bpProximoPagamento ?? cacheEntry.proximo_pagamento;
+    const proxMs  = toEpochMs(proxRaw);
+    const notYetOverdue = proxMs != null && !isNaN(proxMs) && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) > Date.now();
+
     if (up === 'SIM' || up === 'ADIMPLENTE') {
-      // Respect grace period: even if marked Adimplente, downgrade if proximo is past grace
       if (proxMs != null && !isNaN(proxMs) && (proxMs + GRACE_DAYS_EXPORT * DAY_MS_EXPORT) < Date.now()) return 'INADIMPLENTE';
       return 'ADIMPLENTE';
     }
     if (up === 'QUITADO') return 'QUITADO';
-    if (up === 'NãO' || up === 'NAO' || up === 'NÂO' || up === 'INADIMPLENTE') {
-      // If proximo_pagamento is still in the future (+ grace), student is not yet overdue
+    if (up === 'NÃO' || up === 'NAO' || up === 'NÂO' || up === 'INADIMPLENTE') {
       if (notYetOverdue) return 'ADIMPLENTE';
       return 'INADIMPLENTE';
     }
-    // Unknown free-text value — if proximo is future, give benefit of doubt
     if (notYetOverdue) return 'ADIMPLENTE';
     return 'INADIMPLENTE';
   }
 
-  // No bp_em_dia: for manual students, check installment_dates for overdue (15+ days)
-  if ((s as any).source === 'manual') {
-    const dates: InstallmentDate[] = (s as any).manualInstallments || [];
-    if (dates.length > 0) {
-      const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
-      const hasOverdue = dates.some(d => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
-      if (hasOverdue) return 'INADIMPLENTE';
-      const allPaid = dates.every(d => d.paid);
-      if (allPaid) return 'QUITADO';
-    }
-    return 'ADIMPLENTE'; // no installments = default ADIMPLENTE
-  }
-
-  // Hotmart payment logic
   return getPayStatus(s);
 }
 
@@ -3571,17 +3576,17 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                       const isManual = (s as any).source === 'manual';
                       const isHotmartBRLpay = !isManual && s.currency === 'BRL';
 
-                      // ── Manual students: show only Status badge + Modelo + Observações ──
+                      // ── Manual students: show Status badge using effectiveStatusFor() ──
                       if (isManual) {
-                        const emVal = (s as any).bpEmDia ?? bp.em_dia ?? '';
-                        const emUp  = String(emVal).toUpperCase().trim();
-                        const isOk   = emUp === 'SIM' || emUp === 'ADIMPLENTE';
-                        const isNok  = emUp === 'NÃO' || emUp === 'NAO' || emUp === 'INADIMPLENTE';
-                        const isQuit = emUp === 'QUITADO';
+                        // Use the already-computed 'status' (effectiveStatusFor result) for consistency
+                        // This prevents the badge showing ADIMPLENTE while the row shows 'PAGAMENTO EM ATRASO'
+                        const isOk   = status === 'ADIMPLENTE';
+                        const isNok  = status === 'INADIMPLENTE';
+                        const isQuit = status === 'QUITADO';
                         const badgeBg    = isOk ? 'rgba(74,222,128,0.12)' : isQuit ? 'rgba(56,189,248,0.12)' : isNok ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.07)';
                         const badgeColor = isOk ? GREEN : isQuit ? '#38bdf8' : isNok ? '#f87171' : SILVER;
                         const badgeBorder= isOk ? 'rgba(74,222,128,0.3)' : isQuit ? 'rgba(56,189,248,0.3)' : isNok ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.15)';
-                        const badgeLabel = isOk ? '● Adimplente' : isQuit ? '✔ Quitado' : isNok ? '✗ Inadimplente' : (emVal ? emVal : '—');
+                        const badgeLabel = isOk ? '● Adimplente' : isQuit ? '✔ Quitado' : isNok ? '✗ Inadimplente' : '—';
                         const modelo = (s as any).bpModelo ?? bp.modelo ?? '';
                         // Filter out legacy CPF data that was stored in notes during migration
                         const rawObs = (s as any).notes ?? '';
