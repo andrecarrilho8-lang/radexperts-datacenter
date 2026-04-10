@@ -589,7 +589,7 @@ export default function VendasPage() {
       const email = s._origin === 'hotmart' ? (s.buyer?.email || '') : (s.email || '');
       return name.toLowerCase().includes(q) || email.toLowerCase().includes(q);
     });
-  }, [originFiltered, clientSearch]);
+  }, [vendorFiltered, clientSearch]);
 
   const totalPages  = Math.max(1, Math.ceil(clientFiltered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -871,7 +871,7 @@ export default function VendasPage() {
                   {/* PAGAMENTO */}   <col style={{ width: '110px' }} />
                   {/* VENDEDOR */}    <col style={{ width: '115px' }} />
                   {/* CLIENTE */}     <col />
-                  {/* CURSO */}       <col style={{ width: '350px' }} />
+                  {/* CURSO */}       <col style={{ width: '420px' }} />
                 </colgroup>
                 <thead>
                   <tr style={{ borderBottom:`1px solid ${cardBorder}` }}>
