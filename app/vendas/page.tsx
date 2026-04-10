@@ -871,7 +871,7 @@ export default function VendasPage() {
                   {/* PAGAMENTO */}   <col style={{ width: '110px' }} />
                   {/* VENDEDOR */}    <col style={{ width: '115px' }} />
                   {/* CLIENTE */}     <col />
-                  {/* CURSO */}       <col style={{ width: '260px' }} />
+                  {/* CURSO */}       <col style={{ width: '350px' }} />
                 </colgroup>
                 <thead>
                   <tr style={{ borderBottom:`1px solid ${cardBorder}` }}>
