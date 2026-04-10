@@ -166,56 +166,40 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
   }
 
   return (
-    <>
-      <tr style={{ background: rowBg, borderBottom: dates.length > 0 ? 'none' : `1px solid ${GOLD}15`, transition: 'background 0.4s' }}>
-        {/* Vencimento */}
-        <td className="py-3 px-4 whitespace-nowrap">
-          <span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span>
-        </td>
-        {/* Dias atraso */}
-        <td className="py-3 px-4">
-          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
-            style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
-            {o.daysOverdue}d
-          </span>
-        </td>
-        {/* Valor */}
-        <td className="py-3 px-4 text-right whitespace-nowrap">
-          <div className="flex flex-col items-end gap-0.5">
-            <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(o.amount)}</span>
-            {o.paymentLabel && (
-              <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: `${GOLD}18`, color: GOLD }}>
-                {o.paymentLabel}
-              </span>
-            )}
-          </div>
-        </td>
-        {/* Nome */}
-        <td className="py-3 px-4">
-          <div className="flex flex-col">
-            <NameBtn name={o.name} email={o.email} router={router} />
-            <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</span>
-          </div>
-        </td>
-        {/* Produto */}
-        <td className="py-3 px-4">
-          <span className="text-[11px] font-black uppercase tracking-tight leading-tight block" style={{ color: SILVER }}>
-            {o.product}
-          </span>
-          {!isPix && o.totalInstallments > 1 && (
-            <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-              {paidCount}/{o.totalInstallments} pagas
+    <tr style={{ background: rowBg, borderBottom: `1px solid ${GOLD}15`, transition: 'background 0.4s' }}>
+      {/* Vencimento */}
+      <td className="py-3 px-4 whitespace-nowrap" style={{ verticalAlign: 'top' }}>
+        <span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span>
+      </td>
+      {/* Dias atraso */}
+      <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
+          style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
+          {o.daysOverdue}d
+        </span>
+      </td>
+      {/* Valor */}
+      <td className="py-3 px-4 text-right whitespace-nowrap" style={{ verticalAlign: 'top' }}>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(o.amount)}</span>
+          {o.paymentLabel && (
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: `${GOLD}18`, color: GOLD }}>
+              {o.paymentLabel}
             </span>
           )}
-        </td>
-      </tr>
-
-      {/* Sub-row: installment mini-grid */}
-      {dates.length > 0 && (
-        <tr style={{ background: rowBg, borderBottom: `1px solid ${GOLD}15` }}>
-          <td colSpan={5} className="px-4 pb-3 pt-0">
-            {errMsg && <p className="text-[9px] font-bold mb-2" style={{ color: '#f87171' }}>{errMsg}</p>}
-            <div className="flex flex-wrap gap-2">
+        </div>
+      </td>
+      {/* Nome + chips de parcelas + botão Quitar (TUDO AQUI) */}
+      <td className="py-3 px-4">
+        <div className="flex flex-col gap-2">
+          {/* Nome e email */}
+          <div>
+            <NameBtn name={o.name} email={o.email} router={router} />
+            <div className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</div>
+          </div>
+          {/* Parcelas inline */}
+          {dates.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
               {dates.map((d: any, di: number) => {
                 const due      = Number(d.due_ms);
                 const overdue  = !d.paid && due + GRACE < now;
@@ -223,53 +207,67 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
                 const grace    = !d.paid && !overdue && !future;
                 const isPaying = paying === di;
 
-                const bg     = d.paid ? 'rgba(74,222,128,0.08)'   : overdue ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)';
-                const border = d.paid ? 'rgba(74,222,128,0.25)'   : overdue ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)';
-                const clr    = d.paid ? '#4ade80'                  : overdue ? '#f87171'              : SILVER;
+                const bg     = d.paid ? 'rgba(74,222,128,0.08)'  : overdue ? 'rgba(239,68,68,0.08)'  : 'rgba(255,255,255,0.04)';
+                const border = d.paid ? 'rgba(74,222,128,0.25)'  : overdue ? 'rgba(239,68,68,0.25)'  : 'rgba(255,255,255,0.08)';
+                const clr    = d.paid ? '#4ade80'                 : overdue ? '#f87171'               : SILVER;
 
                 return (
-                  <div key={di} className="flex items-center gap-2 rounded-xl px-3 py-1.5"
-                    style={{ background: bg, border: `1px solid ${border}`, minWidth: 120 }}>
-                    {/* Label */}
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: clr }}>
-                        {d.paid ? '✓' : overdue ? '⚠' : '◷'} Parcela {di + 1}
+                  <div key={di} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1"
+                    style={{ background: bg, border: `1px solid ${border}` }}>
+                    <div className="flex flex-col leading-none">
+                      <span className="text-[8px] font-black uppercase" style={{ color: clr }}>
+                        {d.paid ? '✓' : overdue ? '⚠' : '◷'} P{di + 1}
                       </span>
-                      <span className="text-[9px] font-bold" style={{ color: clr }}>
+                      <span className="text-[8px]" style={{ color: clr }}>
                         {due > 0 ? fmtDate(due) : '—'}
                       </span>
                       {d.paid && d.paid_ms && (
-                        <span className="text-[8px]" style={{ color: '#4ade8090' }}>pago {fmtDate(d.paid_ms)}</span>
+                        <span className="text-[7px]" style={{ color: '#4ade8070' }}>≪ {fmtDate(d.paid_ms)}</span>
                       )}
                     </div>
-                    {/* Quitar button — only for overdue or grace */}
+                    {/* Quitar button: only shown for overdue or grace period */}
                     {!d.paid && (overdue || grace) && (
-                      <button onClick={() => handleQuitar(di)} disabled={isPaying || paying != null}
-                        className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-1 rounded-lg ml-auto whitespace-nowrap"
+                      <button onClick={() => handleQuitar(di)} disabled={paying != null}
+                        className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap"
                         style={{
-                          background: isPaying ? 'rgba(255,255,255,0.05)' : 'rgba(232,177,79,0.15)',
+                          background: isPaying ? 'rgba(255,255,255,0.05)' : `${GOLD}20`,
                           border: `1px solid ${GOLD}50`,
                           color: isPaying ? SILVER : GOLD,
                           cursor: paying != null ? 'wait' : 'pointer',
-                          opacity: paying != null && !isPaying ? 0.5 : 1,
+                          opacity: paying != null && !isPaying ? 0.45 : 1,
+                          flexShrink: 0,
                         }}>
                         {isPaying
-                          ? <span className="material-symbols-outlined text-[11px] animate-spin">progress_activity</span>
-                          : <span className="material-symbols-outlined text-[11px]">payments</span>
+                          ? <span className="material-symbols-outlined text-[10px] animate-spin">progress_activity</span>
+                          : <span className="material-symbols-outlined text-[10px]">payments</span>
                         }
-                        {isPaying ? 'Salvando…' : 'Quitar'}
+                        {isPaying ? '…' : 'Quitar'}
                       </button>
                     )}
                   </div>
                 );
               })}
             </div>
-          </td>
-        </tr>
-      )}
-    </>
+          )}
+          {errMsg && <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>{errMsg}</span>}
+        </div>
+      </td>
+      {/* Produto */}
+      <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
+        <span className="text-[11px] font-black uppercase tracking-tight leading-tight block" style={{ color: SILVER }}>
+          {o.product}
+        </span>
+        {!isPix && o.totalInstallments > 1 && (
+          <span className="text-[9px] font-bold" style={{ color: SILVER }}>
+            {paidCount}/{o.totalInstallments} pagas
+          </span>
+        )}
+      </td>
+    </tr>
   );
 }
+
+
 
 
 function TH({ children, right }: { children: React.ReactNode; right?: boolean }) {

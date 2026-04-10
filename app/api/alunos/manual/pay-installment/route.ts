@@ -67,7 +67,7 @@ export async function PATCH(req: Request) {
     await db`
       UPDATE manual_students
       SET installment_dates = ${JSON.stringify(dates)},
-          updated_at = NOW()
+          updated_at = (EXTRACT(EPOCH FROM NOW()) * 1000)::bigint
       WHERE id = ${row.id}
     `;
 
