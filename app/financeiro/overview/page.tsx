@@ -189,15 +189,37 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
           )}
         </div>
       </td>
-      {/* Nome + chips de parcelas + botão Quitar (TUDO AQUI) */}
-      <td className="py-3 px-4">
+      {/* NOME — limpo */}
+      <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
+        <NameBtn name={o.name} email={o.email} router={router} />
+        <div className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</div>
+      </td>
+
+      {/* PAGAMENTO — chips + resumo financeiro */}
+      <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
         <div className="flex flex-col gap-2">
-          {/* Nome e email */}
-          <div>
-            <NameBtn name={o.name} email={o.email} router={router} />
-            <div className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</div>
+
+          {/* Resumo: forma · pagas · total pago */}
+          <div className="flex flex-wrap items-center gap-2">
+            {o.paymentLabel && (
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-md"
+                style={{ background: `${GOLD}18`, color: GOLD, border: `1px solid ${GOLD}30` }}>
+                {o.paymentLabel}
+              </span>
+            )}
+            {!isPix && o.totalInstallments > 1 && (
+              <span className="text-[9px] font-bold" style={{ color: SILVER }}>
+                {paidCount}/{o.totalInstallments} parcelas pagas
+              </span>
+            )}
+            {!isPix && o.totalInstallments > 1 && paidCount > 0 && (
+              <span className="text-[9px] font-bold" style={{ color: '#4ade80' }}>
+                · {fmtBRL(o.amount * paidCount)} pagos
+              </span>
+            )}
           </div>
-          {/* Parcelas inline */}
+
+          {/* Chips de parcelas com botão Quitar */}
           {dates.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {dates.map((d: any, di: number) => {
@@ -225,7 +247,6 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
                         <span className="text-[7px]" style={{ color: '#4ade8070' }}>≪ {fmtDate(d.paid_ms)}</span>
                       )}
                     </div>
-                    {/* Quitar button: only shown for overdue or grace period */}
                     {!d.paid && (overdue || grace) && (
                       <button onClick={() => handleQuitar(di)} disabled={paying != null}
                         className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap"
@@ -249,27 +270,20 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
               })}
             </div>
           )}
+
           {errMsg && <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>{errMsg}</span>}
         </div>
       </td>
+
       {/* Produto */}
       <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
         <span className="text-[11px] font-black uppercase tracking-tight leading-tight block" style={{ color: SILVER }}>
           {o.product}
         </span>
-        {!isPix && o.totalInstallments > 1 && (
-          <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-            {paidCount}/{o.totalInstallments} pagas
-          </span>
-        )}
       </td>
     </tr>
   );
 }
-
-
-
-
 function TH({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return (
     <th className={`py-4 px-4 text-[12px] font-black uppercase tracking-widest whitespace-nowrap${right ? ' text-right' : ''}`}
@@ -953,10 +967,11 @@ export default function FinanceiroOverviewPage() {
                   <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <colgroup>
                       <col style={{ width: 110 }} />
-                      <col style={{ width: 90 }} />
-                      <col style={{ width: 155 }} />
+                      <col style={{ width: 85 }} />
+                      <col style={{ width: 145 }} />
+                      <col style={{ width: 230 }} />
                       <col />
-                      <col style={{ width: 260 }} />
+                      <col style={{ width: 240 }} />
                     </colgroup>
                     <thead><tr style={{ background: `${GOLD}08` }}>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Vencimento</th>
@@ -966,7 +981,7 @@ export default function FinanceiroOverviewPage() {
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto · Parcelas</th>
                     </tr></thead>
                     <tbody>
-                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={5} accent={GOLD} />) :
+                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={6} accent={GOLD} />) :
                         (data?.manualOverdue || []).length === 0
                           ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>🎉 Nenhum inadimplente PIX Manual.</td></tr>
                           : (() => {
