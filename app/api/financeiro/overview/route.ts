@@ -420,6 +420,7 @@ export async function GET() {
               installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
               paymentType: ptype, paymentLabel: label,
               paidCount,
+              installment_dates: instDates,
               source: 'manual',
             });
           }

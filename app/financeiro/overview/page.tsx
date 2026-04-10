@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -105,124 +105,172 @@ function NameBtn({ name, email, router }: { name: string; email: string; router:
   );
 }
 
-/* ─── ManualOverdueRow — row with quick-pay action ──────────────────────────── */
-function ManualOverdueRow({ o, onPaid, router }: {
+/* ─── ManualOverdueRow — inline installment grid with per-installment quitar ─ */
+function ManualOverdueRow({ o: initialO, onPaid, router }: {
   o: any;
   onPaid: (row: any) => void;
   router: ReturnType<typeof useRouter>;
 }) {
-  const [paying,  setPaying]  = React.useState(false);
-  const [done,    setDone]    = React.useState(false);
-  const [errMsg,  setErrMsg]  = React.useState('');
+  const [o, setO]           = React.useState(initialO);
+  const [paying, setPaying]  = React.useState<number | null>(null); // index being paid
+  const [errMsg, setErrMsg]  = React.useState('');
+  const [allDone, setAllDone]= React.useState(false);
 
-  const severity  = o.daysOverdue > 30 ? '#f87171' : o.daysOverdue > 14 ? '#fb923c' : GOLD;
-  const rowBg     = 'rgba(232,177,79,0.04)';
-  const isPix     = (o.paymentType || '').toUpperCase() === 'PIX' || (o.paymentType || '').toUpperCase() === 'PIX_AVISTA';
-  const paidCount = o.paidCount ?? 0;
+  const severity = o.daysOverdue > 30 ? '#f87171' : o.daysOverdue > 14 ? '#fb923c' : GOLD;
+  const rowBg    = allDone ? 'rgba(74,222,128,0.05)' : 'rgba(232,177,79,0.03)';
+  const isPix    = (o.paymentType || '').toUpperCase() === 'PIX' || (o.paymentType || '').toUpperCase() === 'PIX_AVISTA';
+  const paidCount= (o.paidCount ?? 0);
+  const dates: any[] = o.installment_dates || [];
+  const GRACE = 15 * 24 * 60 * 60 * 1000;
+  const now   = Date.now();
 
-  // installmentNum is 1-based; the API expects 0-based index
-  const installmentIndex = Math.max(0, (o.installmentNum ?? 1) - 1);
-
-  async function handlePay() {
-    if (paying || done) return;
-    setPaying(true);
+  async function handleQuitar(idx: number) {
+    if (paying != null) return;
+    setPaying(idx);
     setErrMsg('');
     try {
-      const res = await fetch('/api/alunos/manual/pay-installment', {
+      const res  = await fetch('/api/alunos/manual/pay-installment', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: o.email, installmentIndex }),
+        body: JSON.stringify({ email: o.email, installmentIndex: idx }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao marcar');
-      setDone(true);
-      // Give a brief moment for the user to see the confirmation before row disappears
-      setTimeout(() => onPaid(json), 900);
+
+      // Update local state
+      const newDates = (json.updatedDates || dates).map((d: any, i: number) =>
+        i === idx ? { ...d, paid: true, paid_ms: json.paidMs } : d
+      );
+      const newPaidCount = newDates.filter((d: any) => d.paid).length;
+      const stillOverdue = newDates.some((d: any) => !d.paid && Number(d.due_ms) + GRACE < now);
+
+      if (json.allPaid || !stillOverdue) {
+        // Student is no longer overdue — remove from list after animation
+        setAllDone(true);
+        setTimeout(() => onPaid(json), 1000);
+      } else {
+        // Still has overdue installments — update data in place
+        setO((prev: any) => ({
+          ...prev,
+          paidCount: newPaidCount,
+          installment_dates: newDates,
+          installmentNum: newDates.findIndex((d: any) => !d.paid && Number(d.due_ms) + GRACE < now) + 1,
+          daysOverdue: Math.floor((now - Math.min(...newDates.filter((d: any) => !d.paid && Number(d.due_ms) + GRACE < now).map((d: any) => Number(d.due_ms)))) / 86_400_000),
+        }));
+      }
     } catch (e: any) {
       setErrMsg(e.message);
     } finally {
-      setPaying(false);
+      setPaying(null);
     }
   }
 
   return (
-    <tr style={{ background: done ? 'rgba(74,222,128,0.06)' : rowBg, borderBottom: `1px solid ${GOLD}15`, transition: 'background 0.3s' }}
-      onMouseEnter={e => { if (!done) e.currentTarget.style.background = `${GOLD}0d`; }}
-      onMouseLeave={e => { if (!done) e.currentTarget.style.background = rowBg; }}>
-      {/* Vencimento — dueDate is the date of the overdue installment */}
-      <td className="py-3 px-4 whitespace-nowrap">
-        <span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span>
-      </td>
-      {/* Dias atraso */}
-      <td className="py-3 px-4">
-        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
-          style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
-          {o.daysOverdue}d
-        </span>
-      </td>
-      {/* Valor */}
-      <td className="py-3 px-4 text-right whitespace-nowrap">
-        <div className="flex flex-col items-end gap-0.5">
-          <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(o.amount)}</span>
-          {o.paymentLabel && (
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: `${GOLD}18`, color: GOLD }}>
-              {o.paymentLabel}
-            </span>
-          )}
+    <>
+      <tr style={{ background: rowBg, borderBottom: dates.length > 0 ? 'none' : `1px solid ${GOLD}15`, transition: 'background 0.4s' }}>
+        {/* Vencimento */}
+        <td className="py-3 px-4 whitespace-nowrap">
+          <span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span>
+        </td>
+        {/* Dias atraso */}
+        <td className="py-3 px-4">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
+            style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
+            {o.daysOverdue}d
+          </span>
+        </td>
+        {/* Valor */}
+        <td className="py-3 px-4 text-right whitespace-nowrap">
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(o.amount)}</span>
+            {o.paymentLabel && (
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: `${GOLD}18`, color: GOLD }}>
+                {o.paymentLabel}
+              </span>
+            )}
+          </div>
+        </td>
+        {/* Nome */}
+        <td className="py-3 px-4">
+          <div className="flex flex-col">
+            <NameBtn name={o.name} email={o.email} router={router} />
+            <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</span>
+          </div>
+        </td>
+        {/* Produto */}
+        <td className="py-3 px-4">
+          <span className="text-[11px] font-black uppercase tracking-tight leading-tight block" style={{ color: SILVER }}>
+            {o.product}
+          </span>
           {!isPix && o.totalInstallments > 1 && (
             <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-              {paidCount}/{o.totalInstallments} pagas · {o.totalInstallments - paidCount} restantes
+              {paidCount}/{o.totalInstallments} pagas
             </span>
           )}
-        </div>
-      </td>
-      {/* Parcela */}
-      <td className="py-3 px-4">
-        <span className="text-[11px] font-black" style={{ color: SILVER }}>
-          {isPix ? 'PIX' : `${o.installmentNum}/${o.totalInstallments}`}
-        </span>
-      </td>
-      {/* Nome */}
-      <td className="py-3 px-4">
-        <div className="flex flex-col">
-          <NameBtn name={o.name} email={o.email} router={router} />
-          <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</span>
-        </div>
-      </td>
-      {/* Produto */}
-      <td className="py-3 px-4">
-        <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
-          {o.product}
-        </span>
-      </td>
-      {/* Ação rápida */}
-      <td className="py-3 px-4">
-        {done ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-black px-3 py-1.5 rounded-xl" style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
-            <span className="material-symbols-outlined text-[12px]">check_circle</span>Pago!
-          </span>
-        ) : (
-          <div className="flex flex-col gap-1">
-            <button onClick={handlePay} disabled={paying}
-              className="inline-flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl whitespace-nowrap transition-all"
-              style={{
-                background: paying ? 'rgba(255,255,255,0.05)' : 'rgba(74,222,128,0.12)',
-                border: '1px solid rgba(74,222,128,0.3)',
-                color: paying ? SILVER : '#4ade80',
-                cursor: paying ? 'wait' : 'pointer',
-              }}>
-              {paying
-                ? <><span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>Salvando…</>
-                : <><span className="material-symbols-outlined text-[12px]">check_circle</span>Pago Hoje</>
-              }
-            </button>
-            {errMsg && <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>{errMsg}</span>}
-          </div>
-        )}
-      </td>
-    </tr>
+        </td>
+      </tr>
+
+      {/* Sub-row: installment mini-grid */}
+      {dates.length > 0 && (
+        <tr style={{ background: rowBg, borderBottom: `1px solid ${GOLD}15` }}>
+          <td colSpan={5} className="px-4 pb-3 pt-0">
+            {errMsg && <p className="text-[9px] font-bold mb-2" style={{ color: '#f87171' }}>{errMsg}</p>}
+            <div className="flex flex-wrap gap-2">
+              {dates.map((d: any, di: number) => {
+                const due      = Number(d.due_ms);
+                const overdue  = !d.paid && due + GRACE < now;
+                const future   = !d.paid && due > now;
+                const grace    = !d.paid && !overdue && !future;
+                const isPaying = paying === di;
+
+                const bg     = d.paid ? 'rgba(74,222,128,0.08)'   : overdue ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)';
+                const border = d.paid ? 'rgba(74,222,128,0.25)'   : overdue ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)';
+                const clr    = d.paid ? '#4ade80'                  : overdue ? '#f87171'              : SILVER;
+
+                return (
+                  <div key={di} className="flex items-center gap-2 rounded-xl px-3 py-1.5"
+                    style={{ background: bg, border: `1px solid ${border}`, minWidth: 120 }}>
+                    {/* Label */}
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: clr }}>
+                        {d.paid ? '✓' : overdue ? '⚠' : '◷'} Parcela {di + 1}
+                      </span>
+                      <span className="text-[9px] font-bold" style={{ color: clr }}>
+                        {due > 0 ? fmtDate(due) : '—'}
+                      </span>
+                      {d.paid && d.paid_ms && (
+                        <span className="text-[8px]" style={{ color: '#4ade8090' }}>pago {fmtDate(d.paid_ms)}</span>
+                      )}
+                    </div>
+                    {/* Quitar button — only for overdue or grace */}
+                    {!d.paid && (overdue || grace) && (
+                      <button onClick={() => handleQuitar(di)} disabled={isPaying || paying != null}
+                        className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-1 rounded-lg ml-auto whitespace-nowrap"
+                        style={{
+                          background: isPaying ? 'rgba(255,255,255,0.05)' : 'rgba(232,177,79,0.15)',
+                          border: `1px solid ${GOLD}50`,
+                          color: isPaying ? SILVER : GOLD,
+                          cursor: paying != null ? 'wait' : 'pointer',
+                          opacity: paying != null && !isPaying ? 0.5 : 1,
+                        }}>
+                        {isPaying
+                          ? <span className="material-symbols-outlined text-[11px] animate-spin">progress_activity</span>
+                          : <span className="material-symbols-outlined text-[11px]">payments</span>
+                        }
+                        {isPaying ? 'Salvando…' : 'Quitar'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
+
 
 function TH({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return (
@@ -907,24 +955,20 @@ export default function FinanceiroOverviewPage() {
                   <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <colgroup>
                       <col style={{ width: 110 }} />
-                      <col style={{ width: 80 }} />
-                      <col style={{ width: 140 }} />
-                      <col style={{ width: 80 }} />
-                      <col style={{ width: 240 }} />
+                      <col style={{ width: 90 }} />
+                      <col style={{ width: 155 }} />
                       <col />
-                      <col style={{ width: 130 }} />
+                      <col style={{ width: 260 }} />
                     </colgroup>
                     <thead><tr style={{ background: `${GOLD}08` }}>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Vencimento</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias Atraso</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Parcela</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Ação</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto · Parcelas</th>
                     </tr></thead>
                     <tbody>
-                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={7} accent={GOLD} />) :
+                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={5} accent={GOLD} />) :
                         (data?.manualOverdue || []).length === 0
                           ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>🎉 Nenhum inadimplente PIX Manual.</td></tr>
                           : (() => {
