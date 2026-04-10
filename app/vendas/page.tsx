@@ -790,14 +790,40 @@ export default function VendasPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Filtro vendedor */}
+                {/* Chips de Vendedor — clique filtra imediatamente */}
                 {vendedorList.length > 0 && (
-                  <select value={vendedorFilter} onChange={e => { setVendedorFilter(e.target.value); resetPage(); }}
-                    className="py-2 px-3 rounded-xl text-[11px] font-black outline-none"
-                    style={{ background:'rgba(255,255,255,0.06)', border:`1px solid ${vendedorFilter ? GREEN+'66' : cardBorder}`, color: vendedorFilter ? GREEN : SILVER, cursor:'pointer' }}>
-                    <option value="" style={{ background:NAVY }}>Todos os Vendedores</option>
-                    {vendedorList.map(v => <option key={v} value={v} style={{ background:NAVY }}>{v}</option>)}
-                  </select>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <button
+                      onClick={() => { setVendedorFilter(''); resetPage(); }}
+                      className="px-3 py-2 text-[11px] font-black transition-all rounded-l-xl"
+                      style={{
+                        borderRadius: '10px 0 0 10px',
+                        background: !vendedorFilter ? GOLD : 'transparent',
+                        color: !vendedorFilter ? NAVY : SILVER,
+                        border: `1px solid ${cardBorder}`,
+                        borderRight: 'none',
+                      }}>
+                      Todos os Vendedores
+                    </button>
+                    {vendedorList.map((v, vi) => {
+                      const isLast = vi === vendedorList.length - 1;
+                      const isActive = vendedorFilter === v;
+                      return (
+                        <button key={v}
+                          onClick={() => { setVendedorFilter(isActive ? '' : v); resetPage(); }}
+                          className="px-3 py-2 text-[11px] font-black transition-all"
+                          style={{
+                            borderRadius: isLast ? '0 10px 10px 0' : 0,
+                            background: isActive ? 'rgba(74,222,128,0.18)' : 'transparent',
+                            color: isActive ? GREEN : SILVER,
+                            border: `1px solid ${isActive ? GREEN + '55' : cardBorder}`,
+                            borderLeft: 'none',
+                          }}>
+                          {v}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
                 {/* Filtro origem */}
                 <div className="flex items-center gap-1 rounded-xl overflow-hidden" style={{ border:`1px solid ${cardBorder}` }}>
@@ -839,13 +865,13 @@ export default function VendasPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left" style={{ tableLayout:'fixed', borderCollapse:'collapse' }}>
                 <colgroup>
-                  <col style={{ width:'110px' }} />
-                  <col style={{ width:'90px' }} />
-                  <col style={{ width:'160px' }} />
-                  <col style={{ width:'140px' }} />
-                  <col style={{ width:'120px' }} />
-                  <col style={{ width:'300px' }} />
-                  <col style={{ width:'180px' }} />
+                  {/* DATA */}        <col style={{ width: '90px'  }} />
+                  {/* ORIGEM */}      <col style={{ width: '80px'  }} />
+                  {/* FATURAMENTO */} <col style={{ width: '150px' }} />
+                  {/* PAGAMENTO */}   <col style={{ width: '110px' }} />
+                  {/* VENDEDOR */}    <col style={{ width: '115px' }} />
+                  {/* CLIENTE */}     <col />
+                  {/* CURSO */}       <col style={{ width: '200px' }} />
                 </colgroup>
                 <thead>
                   <tr style={{ borderBottom:`1px solid ${cardBorder}` }}>
