@@ -416,6 +416,7 @@ export async function GET() {
             bpEmDiaOverdueSet.add(email);
             manualOverdue.push({
               name, email, product,
+              manualStudentId: row.id,
               dueDate: nextUnpaid.due_ms, daysOverdue, amount: instAmt,
               installmentNum: nextUnpaid.idx + 1, totalInstallments: totalInst,
               paymentType: ptype, paymentLabel: label,

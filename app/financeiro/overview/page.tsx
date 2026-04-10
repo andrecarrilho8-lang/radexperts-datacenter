@@ -132,7 +132,11 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
       const res  = await fetch('/api/alunos/manual/pay-installment', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: o.email, installmentIndex: idx }),
+        body: JSON.stringify({
+          email: o.email,
+          installmentIndex: idx,
+          manualStudentId: o.manualStudentId,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Erro ao marcar');
@@ -563,6 +567,14 @@ export default function FinanceiroOverviewPage() {
       .then(r => r.json())
       .then(d => { if (d.error) setError(d.error); else setData(d); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
+  }, []);
+
+  // Silent refetch — does not show loading skeletons, used after Quitar to update Vendas / Entradas
+  const silentRefetch = React.useCallback(() => {
+    fetch('/api/financeiro/overview')
+      .then(r => r.json())
+      .then(d => { if (!d.error) setData(d); })
+      .catch(() => { /* silent */ });
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -1001,8 +1013,8 @@ export default function FinanceiroOverviewPage() {
                                     ...prev,
                                     manualOverdue: prev.manualOverdue.filter((_: any, i: number) => i !== idx)
                                   } : prev);
-                                  // Refetch to update Vendas + Últimas Entradas with the new payment
-                                  setTimeout(() => fetchData(), 600);
+                                  // Silent refetch — updates Vendas + Últimas Entradas without full page reload
+                                  setTimeout(() => silentRefetch(), 800);
                                 }}
                               />
                             ));

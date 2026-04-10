@@ -6,18 +6,20 @@ export const runtime  = 'nodejs';
 
 /**
  * PATCH /api/alunos/manual/pay-installment
- * Body: { email: string, installmentIndex: number }
+ * Body: { email: string, installmentIndex: number, manualStudentId?: number }
  *
  * Marks the installment at `installmentIndex` as paid (today).
  * Then updates bp_em_dia based on new installment state:
- *   - All paid → 'Quitado'
+ *   - All paid      → 'Quitado'
  *   - No more overdue → 'Adimplente'
+ *   - Still overdue   → 'Inadimplente'
  */
 export async function PATCH(req: Request) {
   try {
-    const { email, installmentIndex } = await req.json() as {
+    const { email, installmentIndex, manualStudentId } = await req.json() as {
       email: string;
       installmentIndex: number;
+      manualStudentId?: number;
     };
 
     if (!email || installmentIndex == null) {
@@ -27,14 +29,23 @@ export async function PATCH(req: Request) {
     const db = getDb();
     const emailLower = email.toLowerCase().trim();
 
-    // Fetch the latest manual_student record for this email
-    const rows = await db`
-      SELECT id, installment_dates
-      FROM manual_students
-      WHERE LOWER(email) = ${emailLower}
-      ORDER BY entry_date DESC
-      LIMIT 1
-    ` as any[];
+    // Fetch the specific record — prefer by id if provided, otherwise latest by email
+    const rows = manualStudentId
+      ? await db`
+          SELECT id, installment_dates
+          FROM manual_students
+          WHERE id = ${manualStudentId}
+          LIMIT 1
+        ` as any[]
+      : await db`
+          SELECT id, installment_dates
+          FROM manual_students
+          WHERE LOWER(email) = ${emailLower}
+            AND installment_dates IS NOT NULL
+            AND installment_dates != '[]'
+          ORDER BY entry_date DESC
+          LIMIT 1
+        ` as any[];
 
     if (rows.length === 0) {
       return NextResponse.json({ error: 'Aluno manual não encontrado' }, { status: 404 });
@@ -49,18 +60,23 @@ export async function PATCH(req: Request) {
       if (Array.isArray(raw)) dates = raw;
     } catch { /* ignore */ }
 
-    if (installmentIndex < 0 || installmentIndex >= dates.length) {
-      return NextResponse.json({ error: 'Índice de parcela inválido' }, { status: 400 });
+    if (dates.length === 0) {
+      return NextResponse.json({ error: 'Este aluno não tem parcelas cadastradas' }, { status: 400 });
     }
 
-    // Mark the installment as paid
+    if (installmentIndex < 0 || installmentIndex >= dates.length) {
+      return NextResponse.json({ error: `Índice de parcela inválido: ${installmentIndex} (total: ${dates.length})` }, { status: 400 });
+    }
+
+    // Mark the installment as paid with today's timestamp
     const paidMs = Date.now();
     dates[installmentIndex] = { ...dates[installmentIndex], paid: true, paid_ms: paidMs };
 
-    // Determine new effective status
+    // Determine new effective status using the hierarchy
     const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
+    const nowMs    = Date.now();
     const allPaid  = dates.every(d => d.paid);
-    const hasOverdue = dates.some(d => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
+    const hasOverdue = dates.some(d => !d.paid && Number(d.due_ms) + GRACE_15 < nowMs);
     const newStatus = allPaid ? 'Quitado' : hasOverdue ? 'Inadimplente' : 'Adimplente';
 
     // Update manual_students installment_dates
@@ -71,12 +87,14 @@ export async function PATCH(req: Request) {
       WHERE id = ${row.id}
     `;
 
-    // Update buyer_profiles bp_em_dia
+    // Update buyer_profiles bp_em_dia for ALL records with this email
     await db`
       UPDATE buyer_profiles
       SET bp_em_dia = ${newStatus}
       WHERE LOWER(email) = ${emailLower}
     `;
+
+    console.log(`[pay-installment] ${emailLower} parcela ${installmentIndex} paga → status: ${newStatus}`);
 
     return NextResponse.json({
       success: true,
@@ -84,6 +102,7 @@ export async function PATCH(req: Request) {
       allPaid,
       paidMs,
       updatedDates: dates,
+      recordId: row.id,
     });
   } catch (e: any) {
     console.error('[pay-installment]', e);
