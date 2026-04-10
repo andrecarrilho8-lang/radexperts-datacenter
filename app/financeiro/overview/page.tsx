@@ -105,6 +105,125 @@ function NameBtn({ name, email, router }: { name: string; email: string; router:
   );
 }
 
+/* ─── ManualOverdueRow — row with quick-pay action ──────────────────────────── */
+function ManualOverdueRow({ o, onPaid, router }: {
+  o: any;
+  onPaid: (row: any) => void;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [paying,  setPaying]  = React.useState(false);
+  const [done,    setDone]    = React.useState(false);
+  const [errMsg,  setErrMsg]  = React.useState('');
+
+  const severity  = o.daysOverdue > 30 ? '#f87171' : o.daysOverdue > 14 ? '#fb923c' : GOLD;
+  const rowBg     = 'rgba(232,177,79,0.04)';
+  const isPix     = (o.paymentType || '').toUpperCase() === 'PIX' || (o.paymentType || '').toUpperCase() === 'PIX_AVISTA';
+  const paidCount = o.paidCount ?? 0;
+
+  // installmentNum is 1-based; the API expects 0-based index
+  const installmentIndex = Math.max(0, (o.installmentNum ?? 1) - 1);
+
+  async function handlePay() {
+    if (paying || done) return;
+    setPaying(true);
+    setErrMsg('');
+    try {
+      const res = await fetch('/api/alunos/manual/pay-installment', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: o.email, installmentIndex }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao marcar');
+      setDone(true);
+      // Give a brief moment for the user to see the confirmation before row disappears
+      setTimeout(() => onPaid(json), 900);
+    } catch (e: any) {
+      setErrMsg(e.message);
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  return (
+    <tr style={{ background: done ? 'rgba(74,222,128,0.06)' : rowBg, borderBottom: `1px solid ${GOLD}15`, transition: 'background 0.3s' }}
+      onMouseEnter={e => { if (!done) e.currentTarget.style.background = `${GOLD}0d`; }}
+      onMouseLeave={e => { if (!done) e.currentTarget.style.background = rowBg; }}>
+      {/* Vencimento — dueDate is the date of the overdue installment */}
+      <td className="py-3 px-4 whitespace-nowrap">
+        <span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span>
+      </td>
+      {/* Dias atraso */}
+      <td className="py-3 px-4">
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
+          style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
+          {o.daysOverdue}d
+        </span>
+      </td>
+      {/* Valor */}
+      <td className="py-3 px-4 text-right whitespace-nowrap">
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(o.amount)}</span>
+          {o.paymentLabel && (
+            <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: `${GOLD}18`, color: GOLD }}>
+              {o.paymentLabel}
+            </span>
+          )}
+          {!isPix && o.totalInstallments > 1 && (
+            <span className="text-[9px] font-bold" style={{ color: SILVER }}>
+              {paidCount}/{o.totalInstallments} pagas · {o.totalInstallments - paidCount} restantes
+            </span>
+          )}
+        </div>
+      </td>
+      {/* Parcela */}
+      <td className="py-3 px-4">
+        <span className="text-[11px] font-black" style={{ color: SILVER }}>
+          {isPix ? 'PIX' : `${o.installmentNum}/${o.totalInstallments}`}
+        </span>
+      </td>
+      {/* Nome */}
+      <td className="py-3 px-4">
+        <div className="flex flex-col">
+          <NameBtn name={o.name} email={o.email} router={router} />
+          <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</span>
+        </div>
+      </td>
+      {/* Produto */}
+      <td className="py-3 px-4">
+        <span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>
+          {o.product}
+        </span>
+      </td>
+      {/* Ação rápida */}
+      <td className="py-3 px-4">
+        {done ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-black px-3 py-1.5 rounded-xl" style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>
+            <span className="material-symbols-outlined text-[12px]">check_circle</span>Pago!
+          </span>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <button onClick={handlePay} disabled={paying}
+              className="inline-flex items-center gap-1.5 text-[10px] font-black px-3 py-1.5 rounded-xl whitespace-nowrap transition-all"
+              style={{
+                background: paying ? 'rgba(255,255,255,0.05)' : 'rgba(74,222,128,0.12)',
+                border: '1px solid rgba(74,222,128,0.3)',
+                color: paying ? SILVER : '#4ade80',
+                cursor: paying ? 'wait' : 'pointer',
+              }}>
+              {paying
+                ? <><span className="material-symbols-outlined text-[12px] animate-spin">progress_activity</span>Salvando…</>
+                : <><span className="material-symbols-outlined text-[12px]">check_circle</span>Pago Hoje</>
+              }
+            </button>
+            {errMsg && <span className="text-[9px] font-bold" style={{ color: '#f87171' }}>{errMsg}</span>}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function TH({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return (
     <th className={`py-4 px-4 text-[12px] font-black uppercase tracking-widest whitespace-nowrap${right ? ' text-right' : ''}`}
@@ -622,7 +741,7 @@ export default function FinanceiroOverviewPage() {
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
                     </tr></thead>
                     <tbody>
-                      {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={6} accent={GOLD} />) :
+                      {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={7} accent={GOLD} />) :
                         (data?.manualUpcoming || []).length === 0
                           ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Nenhum próximo pagamento manual encontrado.</td></tr>
                           : (data!.manualUpcoming).map((u, idx) => {
@@ -787,12 +906,13 @@ export default function FinanceiroOverviewPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <colgroup>
-                      <col style={{ width: 120 }} />
-                      <col style={{ width: 95 }} />
-                      <col style={{ width: 150 }} />
-                      <col style={{ width: 95 }} />
+                      <col style={{ width: 110 }} />
+                      <col style={{ width: 80 }} />
+                      <col style={{ width: 140 }} />
+                      <col style={{ width: 80 }} />
+                      <col style={{ width: 240 }} />
                       <col />
-                      <col style={{ width: 200 }} />
+                      <col style={{ width: 130 }} />
                     </colgroup>
                     <thead><tr style={{ background: `${GOLD}08` }}>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Vencimento</th>
@@ -801,52 +921,29 @@ export default function FinanceiroOverviewPage() {
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Parcela</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Ação</th>
                     </tr></thead>
                     <tbody>
-                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={6} accent={GOLD} />) :
+                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={7} accent={GOLD} />) :
                         (data?.manualOverdue || []).length === 0
                           ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>🎉 Nenhum inadimplente PIX Manual.</td></tr>
-                          : data!.manualOverdue.map((o, idx) => {
-                              const severity = o.daysOverdue > 30 ? '#f87171' : o.daysOverdue > 14 ? '#fb923c' : GOLD;
-                              const rowBg = idx % 2 === 0 ? 'transparent' : `${GOLD}05`;
-                              const isPix = (o.paymentType || '').toUpperCase() === 'PIX' || (o.paymentType || '').toUpperCase() === 'PIX_AVISTA';
-                              const paidCount = o.paidCount ?? 0;
-                              return (
-                                <tr key={`${o.email}-${idx}`} style={{ background: rowBg, borderBottom: `1px solid ${GOLD}15` }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = `${GOLD}0d`)}
-                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span></td>
-                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black" style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>{o.daysOverdue}d</span></td>
-                                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                                    <div className="flex flex-col items-end gap-0.5">
-                                      <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(o.amount)}</span>
-                                      {o.paymentLabel && (
-                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: `${GOLD}18`, color: GOLD }}>
-                                          {o.paymentLabel}
-                                        </span>
-                                      )}
-                                      {!isPix && o.totalInstallments > 1 && (
-                                        <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-                                          {paidCount}/{o.totalInstallments} pagas · {o.totalInstallments - paidCount} restantes
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <span className="text-[11px] font-black" style={{ color: SILVER }}>
-                                      {isPix ? 'PIX' : `${o.installmentNum}/${o.totalInstallments}`}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <div className="flex flex-col">
-                                      <NameBtn name={o.name} email={o.email} router={router} />
-                                      <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4"><span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product}</span></td>
-                                </tr>
-                              );
-                            })
+                          : (() => {
+                            // Local state for optimistic pay updates — track paid emails+index
+                            // We use a ref-and-forcerender pattern inside the map via closure
+                            return data!.manualOverdue.map((o, idx) => (
+                              <ManualOverdueRow
+                                key={`${o.email}-${o.installmentNum}-${idx}`}
+                                o={o}
+                                router={router}
+                                onPaid={(updatedRow) => {
+                                  setData((prev: any) => prev ? {
+                                    ...prev,
+                                    manualOverdue: prev.manualOverdue.filter((_: any, i: number) => i !== idx)
+                                  } : prev);
+                                }}
+                              />
+                            ));
+                          })()
                       }
                     </tbody>
                   </table>
