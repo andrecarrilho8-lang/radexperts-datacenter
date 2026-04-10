@@ -144,10 +144,10 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
       const newPaidCount = newDates.filter((d: any) => d.paid).length;
       const stillOverdue = newDates.some((d: any) => !d.paid && Number(d.due_ms) + GRACE < now);
 
-      if (json.allPaid || !stillOverdue) {
-        // Student is no longer overdue — remove from list after animation
+  if (json.allPaid || !stillOverdue) {
+        // Flash green then remove row
         setAllDone(true);
-        setTimeout(() => onPaid(json), 1000);
+        setTimeout(() => onPaid(json), 1100);
       } else {
         // Still has overdue installments — update data in place
         setO((prev: any) => ({
@@ -242,20 +242,22 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
                     </div>
                     {!d.paid && (overdue || grace) && (
                       <button onClick={() => handleQuitar(di)} disabled={paying != null}
-                        className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap"
+                        className="inline-flex items-center gap-1 font-black px-2.5 py-1 rounded-lg whitespace-nowrap transition-all"
                         style={{
-                          background: isPaying ? 'rgba(255,255,255,0.05)' : `${GOLD}20`,
-                          border: `1px solid ${GOLD}50`,
+                          fontSize: '11px',
+                          background: isPaying ? 'rgba(255,255,255,0.05)' : `${GOLD}25`,
+                          border: `1px solid ${GOLD}60`,
                           color: isPaying ? SILVER : GOLD,
                           cursor: paying != null ? 'wait' : 'pointer',
                           opacity: paying != null && !isPaying ? 0.45 : 1,
                           flexShrink: 0,
+                          letterSpacing: '0.02em',
                         }}>
                         {isPaying
-                          ? <span className="material-symbols-outlined text-[10px] animate-spin">progress_activity</span>
-                          : <span className="material-symbols-outlined text-[10px]">payments</span>
+                          ? <span className="material-symbols-outlined animate-spin" style={{ fontSize: 13 }}>progress_activity</span>
+                          : <span className="material-symbols-outlined" style={{ fontSize: 13 }}>payments</span>
                         }
-                        {isPaying ? '…' : 'Quitar'}
+                        {isPaying ? 'Salvando…' : 'Quitar'}
                       </button>
                     )}
                   </div>
@@ -552,16 +554,18 @@ export default function FinanceiroOverviewPage() {
   const [hoveredTab, setHoveredTab] = useState<Tab | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    // Tie into the global golden loading bar
+  const fetchData = React.useCallback(() => {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('dashboard:loading'));
     }
+    setLoading(true);
     fetch('/api/financeiro/overview')
       .then(r => r.json())
       .then(d => { if (d.error) setError(d.error); else setData(d); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const tab = TABS.find(t => t.key === activeTab)!;
   const counts = {
@@ -991,11 +995,14 @@ export default function FinanceiroOverviewPage() {
                                 key={`${o.email}-${o.installmentNum}-${idx}`}
                                 o={o}
                                 router={router}
-                                onPaid={(updatedRow) => {
+                                onPaid={() => {
+                                  // Remove row optimistically
                                   setData((prev: any) => prev ? {
                                     ...prev,
                                     manualOverdue: prev.manualOverdue.filter((_: any, i: number) => i !== idx)
                                   } : prev);
+                                  // Refetch to update Vendas + Últimas Entradas with the new payment
+                                  setTimeout(() => fetchData(), 600);
                                 }}
                               />
                             ));
