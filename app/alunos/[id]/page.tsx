@@ -82,6 +82,31 @@ export default function AlunoPage() {
   const [uploading,   setUploading]   = useState(false);
   const [uploadErr,   setUploadErr]   = useState('');
   const [editTarget,  setEditTarget]  = useState<ManualStudentFields | null>(null);
+  const [quitando,    setQuitando]    = useState<Set<string>>(new Set());
+
+  const handleQuitar = async (ms: any, di: number) => {
+    const key = `${ms.id}-${di}`;
+    setQuitando(prev => new Set(prev).add(key));
+    try {
+      await fetch('/api/alunos/manual/pay-installment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email:            ms.email,
+          manualStudentId:  ms.id,
+          installmentIndex: di,
+        }),
+      });
+      // Silent reload — just refresh data without loading skeleton
+      const res = await fetch(`/api/alunos/${id}`);
+      const refreshed = await res.json();
+      setData(refreshed);
+    } catch {
+      // non-fatal — UI stays as-is
+    } finally {
+      setQuitando(prev => { const s = new Set(prev); s.delete(key); return s; });
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -932,6 +957,33 @@ export default function AlunoPage() {
                                           {Math.floor((now - due) / 86_400_000)}d atraso
                                         </p>
                                       )}
+                                      {/* ── Chip Quitar (parcelas em atraso) ── */}
+                                      {!d.paid && overdue && (() => {
+                                        const key = `${ms.id}-${di}`;
+                                        const isQ = quitando.has(key);
+                                        return (
+                                          <button
+                                            onClick={() => !isQ && handleQuitar(ms, di)}
+                                            disabled={isQ}
+                                            style={{
+                                              marginTop: 6,
+                                              display: 'flex', alignItems: 'center', gap: 4,
+                                              fontSize: 11, fontWeight: 900, padding: '4px 10px',
+                                              borderRadius: 20, cursor: isQ ? 'default' : 'pointer',
+                                              border: `1px solid ${isQ ? 'rgba(74,222,128,0.4)' : 'rgba(74,222,128,0.3)'}`,
+                                              background: isQ ? 'rgba(74,222,128,0.25)' : 'rgba(74,222,128,0.12)',
+                                              color: '#4ade80',
+                                              textTransform: 'uppercase', letterSpacing: '0.05em',
+                                              transition: 'all 0.2s',
+                                            }}
+                                          >
+                                            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>
+                                              {isQ ? 'hourglass_empty' : 'check_circle'}
+                                            </span>
+                                            {isQ ? 'Salvando...' : 'Quitar'}
+                                          </button>
+                                        );
+                                      })()}
                                     </div>
                                   );
                                 })}
