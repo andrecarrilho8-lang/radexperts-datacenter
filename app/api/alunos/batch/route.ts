@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/app/lib/db';
 import { setCache } from '@/app/lib/metaApi';
+import { invalidateSalesCache } from '@/app/lib/salesCache';
 
-function bustCursosCache() { setCache('cursos_list_v10', { data: null, expires_at: 0, stale_until: 0 }); }
+function bustCursosCache() {
+  setCache('cursos_list_v10', { data: null, expires_at: 0, stale_until: 0 });
+  invalidateSalesCache();
+}
 
 export const dynamic = 'force-dynamic';
 export const runtime  = 'nodejs';

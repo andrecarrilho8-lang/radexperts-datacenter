@@ -7,8 +7,8 @@ import { getDb } from '@/app/lib/db';
 // Statuses that mean the student has legitimate paid access (per Hotmart docs)
 const APPROVED  = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
 const CACHE_KEY   = 'cursos_list_v10';
-const CACHE_TTL   = 12 * 60 * 60 * 1000; // 12 h fresh
-const STALE_TTL   = 24 * 60 * 60 * 1000; // 24 h stale (serve while revalidating)
+const CACHE_TTL   = 2 * 60 * 1000;  // 2 min fresh — manual students appear quickly
+const STALE_TTL   = 5 * 60 * 1000;  // 5 min stale-while-revalidate
 let _revalidating = false;
 
 async function buildCourseList() {

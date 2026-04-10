@@ -36,7 +36,7 @@ import { getDb } from '@/app/lib/db';
  */
 
 const ACTIVE_STATUSES = new Set(['APPROVED', 'COMPLETE', 'PRODUCER_CONFIRMED', 'CONFIRMED']);
-const CACHE_TTL = 2 * 60 * 60 * 1000;
+const CACHE_TTL = 2 * 60 * 1000; // 2 min — new students appear within seconds
 
 const CURRENCY_TO_ISO: Record<string, string> = {
   BRL: 'br', USD: 'us', EUR: 'eu', COP: 'co', MXN: 'mx',
