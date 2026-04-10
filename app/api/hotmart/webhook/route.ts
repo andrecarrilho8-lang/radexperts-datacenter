@@ -153,6 +153,24 @@ export async function POST(request: Request) {
             purchase_count     = buyer_profiles.purchase_count + 1,
             updated_at         = ${now}
         `;
+
+        // 3. Auto-attribute vendedor from sck_vendedor_map if SCK is present and vendedor not yet set
+        if (sck) {
+          const updated = await sql`
+            UPDATE buyer_profiles bp
+            SET
+              vendedor   = svm.vendedor,
+              updated_at = ${now}
+            FROM sck_vendedor_map svm
+            WHERE bp.email  = ${buyerEmail}
+              AND bp.sck    = svm.sck
+              AND (bp.vendedor IS NULL OR TRIM(bp.vendedor) = '')
+            RETURNING bp.vendedor
+          ` as any[];
+          if (updated.length > 0) {
+            console.log(`[Webhook] Vendedor atribuído automaticamente: ${buyerEmail} → ${updated[0].vendedor} (sck=${sck})`);
+          }
+        }
       }
     } catch (err: any) {
       console.error('[Webhook] Neon persist error:', err.message);
