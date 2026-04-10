@@ -105,6 +105,33 @@ function NameBtn({ name, email, router }: { name: string; email: string; router:
   );
 }
 
+/* ─── Skeleton / Loading ─────────────────────────────────────────────────── */
+const SHIMMER_STYLE: React.CSSProperties = {
+  background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.10) 40%, rgba(255,255,255,0.04) 100%)',
+  backgroundSize: '400px 100%',
+  animation: 'shimmer 2s infinite linear',
+  borderRadius: 8,
+};
+function SkelCell({ w = '70%', h = 14, delay = 0 }: { w?: string | number; h?: number; delay?: number }) {
+  return (
+    <div style={{ ...SHIMMER_STYLE, width: w, height: h, animationDelay: `${delay}ms`, maxWidth: '100%' }} />
+  );
+}
+function SkelRow({ cols, accent }: { cols: number; accent: string }) {
+  return (
+    <tr style={{ borderBottom: `1px solid ${accent}10` }}>
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} className="py-3 px-4">
+          <div className="flex flex-col gap-1.5">
+            <SkelCell w={i === 0 ? '55%' : i === cols - 1 ? '40%' : '75%'} delay={i * 60} />
+            {(i === 0 || i === cols - 2) && <SkelCell w="45%" h={10} delay={i * 60 + 80} />}
+          </div>
+        </td>
+      ))}
+    </tr>
+  );
+}
+
 /* ─── ManualOverdueRow — inline installment grid with per-installment quitar ─ */
 function ManualOverdueRow({ o: initialO, onPaid, router }: {
   o: any;
@@ -299,17 +326,7 @@ function TH({ children, right }: { children: React.ReactNode; right?: boolean })
   );
 }
 
-function SkelRow({ cols, accent }: { cols: number; accent: string }) {
-  return (
-    <tr style={{ borderBottom: `1px solid ${accent}18` }}>
-      {[...Array(cols)].map((_, i) => (
-        <td key={i} className="py-4 px-4">
-          <div className="h-3 rounded animate-pulse" style={{ background: `${accent}18`, width: i === 0 ? '50%' : '75%' }} />
-        </td>
-      ))}
-    </tr>
-  );
-}
+
 
 /* ─── Types ─────────────────────────────────────────────────────────────────── */
 type Transaction = {

@@ -94,7 +94,7 @@ export async function PATCH(req: Request) {
       WHERE LOWER(email) = ${emailLower}
     `;
 
-    console.log(`[pay-installment] ${emailLower} parcela ${installmentIndex} paga → status: ${newStatus}`);
+
 
     return NextResponse.json({
       success: true,

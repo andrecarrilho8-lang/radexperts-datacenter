@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   const event   = (body.event || '').toUpperCase();
   const eventId = body.id || `${Date.now()}`;
 
-  console.log(`[Hotmart Webhook] Recebido: event=${event} id=${eventId}`);
+
 
   /* ── Extract buyer/tracking data (needed for DB regardless of event type) ── */
   const d        = body.data     || {};
@@ -179,7 +179,6 @@ export async function POST(request: Request) {
 
   /* ── Only process approved purchases for sales dashboard ── */
   if (!APPROVED_EVENTS.has(event)) {
-    console.log(`[Hotmart Webhook] Ignorado pelo sales store: ${event}`);
     return NextResponse.json({ success: true, ignored: event });
   }
 
@@ -278,12 +277,6 @@ export async function POST(request: Request) {
   storeWebhookSale(sale);
   invalidateSalesCache();
 
-  console.log(
-    `[Hotmart Webhook] Armazenado: ${sale_id} | ${product_name} | R$${amountBrl.toFixed(2)}` +
-    ` | attribution=${attribution_status}` +
-    ` | utm_campaign="${utms.utm_campaign}" utm_medium="${utms.utm_medium}"` +
-    ` | raw_src="${utms.raw_src}" raw_sck="${utms.raw_sck}"`,
-  );
 
   return NextResponse.json({
     success:            true,
