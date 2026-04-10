@@ -171,13 +171,6 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
       <td className="py-3 px-4 whitespace-nowrap" style={{ verticalAlign: 'top' }}>
         <span className="text-sm font-black text-white">{fmtDate(o.dueDate)}</span>
       </td>
-      {/* Dias atraso */}
-      <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
-        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
-          style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
-          {o.daysOverdue}d
-        </span>
-      </td>
       {/* Valor */}
       <td className="py-3 px-4 text-right whitespace-nowrap" style={{ verticalAlign: 'top' }}>
         <div className="flex flex-col items-end gap-0.5">
@@ -279,6 +272,13 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
       <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
         <span className="text-[11px] font-black uppercase tracking-tight leading-tight block" style={{ color: SILVER }}>
           {o.product}
+        </span>
+      </td>
+      {/* Dias atraso — no fim, igual Hotmart */}
+      <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
+        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
+          style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>
+          {o.daysOverdue}d
         </span>
       </td>
     </tr>
@@ -930,7 +930,7 @@ export default function FinanceiroOverviewPage() {
                                     <div className="flex flex-col">
                                       <div className="flex items-center gap-2"><Flag currency={o.currency} /><NameBtn name={o.subscriber.name} email={o.subscriber.email} router={router} /></div>
                                       <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
-                                      {o.plan && <span className="text-[9px] font-bold mt-1 px-1.5 py-0.5 rounded-md inline-block" style={{ background: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}>{o.plan}</span>}
+                                      {o.plan && <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Oferta: {o.plan}</span>}
                                     </div>
                                   </td>
                                   <td className="py-3 px-4"><span className="text-[12px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product.name}</span></td>
@@ -964,20 +964,20 @@ export default function FinanceiroOverviewPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <colgroup>
-                      <col style={{ width: 110 }} />
-                      <col style={{ width: 75 }} />
-                      <col style={{ width: 140 }} />
+                      <col style={{ width: 120 }} />
+                      <col style={{ width: 155 }} />
                       <col />
                       <col />
-                      <col style={{ width: 230 }} />
+                      <col style={{ width: 220 }} />
+                      <col style={{ width: 80 }} />
                     </colgroup>
                     <thead><tr style={{ background: `${GOLD}08` }}>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Vencimento</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Pagamento</th>
                       <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
+                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
                     </tr></thead>
                     <tbody>
                       {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={6} accent={GOLD} />) :
