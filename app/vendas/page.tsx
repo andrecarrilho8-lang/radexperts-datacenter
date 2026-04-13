@@ -101,6 +101,17 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
     }));
   }, [form.installments, form.first_payment_date, form.payment_type, form.total_amount, form.down_payment]);
 
+  // Auto-set first_payment_date = entry_date + 30 days whenever PIX_CARTAO or PIX_MENSAL is selected OR entry_date changes
+  useEffect(() => {
+    if (form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL') {
+      const [ey, em, ed] = form.entry_date.split('-').map(Number);
+      const d = new Date(ey, em - 1, ed + 30);
+      const iso = d.toISOString().slice(0, 10);
+      setForm(f => ({ ...f, first_payment_date: iso }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.payment_type, form.entry_date]);
+
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const togglePaid = (idx: number) => {

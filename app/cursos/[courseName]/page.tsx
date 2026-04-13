@@ -2057,6 +2057,20 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
     }));
   }, [form.installments, form.first_payment_date, form.payment_type, form.total_amount, form.down_payment]);
 
+  // Auto-set first_payment_date = entry_date + 30 days for PIX_CARTAO and PIX_MENSAL
+  useEffect(() => {
+    if (form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL') {
+      const [ey, em, ed] = form.entry_date.split('-').map(Number);
+      const d = new Date(ey, em - 1, ed + 30);
+      const iso = d.toISOString().slice(0, 10);
+      setForm(f => ({ ...f, first_payment_date: iso }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.payment_type, form.entry_date]);
+
+  // Editable installment amount state — must be declared before derived values per hook rules
+  const [manualInstAmt, setManualInstAmt] = useState('');
+
   const togglePaid = (idx: number) => {
     setInstDates(prev => prev.map((d, i) =>
       i !== idx ? d : { ...d, paid: !d.paid, paid_ms: !d.paid ? Date.now() : null }
@@ -2069,8 +2083,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   const remaining = Math.max(0, totalAmt - downAmt);
   const instAmt   = form.installments > 0 ? remaining / form.installments : remaining;
 
-  // Editable installment amount — auto-calculated but overridable
-  const [manualInstAmt, setManualInstAmt] = useState('');
+  // Sync manualInstAmt when derived instAmt changes
   useEffect(() => {
     if (instAmt > 0) setManualInstAmt(instAmt.toFixed(2));
     else setManualInstAmt('');
