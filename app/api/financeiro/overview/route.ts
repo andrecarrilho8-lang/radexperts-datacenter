@@ -90,28 +90,35 @@ export async function GET() {
       source:           'hotmart' as const,
     }));
 
-    /* ── 1b. Manual entries (PIX / installments) ordered by last update ─── */
+    /* ── 1b. Manual entries — one per student, sorted by entry/updated ──────── */
     const manualEntriesList: any[] = [];
     try {
       await ensureSchema();
       const db = getDb();
       const manualRows = await db`
-        SELECT id, name, email, course_name, entry_date, payment_type,
-               total_amount, installments, installment_amount, installment_dates, notes,
-               COALESCE(updated_at, entry_date) AS sort_ts
-        FROM manual_students
-        WHERE COALESCE(total_amount, 0) > 0
-        ORDER BY COALESCE(updated_at, entry_date) DESC
+        SELECT ms.id, ms.name, ms.email, ms.course_name, ms.entry_date, ms.payment_type,
+               ms.total_amount, ms.installments, ms.installment_amount, ms.installment_dates,
+               ms.down_payment, ms.currency, ms.notes,
+               COALESCE(ms.updated_at, ms.entry_date) AS sort_ts,
+               bp.vendedor, bp.bp_pagamento
+        FROM manual_students ms
+        LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
+        WHERE COALESCE(ms.total_amount, 0) > 0
+        ORDER BY COALESCE(ms.updated_at, ms.entry_date) DESC
         LIMIT 500
       ` as any[];
 
       for (const row of manualRows) {
-        const name       = (row.name || '—').toUpperCase();
-        const email      = (row.email || '').toLowerCase().trim();
-        const product    = row.course_name || '—';
-        const ptype      = (row.payment_type || 'PIX').toUpperCase();
-        const instAmt    = Number(row.installment_amount) || Number(row.total_amount) || 0;
+        const name         = (row.name || '—').toUpperCase();
+        const email        = (row.email || '').toLowerCase().trim();
+        const product      = row.course_name || '—';
+        const ptype        = (row.payment_type || 'PIX').toUpperCase();
         const installments = Number(row.installments) || 1;
+        const instAmt      = Number(row.installment_amount) || Number(row.total_amount) || 0;
+        const downAmt      = Number(row.down_payment) || 0;
+        const currency     = (row.currency || 'BRL').toUpperCase();
+        const ts           = Number(row.sort_ts) || Number(row.entry_date) || 0;
+        if (ts <= 0) continue;
 
         // Build installment_dates array from JSON
         let instDates: { due_ms: number; paid: boolean; paid_ms: number | null }[] = [];
@@ -122,51 +129,50 @@ export async function GET() {
           if (Array.isArray(raw)) instDates = raw;
         } catch { /* ignore */ }
 
-        if (installments === 1 || instDates.length === 0) {
-          // PIX / single payment — one entry at entry_date
-          const ts = Number(row.entry_date);
-          if (ts > 0) {
-            manualEntriesList.push({
-              transaction:      `manual-${row.id}`,
-              date:             new Date(ts).toISOString(),
-              buyer:            { name, email },
-              product:          { name: product },
-              amount:           Number(row.total_amount) || 0,
-              currency:         'BRL',
-              amountBRL:        null,
-              paymentType:      ptype,
-              status:           'APPROVED',
-              isSubscription:   false,
-              installments:     1,
-              recurrencyNumber: null,
-              source:           'manual' as const,
-              notes:            row.notes || '',
-            });
-          }
+        // Real paid amount = down_payment (always paid at entry) + paid installments × amount
+        const isPix = ptype === 'PIX' || ptype === 'PIX_AVISTA';
+        let realPaid: number;
+        if (isPix) {
+          realPaid = Number(row.total_amount) || 0;
         } else {
-          // Credit card with installments — one entry per PAID installment
-          instDates.forEach((inst, idx) => {
-            if (!inst.paid) return;
-            const ts = Number(inst.paid_ms) || Number(row.entry_date);
-            if (ts <= 0) return;
-            manualEntriesList.push({
-              transaction:      `manual-${row.id}-inst${idx + 1}`,
-              date:             new Date(ts).toISOString(),
-              buyer:            { name, email },
-              product:          { name: product },
-              amount:           instAmt,
-              currency:         'BRL',
-              amountBRL:        null,
-              paymentType:      ptype,
-              status:           'APPROVED',
-              isSubscription:   false,
-              installments,
-              recurrencyNumber: idx + 1,
-              source:           'manual' as const,
-              notes:            row.notes || '',
-            });
-          });
+          const paidCount = instDates.filter(d => d.paid).length;
+          realPaid = downAmt + paidCount * instAmt;
         }
+
+        // Installment label (for the sublabel badge under faturamento)
+        const paidCount = instDates.filter(d => d.paid).length;
+        let installLabel = 'À vista';
+        if (!isPix && installments > 1) {
+          installLabel = paidCount > 0
+            ? `${paidCount}/${installments}× pagas`
+            : `0/${installments}× pagas`;
+          if (downAmt > 0) installLabel += ' + entrada';
+        }
+
+        manualEntriesList.push({
+          transaction:       `manual-${row.id}`,
+          date:              new Date(Number(row.entry_date) || ts).toISOString(),
+          sort_ts:           ts,
+          buyer:             { name, email },
+          product:           { name: product },
+          amount:            realPaid,
+          currency,
+          amountBRL:         null,
+          paymentType:       ptype,        // preserve PIX_MENSAL / PIX_CARTAO etc
+          vendedor:          row.vendedor || '',
+          status:            'APPROVED',
+          isSubscription:    false,
+          installments,
+          recurrencyNumber:  null,
+          installLabel,
+          source:            'manual' as const,
+          notes:             row.notes || '',
+          // pass raw fields so frontend can compute if needed
+          total_amount:      Number(row.total_amount) || 0,
+          down_payment:      downAmt,
+          installment_amount: instAmt,
+          installment_dates: instDates,
+        });
       }
     } catch (e: any) {
       console.warn('[financeiro] manual_students fetch failed:', e.message);

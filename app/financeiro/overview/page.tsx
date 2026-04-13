@@ -65,13 +65,22 @@ function tabStyle(accent: string): React.CSSProperties {
   };
 }
 
-function PaymentBadge({ method }: { method: string }) {
+function PaymentBadge({ method, isManual = false }: { method: string; isManual?: boolean }) {
   const m = (method || '').toUpperCase();
   let label = method || '—', bg = 'rgba(255,255,255,0.08)', color = SILVER;
-  if (m.includes('CREDIT') || m.includes('CARD'))  { label = 'Cartão';  bg = 'rgba(56,189,248,0.12)';  color = '#38bdf8'; }
-  else if (m.includes('PIX'))    { label = 'Pix';    bg = 'rgba(34,197,94,0.12)';  color = '#22c55e'; }
-  else if (m.includes('BOLETO')) { label = 'Boleto'; bg = 'rgba(232,177,79,0.12)'; color = GOLD; }
-  else if (m.includes('PAYPAL')) { label = 'PayPal'; bg = 'rgba(99,102,241,0.14)'; color = '#818cf8'; }
+  if (isManual) {
+    // Detailed labels for manual payment types
+    if (m === 'PIX_MENSAL')  { label = 'Pix Mensal';   bg = 'rgba(192,132,252,0.12)'; color = '#c084fc'; }
+    else if (m === 'PIX_CARTAO')  { label = 'Pix + Cartão'; bg = 'rgba(56,189,248,0.12)';  color = '#38bdf8'; }
+    else if (m === 'CREDIT_CARD') { label = 'Cartão';       bg = 'rgba(232,177,79,0.12)';  color = GOLD; }
+    else if (m.includes('PIX'))   { label = 'Pix';           bg = 'rgba(34,197,94,0.12)';   color = '#22c55e'; }
+    else { label = method; }
+  } else {
+    if (m.includes('CREDIT') || m.includes('CARD'))  { label = 'Cartão';  bg = 'rgba(56,189,248,0.12)';  color = '#38bdf8'; }
+    else if (m.includes('PIX'))    { label = 'Pix';    bg = 'rgba(34,197,94,0.12)';  color = '#22c55e'; }
+    else if (m.includes('BOLETO')) { label = 'Boleto'; bg = 'rgba(232,177,79,0.12)'; color = GOLD; }
+    else if (m.includes('PAYPAL')) { label = 'PayPal'; bg = 'rgba(99,102,241,0.14)'; color = '#818cf8'; }
+  }
   return (
     <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider"
       style={{ background: bg, border: `1px solid ${color}30`, color }}>
@@ -528,10 +537,21 @@ function EntryTable({
                                 ≈ {fmtBRL(t.amountBRL)}
                               </span>
                             )}
-                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={installStyle}>{installLabel}</span>
+                            {/* installLabel from API (manual) or derived (hotmart) */}
+                            {(() => {
+                              let lbl = (t as any).installLabel || '';
+                              let lstyle: React.CSSProperties = { background: 'rgba(167,139,250,0.12)', color: '#a78bfa' };
+                              if (!lbl) {
+                                // hotmart fallback
+                                if (t.isSubscription) { lbl = t.recurrencyNumber ? `Ass. Ciclo ${t.recurrencyNumber}` : 'Assinatura'; lstyle = { background: 'rgba(56,189,248,0.12)', color: '#38bdf8' }; }
+                                else if (t.installments > 1) { lbl = t.recurrencyNumber ? `Parcela ${t.recurrencyNumber}/${t.installments}` : `${t.installments}× parc.`; lstyle = { background: 'rgba(99,102,241,0.15)', color: '#818cf8' }; }
+                                else { lbl = 'À vista'; lstyle = { background: 'rgba(34,197,94,0.08)', color: '#86efac' }; }
+                              }
+                              return <span className="text-[10px] font-black px-2 py-0.5 rounded-md" style={lstyle}>{lbl}</span>;
+                            })()}
                           </div>
                         </td>
-                        <td className="py-3 px-4"><PaymentBadge method={t.paymentType} /></td>
+                        <td className="py-3 px-4"><PaymentBadge method={t.paymentType} isManual={isManual} /></td>
                         <td className="py-3 px-4">
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
@@ -542,6 +562,11 @@ function EntryTable({
                             </div>
                             {t.buyer.email && t.buyer.email !== '—' && (
                               <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{t.buyer.email}</span>
+                            )}
+                            {isManual && (t as any).vendedor && (
+                              <span className="text-[9px] font-black mt-0.5 uppercase" style={{ color: GOLD }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: 9, verticalAlign: 'middle' }}>sell</span> {(t as any).vendedor}
+                              </span>
                             )}
                             {t.notes && (
                               <span className="text-[9px] italic mt-0.5" style={{ color: SILVER }}>{t.notes}</span>
