@@ -3111,9 +3111,11 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   }, [decoded, turmaFilter, allCourseNames.length]);
 
   // Merge Hotmart + manual students — manual has priority (dedup by email)
-  const manualEmailSet = new Set(manualStudents.map(ms => ms.email.toLowerCase()));
+  // hiddenEmails applies to BOTH sources (hidden = not shown anywhere)
+  const manualVisible = manualStudents.filter(ms => !hiddenEmails.has((ms.email || '').toLowerCase()));
+  const manualEmailSet = new Set(manualVisible.map(ms => ms.email.toLowerCase()));
   const allStudents: Student[] = [
-    ...manualStudents.map(ms => manualToStudent(ms)),
+    ...manualVisible.map(ms => manualToStudent(ms)),
     ...students
       .filter(s => !hiddenEmails.has((s.email || '').toLowerCase()))
       .filter(s => !manualEmailSet.has((s.email || '').toLowerCase())) // skip if already in manual
