@@ -244,12 +244,6 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
           </div>
         </div>
 
-        {/* Row 3: CPF */}
-        <div style={{ marginBottom: 22 }}>
-          <label style={LABEL}>CPF</label>
-          <input style={INPUT} placeholder="000.000.000-00" value={form.cpf}
-            onChange={e => set('cpf', e.target.value)} />
-        </div>
 
         {/* FORMA DE PAGAMENTO */}
         <label style={{ ...LABEL, marginBottom: 12 }}>Forma de Pagamento *</label>
