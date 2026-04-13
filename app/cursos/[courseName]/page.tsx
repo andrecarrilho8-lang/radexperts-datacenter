@@ -907,7 +907,10 @@ interface ParsedRow {
   vendedor: string; bp_valor: string; bp_pagamento: string; bp_modelo: string;
   bp_parcela: string; bp_primeira_parcela: string;
   bp_ultimo_pagamento: string; bp_proximo_pagamento: string; bp_em_dia: string;
-  dupStatus: 'new' | 'enrich';
+  /** 'new' = brand new | 'enrich' = same email already enrolled | 'name_conflict' = different email but same name */
+  dupStatus: 'new' | 'enrich' | 'name_conflict';
+  /** Name(s) of existing student(s) that triggered a name_conflict, if any */
+  conflictWith?: string[];
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -1029,7 +1032,13 @@ function ConfBadge({ level }: { level: 'high' | 'medium' | 'low' }) {
 }
 
 // ── Dup status badge ─────────────────────────────────────────────────────────
-function DupBadge({ status }: { status: 'new' | 'enrich' }) {
+function DupBadge({ status, conflictWith }: { status: 'new' | 'enrich' | 'name_conflict'; conflictWith?: string[] }) {
+  if (status === 'name_conflict') return (
+    <span title={conflictWith ? `Mesmo nome que: ${conflictWith.join(', ')}` : 'Nome já cadastrado com outro email'}
+      style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
+        background: 'rgba(251,191,36,0.12)', color: '#fbbf24', whiteSpace: 'nowrap', cursor: 'help',
+        border: '1px solid rgba(251,191,36,0.3)' }}>⚠ Nome duplicado</span>
+  );
   return status === 'new'
     ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 7px', borderRadius: 99,
         background: 'rgba(74,222,128,0.1)', color: '#4ade80', whiteSpace: 'nowrap' }}>🆕 Novo</span>
@@ -1123,9 +1132,11 @@ function parseDateCell(val: any): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
+function CSVImportModal({ courseName, existingEmails, existingNames, onClose, onSaved }: {
   courseName: string;
   existingEmails: Set<string>;
+  /** Normalized (UPPERCASE, trimmed) names already in the course — used for name-based duplicate detection */
+  existingNames:  Set<string>;
   onClose: () => void;
   onSaved: (count: number) => void;
 }) {
@@ -1140,6 +1151,8 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
   const [progress,   setProgress]   = React.useState(0); // 0–100 for loading bar
   const [result,     setResult]     = React.useState<{saved:number;enriched:number;failed:number;errors:string[]}|null>(null);
   const [error,      setError]      = React.useState('');
+  /** Set of row indexes (0-based) the user chose to SKIP due to name_conflict */
+  const [skippedIdx, setSkippedIdx] = React.useState<Set<number>>(new Set());
   const fileRef   = React.useRef<HTMLInputElement>(null);
   const progTimer = React.useRef<any>(null);
 
@@ -1216,14 +1229,23 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
         bp_em_dia:            pickRaw('bp_em_dia', row).toUpperCase() === 'SIM' ? 'SIM'
                                 : pickRaw('bp_em_dia', row).toUpperCase() === 'NAO' || pickRaw('bp_em_dia', row).toUpperCase() === 'NÃO' ? 'NÃO'
                                 : pickRaw('bp_em_dia', row),
-        dupStatus:            existingEmails.has(email.toLowerCase()) ? 'enrich' as const : 'new' as const,
+        dupStatus:            existingEmails.has(email.toLowerCase())
+                                ? 'enrich' as const
+                                : (name && existingNames.has(name.toUpperCase().trim()))
+                                  ? 'name_conflict' as const
+                                  : 'new' as const,
+        conflictWith:         (name && existingNames.has(name.toUpperCase().trim()) && !existingEmails.has(email.toLowerCase()))
+                                ? [name.toUpperCase().trim()]
+                                : undefined,
         confidence:           conf,
       };
     }).filter(r => r.name || r.email);
   };
 
   const handleImport = async () => {
-    const rows = buildRows().filter(r => r.name && r.email);
+    const allBuilt = buildRows().filter(r => r.name && r.email);
+    // Exclude rows the user chose to skip (name_conflict + manually skipped)
+    const rows = allBuilt.filter((_, idx) => !skippedIdx.has(idx));
     if (rows.length === 0) { setError('Nenhuma linha válida (nome + email obrigatórios).'); return; }
     setSaving(true); setProgress(5); setError('');
 
@@ -1474,15 +1496,37 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','Vendedor','Valor BP','Pag. BP','Modelo','Parcela BP','1ª Parcela','Últ. Pag.','Próx. Pag.','Em Dia','Status','OK'].map(h => (
+                  {['#','Nome','Email','Telefone','CPF','Pagamento','Valor (R$)','Parcelas','Data Entrada','Vendedor','Valor BP','Pag. BP','Modelo','Parcela BP','1ª Parcela','Últ. Pag.','Próx. Pag.','Em Dia','Status','OK','Ação'].map(h => (
                     <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 900,
                       fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: SILVER, whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {buildRows().map((r, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                {/* Disclaimer for name conflicts */}
+                {buildRows().some(r => r.dupStatus === 'name_conflict') && (
+                  <tr>
+                    <td colSpan={21} style={{ padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10,
+                        background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.25)' }}>
+                        <span className="material-symbols-outlined" style={{ color: '#fbbf24', fontSize: 18, flexShrink: 0 }}>warning</span>
+                        <div>
+                          <p style={{ color: '#fbbf24', fontWeight: 900, fontSize: 11, margin: 0 }}>
+                            ⚠ {buildRows().filter(r => r.dupStatus === 'name_conflict').length} registro{buildRows().filter(r => r.dupStatus === 'name_conflict').length !== 1 ? 's' : ''} com nome já cadastrado (email diferente)
+                          </p>
+                          <p style={{ color: SILVER, fontSize: 10, margin: '3px 0 0' }}>
+                            Esses registros têm o mesmo nome de um aluno existente mas com email diferente — pode ser duplicata ou pessoa diferente. Use a coluna Ação para decidir: <strong style={{color:'white'}}>Pular</strong> descarta o registro, <strong style={{color:'white'}}>Incluir assim mesmo</strong> cadastra normalmente.
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {buildRows().map((r, i) => {
+                  const isConflict = r.dupStatus === 'name_conflict';
+                  const isSkipped  = skippedIdx.has(i);
+                  return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', opacity: isSkipped ? 0.4 : 1 }}>
                     <td style={{ padding: '5px 8px', color: SILVER, fontSize: 10 }}>{i+1}</td>
                     <td style={{ padding: '5px 8px', color: 'white', fontWeight: 700 }}>{r.name || <span style={{color:'#f87171'}}>—</span>}</td>
                     <td style={{ padding: '5px 8px', color: SILVER }}>{r.email || <span style={{color:'#f87171'}}>—</span>}</td>
@@ -1509,10 +1553,31 @@ function CSVImportModal({ courseName, existingEmails, onClose, onSaved }: {
                         ? <span style={{ fontSize: 9, fontWeight: 900, padding: '2px 6px', borderRadius: 99, background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>✗ {r.bp_em_dia}</span>
                         : <span style={{ color: SILVER }}>—</span>}
                     </td>
-                    <td style={{ padding: '5px 8px' }}><DupBadge status={r.dupStatus} /></td>
+                    <td style={{ padding: '5px 8px' }}><DupBadge status={r.dupStatus} conflictWith={r.conflictWith} /></td>
                     <td style={{ padding: '5px 8px' }}><ConfBadge level={r.confidence} /></td>
+                    <td style={{ padding: '5px 8px' }}>
+                      {isConflict && (
+                        <button
+                          onClick={() => setSkippedIdx(prev => {
+                            const n = new Set(prev);
+                            if (n.has(i)) n.delete(i); else n.add(i);
+                            return n;
+                          })}
+                          style={{
+                            fontSize: 9, fontWeight: 900, padding: '3px 8px', borderRadius: 8,
+                            cursor: 'pointer', whiteSpace: 'nowrap',
+                            background: isSkipped ? 'rgba(74,222,128,0.1)' : 'rgba(239,68,68,0.1)',
+                            color: isSkipped ? '#4ade80' : '#f87171',
+                            border: `1px solid ${isSkipped ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                          }}
+                        >
+                          {isSkipped ? '✓ Incluir assim mesmo' : '✕ Pular'}
+                        </button>
+                      )}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -3746,6 +3811,7 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
         <CSVImportModal
           courseName={decoded}
           existingEmails={new Set(allStudents.map(s => (s.email || '').toLowerCase()))}
+          existingNames={new Set(allStudents.map(s => (s.name || '').toUpperCase().trim()).filter(Boolean))}
           onClose={() => setShowCSVModal(false)}
           onSaved={() => {
             setShowCSVModal(false);
