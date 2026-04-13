@@ -2046,35 +2046,39 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
 
-  // Auto-generate installment dates whenever relevant fields change
   useEffect(() => {
     const needsDates = ['PIX_CARTAO', 'CREDIT_CARD', 'PIX_MENSAL'].includes(form.payment_type);
     if (!needsDates || form.installments < 1) { setInstDates([]); return; }
-    const [py, pm, pd] = form.first_payment_date.split('-').map(Number);
+    // When there's a down_payment (entrada), Parcela 1 starts 30 days after entry_date
+    const hasEntrada = (form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL')
+      && parseFloat(form.down_payment || '0') > 0;
+    let startDate: Date;
+    if (hasEntrada) {
+      const [ey, em, ed] = form.entry_date.split('-').map(Number);
+      startDate = new Date(ey, em - 1, ed + 30, 12, 0, 0);
+    } else {
+      const [py, pm, pd] = form.first_payment_date.split('-').map(Number);
+      startDate = new Date(py, pm - 1, pd, 12, 0, 0);
+    }
     setInstDates(Array.from({ length: form.installments }, (_, i) => {
-      const d = new Date(py, pm - 1 + i, pd, 12, 0, 0);
+      const d = new Date(startDate.getFullYear(), startDate.getMonth() + i, startDate.getDate(), 12, 0, 0);
       return { due_ms: d.getTime(), paid: false, paid_ms: null } as InstallmentDate;
     }));
-  }, [form.installments, form.first_payment_date, form.payment_type, form.total_amount, form.down_payment]);
+  }, [form.installments, form.first_payment_date, form.payment_type, form.entry_date, form.down_payment]);
 
-  // Auto-set first_payment_date = entry_date + 30 days for PIX_CARTAO and PIX_MENSAL
-  useEffect(() => {
-    if (form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL') {
-      const [ey, em, ed] = form.entry_date.split('-').map(Number);
-      const d = new Date(ey, em - 1, ed + 30);
-      const iso = d.toISOString().slice(0, 10);
-      setForm(f => ({ ...f, first_payment_date: iso }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.payment_type, form.entry_date]);
-
-  // Editable installment amount state — must be declared before derived values per hook rules
+  // Editable installment amount state
   const [manualInstAmt, setManualInstAmt] = useState('');
 
   const togglePaid = (idx: number) => {
     setInstDates(prev => prev.map((d, i) =>
       i !== idx ? d : { ...d, paid: !d.paid, paid_ms: !d.paid ? Date.now() : null }
     ));
+  };
+
+  const setInstDate = (idx: number, val: string) => {
+    const [y, m, d] = val.split('-').map(Number);
+    const ms = new Date(y, m - 1, d, 12, 0, 0).getTime();
+    setInstDates(prev => prev.map((dt, i) => i !== idx ? dt : { ...dt, due_ms: ms }));
   };
 
   // Derived amounts
@@ -2322,23 +2326,30 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
           {form.payment_type !== 'PIX_AVISTA' && instDates.length > 0 && (
             <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '14px 16px', marginBottom: 18 }}>
               <p style={{ ...LABEL, marginBottom: 12 }}>Parcelas geradas - marque as ja pagas</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
                 {instDates.map((d, i) => (
-                  <div key={i} onClick={() => togglePaid(i)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10,
-                      cursor: 'pointer', transition: 'all 0.15s',
+                  <div key={i}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10,
+                      transition: 'all 0.15s',
                       background: d.paid ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.03)',
                       border: `1px solid ${d.paid ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.07)'}` }}>
-                    <div style={{ width: 18, height: 18, borderRadius: 6, border: `2px solid ${d.paid ? GREEN : 'rgba(255,255,255,0.2)'}`,
-                      background: d.paid ? GREEN : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'all 0.15s', flexShrink: 0 }}>
+                    {/* Checkbox */}
+                    <div onClick={() => togglePaid(i)}
+                      style={{ width: 18, height: 18, borderRadius: 6, border: `2px solid ${d.paid ? GREEN : 'rgba(255,255,255,0.2)'}`,
+                        background: d.paid ? GREEN : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.15s', flexShrink: 0, cursor: 'pointer' }}>
                       {d.paid && <span className="material-symbols-outlined" style={{ fontSize: 12, color: NAVY }}>check</span>}
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: d.paid ? GREEN : SILVER }}>Parcela {i + 1}</span>
-                    <span style={{ fontSize: 11, color: SILVER, marginLeft: 4 }}>
-                      {new Date(d.due_ms).toLocaleDateString('pt-BR')}
-                    </span>
-                    <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 900, color: d.paid ? GREEN : GOLD }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: d.paid ? GREEN : SILVER, flexShrink: 0, minWidth: 56 }}>Parc. {i + 1}</span>
+                    {/* Editable date */}
+                    <input type="date"
+                      value={new Date(d.due_ms).toISOString().slice(0, 10)}
+                      onChange={e => setInstDate(i, e.target.value)}
+                      style={{ flex: 1, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.12)', color: d.paid ? GREEN : '#fff',
+                        fontSize: 11, fontWeight: 700, outline: 'none', colorScheme: 'dark' }}
+                    />
+                    <span style={{ fontSize: 11, fontWeight: 900, color: d.paid ? GREEN : GOLD, flexShrink: 0 }}>
                       {form.currency} {displayInstAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
