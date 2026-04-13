@@ -111,10 +111,20 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
 
   const isPix     = form.payment_type === 'PIX_AVISTA';
   const isPixCard = form.payment_type === 'PIX_CARTAO';
+  const isMensal  = form.payment_type === 'PIX_MENSAL';
   const totalAmt  = parseFloat(form.total_amount || '0');
-  const downAmt   = isPixCard ? parseFloat(form.down_payment || '0') : 0;
+  const downAmt   = (isPixCard || isMensal) ? parseFloat(form.down_payment || '0') : 0;
   const remaining = Math.max(0, totalAmt - downAmt);
   const instAmt   = form.installments > 0 ? remaining / form.installments : remaining;
+
+  // Editable installment amount — auto-calculated but overridable
+  const [manualInstAmt, setManualInstAmt] = useState('');
+  useEffect(() => {
+    if (instAmt > 0) setManualInstAmt(instAmt.toFixed(2));
+    else setManualInstAmt('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.total_amount, form.down_payment, form.installments, form.payment_type]);
+  const displayInstAmt = parseFloat(manualInstAmt || '0') || instAmt;
 
   const PAY_BTNS: { key: PayType; icon: string; label: string; col: string }[] = [
     { key: 'PIX_AVISTA',  icon: 'pix',              label: 'PIX a Vista',       col: GREEN     },
@@ -132,7 +142,7 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
     try {
       const [ey, em, ed] = form.entry_date.split('-').map(Number);
       const entryTs = new Date(ey, em - 1, ed, 12, 0, 0).getTime();
-      const dbPayType = isPix ? 'PIX' : isPixCard ? 'PIX_CARTAO' : form.payment_type === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX';
+      const dbPayType = isPix ? 'PIX' : isPixCard ? 'PIX_CARTAO' : form.payment_type === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'PIX_MENSAL';
       const body = {
         course_name:        form.course_name,
         name:               form.name.trim().toUpperCase(),
@@ -145,7 +155,7 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
         total_amount:       totalAmt,
         down_payment:       downAmt,
         installments:       isPix ? 1 : form.installments,
-        installment_amount: isPix ? totalAmt : instAmt,
+        installment_amount: isPix ? totalAmt : displayInstAmt,
         installment_dates:  isPix ? [{ due_ms: entryTs, paid: true, paid_ms: entryTs }] : instDates,
         notes:              form.notes.trim(),
         bp_vendedor:        form.bp_vendedor,
@@ -250,7 +260,15 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 18 }}>
           {PAY_BTNS.map(({ key, icon, label, col }) => (
             <button key={key} type="button"
-              onClick={() => { set('payment_type', key); set('installments', 1); }}
+              onClick={() => {
+                const next: Record<string, any> = { payment_type: key, installments: 1 };
+                if (key === 'PIX_MENSAL') {
+                  const [ey, em, ed] = form.entry_date.split('-').map(Number);
+                  const d = new Date(ey, em - 1, ed + 30);
+                  next.first_payment_date = d.toISOString().slice(0, 10);
+                }
+                setForm(f => ({ ...f, ...next }));
+              }}
               style={{
                 padding: '10px 12px', borderRadius: 12, fontWeight: 800, fontSize: 11, cursor: 'pointer',
                 background: form.payment_type === key ? `${col}22` : 'rgba(255,255,255,0.05)',
@@ -283,14 +301,14 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
 
         {/* VALOR + PARCELAS em grid (igual ao AddStudentModal) */}
         <div style={{ display: 'grid',
-          gridTemplateColumns: isPix ? '1fr' : isPixCard ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr',
+          gridTemplateColumns: isPix ? '1fr' : (isPixCard || isMensal) ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr',
           gap: 14, marginBottom: 14 }}>
           <div>
             <label style={LABEL}>Valor Total ({form.currency}) *</label>
             <input style={INPUT} type="number" step="0.01" min="0" placeholder="997.00" value={form.total_amount}
               onChange={e => set('total_amount', e.target.value)} />
           </div>
-          {(isPixCard || form.payment_type === 'PIX_MENSAL') && (
+          {(isPixCard || isMensal) && (
             <div>
               <label style={LABEL}>Entrada PIX ({form.currency})</label>
               <input style={INPUT} type="number" step="0.01" min="0" placeholder="0.00" value={form.down_payment}
@@ -299,19 +317,23 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
           )}
           {!isPix && (<>
             <div>
-              <label style={LABEL}>{form.payment_type === 'PIX_MENSAL' ? 'Meses' : 'Parcelas'}</label>
+              <label style={LABEL}>{isMensal ? 'Meses' : 'Parcelas'}</label>
               <select style={{ ...INPUT, cursor: 'pointer' }} value={form.installments}
                 onChange={e => set('installments', parseInt(e.target.value))}>
-                {Array.from({ length: form.payment_type === 'PIX_MENSAL' ? 60 : 24 }, (_, i) => i + 1).map(n => (
+                {Array.from({ length: isMensal ? 60 : 24 }, (_, i) => i + 1).map(n => (
                   <option key={n} value={n} style={{ background: NAVY, color: 'white' }}>{n}x</option>
                 ))}
               </select>
             </div>
             <div>
               <label style={LABEL}>{isPixCard ? 'Parcela Cartao' : 'Valor/Parcela'}</label>
-              <div style={{ ...INPUT, color: GOLD, fontWeight: 900, display: 'flex', alignItems: 'center' }}>
-                {form.total_amount ? `${form.currency} ${instAmt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
-              </div>
+              <input
+                style={{ ...INPUT, color: GOLD, fontWeight: 900 }}
+                type="number" step="0.01" min="0"
+                placeholder={instAmt > 0 ? instAmt.toFixed(2) : '--'}
+                value={manualInstAmt}
+                onChange={e => setManualInstAmt(e.target.value)}
+              />
             </div>
           </>)}
         </div>

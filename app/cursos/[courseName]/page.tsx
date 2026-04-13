@@ -2065,7 +2065,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
 
   // Derived amounts
   const totalAmt  = parseFloat(form.total_amount || '0');
-  const downAmt   = form.payment_type === 'PIX_CARTAO' ? parseFloat(form.down_payment || '0') : 0;
+  const downAmt   = (form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL') ? parseFloat(form.down_payment || '0') : 0;
   const remaining = Math.max(0, totalAmt - downAmt);
   const instAmt   = form.installments > 0 ? remaining / form.installments : remaining;
 
@@ -2331,7 +2331,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
                   </div>
                 ))}
               </div>
-              {form.payment_type === 'PIX_CARTAO' && downAmt > 0 && (
+              {(form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL') && downAmt > 0 && (
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 10, paddingTop: 10,
                   fontSize: 11, fontWeight: 700, color: '#38bdf8', display: 'flex', justifyContent: 'space-between' }}>
                   <span>Entrada PIX paga no ato</span>
