@@ -267,21 +267,49 @@ export async function GET(
       }
     }
 
-    // Add manual student totals (total_amount is in BRL always) + fetch full manual records
     let manualStudents: any[] = [];
+    let manualVendedor: string | null = null;
+    let manualDocument: string | null = null;
+    let manualPhone:    string | null = null;
+    let manualName:     string | null = null;
     try {
       const sql = getDb();
       const manualRows = await sql`
-        SELECT id, name, email, course_name, entry_date, phone,
-               payment_type, currency, total_amount, down_payment,
-               installments, installment_amount, installment_dates, notes,
-               created_at, updated_at
-        FROM manual_students
-        WHERE LOWER(email) = ${email}
-        ORDER BY entry_date DESC
+        SELECT ms.id, ms.name, ms.email, ms.course_name, ms.entry_date, ms.phone,
+               ms.payment_type, ms.currency, ms.total_amount, ms.down_payment,
+               ms.installments, ms.installment_amount, ms.installment_dates, ms.notes,
+               ms.created_at, ms.updated_at, ms.document,
+               bp.vendedor, bp.bp_modelo, bp.bp_pagamento, bp.bp_em_dia, bp.bp_valor
+        FROM manual_students ms
+        LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
+        WHERE LOWER(ms.email) = ${email}
+        ORDER BY ms.entry_date DESC
       ` as any[];
       for (const row of manualRows) {
-        ltvBRL['BRL'] += Number(row.total_amount) || 0;
+        // Real paid amount = down_payment + paid installments × installment_amount
+        const ptype = (row.payment_type || 'PIX').toUpperCase();
+        const isPix = ptype === 'PIX' || ptype === 'PIX_AVISTA';
+        let realPaid = 0;
+        if (isPix) {
+          realPaid = Number(row.total_amount) || 0;
+        } else {
+          const downAmt = Number(row.down_payment) || 0;
+          const instAmt = Number(row.installment_amount) || Number(row.total_amount) || 0;
+          let paidCount = 0;
+          try {
+            const raw = typeof row.installment_dates === 'string'
+              ? JSON.parse(row.installment_dates)
+              : (row.installment_dates || []);
+            if (Array.isArray(raw)) paidCount = raw.filter((d: any) => d.paid).length;
+          } catch { /* ignore */ }
+          realPaid = downAmt + paidCount * instAmt;
+        }
+        ltvBRL['BRL'] += realPaid;
+        // Capture first-available vendedor/document from manual rows
+        if (!manualVendedor && row.vendedor) manualVendedor = row.vendedor;
+        if (!manualDocument && row.document)  manualDocument = row.document;
+        if (!manualPhone    && row.phone)      manualPhone    = row.phone;
+        if (!manualName     && row.name)       manualName     = row.name;
       }
       manualStudents = manualRows.map(r => ({
         id:                 r.id,
@@ -305,6 +333,13 @@ export async function GET(
           } catch { return []; }
         })(),
         notes:              r.notes || '',
+        document:           r.document || '',
+        // buyer_profile fields from JOIN
+        vendedor:           r.vendedor || '',
+        bp_modelo:          r.bp_modelo || '',
+        bp_pagamento:       r.bp_pagamento || '',
+        bp_em_dia:          r.bp_em_dia || '',
+        bp_valor:           r.bp_valor != null ? Number(r.bp_valor) : null,
       }));
     } catch { /* non-fatal */ }
 
@@ -325,18 +360,20 @@ export async function GET(
     const hotmartDocument = hotmartBuyer?.document || hotmartBuyer?.cpf || null;
     const hotmartCountry  = hotmartBuyer?.address?.country || null;
 
-    // Merge: buyer_profiles (manual edits) takes priority; Hotmart buyer data is fallback
+    // Merge: buyer_profiles (manual edits) takes priority;
+    // Hotmart buyer data is secondary; manual_students data is tertiary fallback
     const mergedBuyerPersona = buyerPersona ? {
       ...buyerPersona,
-      phone:    buyerPersona.phone    || hotmartPhone,
-      document: buyerPersona.document || hotmartDocument,
-      name:     buyerPersona.name     || hotmartName,
-    } : (hotmartPhone || hotmartDocument ? {
-      name:               hotmartName,
-      phone:              hotmartPhone,
-      document:           hotmartDocument,
+      phone:    buyerPersona.phone    || hotmartPhone    || manualPhone,
+      document: buyerPersona.document || hotmartDocument || manualDocument,
+      name:     buyerPersona.name     || hotmartName     || manualName,
+      vendedor: buyerPersona.vendedor || manualVendedor,
+    } : (hotmartPhone || hotmartDocument || manualDocument || manualVendedor ? {
+      name:               hotmartName || manualName,
+      phone:              hotmartPhone || manualPhone,
+      document:           hotmartDocument || manualDocument,
       country:            hotmartCountry,
-      vendedor:           null,
+      vendedor:           manualVendedor,
       valor:              null,
       pagamento:          null,
       modelo:             null,
