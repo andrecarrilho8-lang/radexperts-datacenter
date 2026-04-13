@@ -64,18 +64,41 @@ async function buildCourseList() {
     if (!entry) courseMap.set(name, { id: 0, name, emails: new Set(emailSet) });
     else emailSet.forEach(e => entry!.emails.add(e));
   });
-  manualRows.forEach((emailSet, courseName) => {
-    const name = courseName.trim();
+
+  // ── Slug helper — same logic as app/lib/slug.ts ───────────────────────────
+  function slugify(name: string): string {
+    return name
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-');
+  }
+
+  // Build a slug → entry map for fast slug-based lookup
+  function findEntryByName(name: string) {
+    const nameSlug = slugify(name);
+    // 1. exact match
     let entry = courseMap.get(name);
-    if (!entry) {
-      const lower = name.toLowerCase();
-      for (const [k, v] of courseMap) { if (k.toLowerCase() === lower) { entry = v; break; } }
+    if (entry) return entry;
+    // 2. case-insensitive exact
+    const lower = name.toLowerCase();
+    for (const [k, v] of courseMap) {
+      if (k.toLowerCase() === lower) return v;
     }
+    // 3. slug match (handles accents / extra spaces)
+    for (const [k, v] of courseMap) {
+      if (slugify(k) === nameSlug) return v;
+    }
+    return null;
+  }
+
+  manualRows.forEach((emailSet, courseName) => {
+    const name  = courseName.trim();
+    const entry = findEntryByName(name);
     if (!entry) courseMap.set(name, { id: 0, name, emails: new Set(emailSet) });
     else emailSet.forEach(e => entry!.emails.add(e));
   });
   hiddenRows.forEach((hiddenEmails, courseName) => {
-    const entry = courseMap.get(courseName);
+    const entry = findEntryByName(courseName.trim());
     if (entry) hiddenEmails.forEach(e => entry.emails.delete(e));
   });
 
