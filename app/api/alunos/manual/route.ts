@@ -76,11 +76,17 @@ export async function POST(request: Request) {
     payment_type = 'PIX', total_amount, installments = 1,
     installment_amount, installment_dates = [], notes = '',
     currency = 'BRL', down_payment = 0,
+    // buyer_persona fields from Aluno Único modal
+    bp_vendedor = '', bp_modelo = '', bp_pagamento = '',
+    bp_em_dia = '', bp_valor = '', document = null,
   } = body;
 
   if (!course_name || !name || !email || !entry_date || !total_amount) {
     return NextResponse.json({ error: 'Campos obrigatórios faltando' }, { status: 400 });
   }
+
+  // Normalize payment_type — allow 'PIX_MENSAL' through as-is; map others
+  const dbPayType = payment_type; // store whatever the client sends (PIX, PIX_MENSAL, CREDIT_CARD, PIX_CARTAO)
 
   try {
     await ensureSchema();
@@ -93,11 +99,31 @@ export async function POST(request: Request) {
          total_amount, installments, installment_amount, installment_dates,
          notes, currency, down_payment, created_at, updated_at)
       VALUES
-        (${course_name}, ${name}, ${email}, ${phone}, ${entry_date}, ${payment_type},
+        (${course_name}, ${name.toUpperCase()}, ${email.toLowerCase()}, ${phone}, ${entry_date}, ${dbPayType},
          ${total_amount}, ${installments}, ${installment_amount ?? total_amount}, ${datesJson},
          ${notes}, ${currency}, ${down_payment}, ${now}, ${now})
       RETURNING *
     `) as any[];
+
+    // ── UPSERT buyer_profiles if buyer_persona fields were provided ────────
+    const hasBp = bp_vendedor || bp_modelo || bp_pagamento || bp_em_dia || bp_valor || document;
+    if (hasBp) {
+      const bpValorNum = bp_valor ? parseFloat(String(bp_valor).replace(',', '.')) || null : null;
+      await sql`
+        INSERT INTO buyer_profiles (email, bp_vendedor, bp_modelo, bp_pagamento, bp_em_dia, bp_valor, document)
+        VALUES (${email.toLowerCase()},
+                ${bp_vendedor || null}, ${bp_modelo || null}, ${bp_pagamento || null},
+                ${bp_em_dia || null}, ${bpValorNum}, ${document || null})
+        ON CONFLICT (email) DO UPDATE SET
+          bp_vendedor  = COALESCE(EXCLUDED.bp_vendedor, buyer_profiles.bp_vendedor),
+          bp_modelo    = COALESCE(EXCLUDED.bp_modelo,   buyer_profiles.bp_modelo),
+          bp_pagamento = COALESCE(EXCLUDED.bp_pagamento,buyer_profiles.bp_pagamento),
+          bp_em_dia    = COALESCE(EXCLUDED.bp_em_dia,   buyer_profiles.bp_em_dia),
+          bp_valor     = COALESCE(EXCLUDED.bp_valor,    buyer_profiles.bp_valor),
+          document     = COALESCE(EXCLUDED.document,    buyer_profiles.document)
+      `;
+    }
+
     bustCursosCache();
     return NextResponse.json({ student: rows[0] }, { status: 201 });
   } catch (e: any) {

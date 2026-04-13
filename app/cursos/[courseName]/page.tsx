@@ -2088,10 +2088,11 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
     try {
       const [ey, em, ed] = form.entry_date.split('-').map(Number);
       const entryTs = new Date(ey, em - 1, ed, 12, 0, 0).getTime();
-      const isPix   = form.payment_type === 'PIX_AVISTA';
+      const isPix     = form.payment_type === 'PIX_AVISTA';
       const dbPayType = (
-        form.payment_type === 'PIX_AVISTA' || form.payment_type === 'PIX_MENSAL' ? 'PIX' :
-        form.payment_type === 'PIX_CARTAO' ? 'PIX_CARTAO' : 'CREDIT_CARD'
+        form.payment_type === 'PIX_AVISTA'  ? 'PIX' :
+        form.payment_type === 'PIX_MENSAL'  ? 'PIX_MENSAL' :
+        form.payment_type === 'PIX_CARTAO'  ? 'PIX_CARTAO' : 'CREDIT_CARD'
       );
       const body = {
         course_name:        courseName,
@@ -2211,7 +2212,16 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
               { key: 'PIX_MENSAL',  icon: 'autorenew',         label: 'PIX Mensal',        col: '#c084fc'  },
             ] as { key: string; icon: string; label: string; col: string }[]).map(({ key, icon, label, col }) => (
               <button key={key} type="button"
-                onClick={() => setForm(f => ({ ...f, payment_type: key as PayType, installments: 1 }))}
+                onClick={() => {
+                  const next: Partial<typeof form> = { payment_type: key as PayType, installments: 1 };
+                  // Bug 03: for PIX_MENSAL, auto-advance first_payment_date by 30 days from entry_date
+                  if (key === 'PIX_MENSAL') {
+                    const [ey, em, ed] = form.entry_date.split('-').map(Number);
+                    const d = new Date(ey, em - 1, ed + 30);
+                    next.first_payment_date = d.toISOString().slice(0, 10);
+                  }
+                  setForm(f => ({ ...f, ...next }));
+                }}
                 style={{
                   padding: '10px 12px', borderRadius: 12, fontWeight: 800, fontSize: 11, cursor: 'pointer',
                   background: form.payment_type === key ? `${col}22` : 'rgba(255,255,255,0.05)',
