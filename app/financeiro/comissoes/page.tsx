@@ -193,10 +193,12 @@ function NotaFiscalModal({
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function ComissoesPage() {
   const { dateFrom, dateTo } = useDashboard();
-  const [data,    setData]    = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
-  const [nota,    setNota]    = useState<any | null>(null); // vendedor selecionado para modal
+  const [data,         setData]         = useState<any[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
+  const [nota,         setNota]         = useState<any | null>(null);
+  const [origemFilter, setOrigemFilter] = useState<'all' | 'hotmart' | 'manual'>('all');
+  const [cursoFilter,  setCursoFilter]  = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true); setError('');
@@ -214,12 +216,42 @@ export default function ComissoesPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Lista de cursos únicos para o select
+  const courseList = useMemo<string[]>(() => {
+    const set = new Set<string>();
+    data.forEach(v => (v.itens || []).forEach((it: any) => { if (it.produto) set.add(it.produto); }));
+    return Array.from(set).sort();
+  }, [data]);
+
+  // filteredData: recalcula totais por vendedor após aplicar filtros de origem e curso
+  const filteredData = useMemo(() => {
+    return data
+      .map(v => {
+        let itens: any[] = v.itens || [];
+        if (origemFilter !== 'all') itens = itens.filter((it: any) => it.fonte === origemFilter);
+        if (cursoFilter)            itens = itens.filter((it: any) => it.produto === cursoFilter);
+        const hotmartItens = itens.filter((it: any) => it.fonte === 'hotmart');
+        const manualItens  = itens.filter((it: any) => it.fonte === 'manual');
+        return {
+          ...v,
+          itens,
+          hotmartVendas: hotmartItens.length,
+          hotmartValor:  hotmartItens.reduce((s: number, it: any) => s + it.valor, 0),
+          manualVendas:  manualItens.length,
+          manualValor:   manualItens.reduce((s: number, it: any) => s + it.valor, 0),
+          totalVendas:   itens.length,
+          totalValor:    itens.reduce((s: number, it: any) => s + it.valor, 0),
+        };
+      })
+      .filter(v => v.totalVendas > 0);
+  }, [data, origemFilter, cursoFilter]);
+
   const totais = useMemo(() => ({
-    faturado: data.reduce((s, v) => s + v.totalValor, 0),
-    vendas:   data.reduce((s, v) => s + v.totalVendas, 0),
-    hotmart:  data.reduce((s, v) => s + v.hotmartValor, 0),
-    manual:   data.reduce((s, v) => s + v.manualValor, 0),
-  }), [data]);
+    faturado: filteredData.reduce((s, v) => s + v.totalValor,    0),
+    vendas:   filteredData.reduce((s, v) => s + v.totalVendas,   0),
+    hotmart:  filteredData.reduce((s, v) => s + v.hotmartValor,  0),
+    manual:   filteredData.reduce((s, v) => s + v.manualValor,   0),
+  }), [filteredData]);
 
   const kpis = [
     { label: 'Total Faturado',    value: R(totais.faturado), icon: 'payments',     accent: GOLD  },
@@ -262,6 +294,71 @@ export default function ComissoesPage() {
             </div>
           </div>
 
+          {/* ── Filtros ──────────────────────────────────────────────────────── */}
+          {!loading && data.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
+              {/* Origem */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                {([['all','Todos'], ['hotmart','Hotmart'], ['manual','Manual']] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setOrigemFilter(v)}
+                    style={{
+                      padding: '9px 16px', fontSize: 11, fontWeight: 900, cursor: 'pointer',
+                      background: origemFilter === v
+                        ? v === 'hotmart' ? 'rgba(249,115,22,0.18)'
+                          : v === 'manual' ? 'rgba(56,189,248,0.18)'
+                          : 'rgba(232,177,79,0.15)'
+                        : 'transparent',
+                      color: origemFilter === v
+                        ? v === 'hotmart' ? '#f97316'
+                          : v === 'manual' ? '#38bdf8'
+                          : GOLD
+                        : SILVER,
+                      border: 'none', textTransform: 'uppercase' as const, letterSpacing: '0.1em',
+                      borderRight: v !== 'manual' ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                      transition: 'all 0.15s',
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.1)' }} />
+
+              {/* Curso */}
+              <div style={{ position: 'relative' }}>
+                <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 15, color: cursoFilter ? GOLD : SILVER, pointerEvents: 'none' }}>school</span>
+                <select value={cursoFilter} onChange={e => setCursoFilter(e.target.value)}
+                  style={{
+                    padding: '9px 14px 9px 32px', borderRadius: 12, fontSize: 11, fontWeight: 900,
+                    background: cursoFilter ? 'rgba(232,177,79,0.1)' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${cursoFilter ? 'rgba(232,177,79,0.35)' : 'rgba(255,255,255,0.1)'}`,
+                    color: cursoFilter ? GOLD : SILVER, cursor: 'pointer', outline: 'none',
+                    minWidth: 200, maxWidth: 340,
+                  }}>
+                  <option value="" style={{ background: NAVY }}>Todos os Cursos</option>
+                  {courseList.map(c => <option key={c} value={c} style={{ background: NAVY }}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* Reset */}
+              {(origemFilter !== 'all' || cursoFilter) && (
+                <button onClick={() => { setOrigemFilter('all'); setCursoFilter(''); }}
+                  style={{ padding: '9px 14px', borderRadius: 12, fontSize: 11, fontWeight: 900, cursor: 'pointer',
+                    background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                    color: '#f87171', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>close</span>
+                  Limpar filtros
+                </button>
+              )}
+
+              <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: SILVER }}>
+                {filteredData.length} vendedor{filteredData.length !== 1 ? 'es' : ''}
+                {(origemFilter !== 'all' || cursoFilter) ? ' (filtrado)' : ''}
+              </span>
+            </div>
+          )}
+
           {/* ── KPI Cards ────────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
             {kpis.map((k, i) => (
@@ -290,7 +387,7 @@ export default function ComissoesPage() {
                 <span className="material-symbols-outlined" style={{ color: GOLD, fontSize: 20 }}>table_chart</span>
                 <h2 style={{ fontSize: 14, fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.12em' }}>Desempenho por Vendedor</h2>
                 <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: SILVER }}>
-                  {data.length} vendedor{data.length !== 1 ? 'es' : ''}
+                  {filteredData.length} vendedor{filteredData.length !== 1 ? 'es' : ''}
                 </span>
               </div>
 
@@ -309,6 +406,16 @@ export default function ComissoesPage() {
                   <span className="material-symbols-outlined" style={{ fontSize: 48, color: SILVER, display: 'block', marginBottom: 12 }}>person_off</span>
                   <p style={{ color: SILVER, fontWeight: 700, fontSize: 14 }}>Nenhum vendedor encontrado neste período</p>
                   <p style={{ color: SILVER, fontSize: 11, marginTop: 6, opacity: 0.6 }}>Verifique se há vendedores cadastrados nos alunos e compras Hotmart</p>
+                </div>
+              ) : filteredData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 48, color: SILVER, display: 'block', marginBottom: 12 }}>filter_list_off</span>
+                  <p style={{ color: SILVER, fontWeight: 700, fontSize: 14 }}>Nenhum resultado para os filtros selecionados</p>
+                  <button onClick={() => { setOrigemFilter('all'); setCursoFilter(''); }}
+                    style={{ marginTop: 14, padding: '9px 18px', borderRadius: 12, fontSize: 11, fontWeight: 900, cursor: 'pointer',
+                      background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}>
+                    Limpar filtros
+                  </button>
                 </div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
@@ -333,7 +440,7 @@ export default function ComissoesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.map((v, idx) => {
+                      {filteredData.map((v, idx) => {
                         const isTop = idx === 0;
                         return (
                           <tr key={v.nome}
@@ -417,17 +524,17 @@ export default function ComissoesPage() {
                     {/* Footer totais */}
                     <tfoot>
                       <tr style={{ borderTop: '2px solid rgba(232,177,79,0.25)', background: 'rgba(232,177,79,0.04)' }}>
-                        <td colSpan={2} style={{ padding: '16px 14px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: GOLD }}>
-                          TOTAL GERAL
-                        </td>
-                        <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#f97316' }}>{totais.vendas}</td>
-                        <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#f97316' }}>{R(totais.hotmart)}</td>
-                        <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#38bdf8' }}>{data.reduce((s, v) => s + v.manualVendas, 0)}</td>
-                        <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#38bdf8' }}>{R(totais.manual)}</td>
-                        <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#fff', fontSize: 16 }}>{totais.vendas}</td>
-                        <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: GOLD, fontSize: 18 }}>{R(totais.faturado)}</td>
-                        <td />
-                      </tr>
+                          <td colSpan={2} style={{ padding: '16px 14px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em', color: GOLD }}>
+                            TOTAL GERAL
+                          </td>
+                          <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#f97316' }}>{totais.vendas}</td>
+                          <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#f97316' }}>{R(totais.hotmart)}</td>
+                          <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#38bdf8' }}>{filteredData.reduce((s, v) => s + v.manualVendas, 0)}</td>
+                          <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#38bdf8' }}>{R(totais.manual)}</td>
+                          <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: '#fff', fontSize: 16 }}>{totais.vendas}</td>
+                          <td style={{ padding: '16px 14px', textAlign: 'right', fontWeight: 900, color: GOLD, fontSize: 18 }}>{R(totais.faturado)}</td>
+                          <td />
+                        </tr>
                     </tfoot>
                   </table>
                 </div>
