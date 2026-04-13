@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const sql = getDb();
 
     const rows = (await sql`
-      SELECT ms.*, bp.vendedor, bp.bp_em_dia
+      SELECT ms.*, bp.vendedor, bp.bp_em_dia, bp.bp_modelo
       FROM manual_students ms
       LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
       WHERE ms.entry_date >= ${from} AND ms.entry_date <= ${to}
