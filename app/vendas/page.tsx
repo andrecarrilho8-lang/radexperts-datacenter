@@ -951,10 +951,28 @@ export default function VendasPage() {
                       );
                     } else {
                       // Manual row
-                      const d = new Date(s.entry_date);
-                      const dateStr = d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+                      const entryTs = Number(s.entry_date);
+                      const d = entryTs > 0 ? new Date(entryTs) : null;
+                      const dateStr = d ? d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
                       const cur = (s.currency || 'BRL').toUpperCase();
-                      const amt = Number(s.total_amount) || 0;
+                      // Faturamento real = entrada já paga + parcelas marcadas pagas
+                      let instDatesArr: {paid: boolean; paid_ms: number|null}[] = [];
+                      try {
+                        const raw = typeof s.installment_dates === 'string' ? JSON.parse(s.installment_dates) : (s.installment_dates || []);
+                        if (Array.isArray(raw)) instDatesArr = raw;
+                      } catch {}
+                      const paidCount    = instDatesArr.filter((x: any) => x.paid).length;
+                      const instAmt      = Number(s.installment_amount) || Number(s.total_amount) || 0;
+                      const downAmt      = Number(s.down_payment) || 0;
+                      const isPix        = (s.payment_type || '').toUpperCase() === 'PIX';
+                      // PIX à vista: total sempre pago; outros: entrada + pagas
+                      const amt = isPix ? (Number(s.total_amount) || 0) : (downAmt + paidCount * instAmt);
+                      // Pagamento detalhado
+                      const ptRaw = (s.payment_type || '').toUpperCase();
+                      let payLabel = 'Pix'; let payBg = 'rgba(34,197,94,0.12)'; let payColor = GREEN;
+                      if (ptRaw === 'PIX_MENSAL')  { payLabel = 'Pix Mensal';   payBg = 'rgba(192,132,252,0.12)'; payColor = '#c084fc'; }
+                      else if (ptRaw === 'PIX_CARTAO')  { payLabel = 'Pix + Cartão'; payBg = 'rgba(56,189,248,0.12)'; payColor = TEAL; }
+                      else if (ptRaw === 'CREDIT_CARD') { payLabel = 'Cartão';       payBg = 'rgba(232,177,79,0.12)'; payColor = GOLD; }
                       return (
                         <tr key={`m-${s.id}`} style={{ background: idx%2===0?'transparent':'rgba(255,255,255,0.02)', borderBottom:`1px solid ${cardBorder}` }}
                           onMouseEnter={e => (e.currentTarget.style.background='rgba(167,139,250,0.04)')}
@@ -969,11 +987,16 @@ export default function VendasPage() {
                                 {cur === 'BRL' ? R(amt) : `${RF(amt, cur)}`}
                               </span>
                               <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background:'rgba(167,139,250,0.12)', color:'#a78bfa' }}>
-                                {s.installments > 1 ? `${s.installments}× parc.` : 'À vista'}
+                                {isPix ? 'À vista' : paidCount > 0 ? `${paidCount}/${s.installments}× pagas` : `0/${s.installments}× pagas`}
                               </span>
                             </div>
                           </td>
-                          <td className="py-3 px-4"><PaymentBadge method={s.payment_type || 'PIX'} /></td>
+                          <td className="py-3 px-4">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider"
+                              style={{ background: payBg, border: `1px solid ${payColor}30`, color: payColor }}>
+                              {payLabel}
+                            </span>
+                          </td>
                           <td className="py-3 px-4">
                             {(() => { const v = s.vendedor || vendedorMap[(s.email||'').toLowerCase()]; return v
                               ? <span className="text-[11px] font-black uppercase" style={{ color:GREEN }}>{v}</span>
@@ -982,7 +1005,13 @@ export default function VendasPage() {
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex flex-col">
-                              <span className="text-sm font-black text-white uppercase">{s.name}</span>
+                              <button onClick={() => router.push(`/alunos/${emailToId(s.email)}`)}
+                                className="text-sm font-black text-white uppercase hover:underline text-left"
+                                style={{ background:'none', border:'none', cursor:'pointer', padding:0 }}
+                                onMouseEnter={e => (e.currentTarget.style.color=GOLD)}
+                                onMouseLeave={e => (e.currentTarget.style.color='#fff')}>
+                                {s.name}
+                              </button>
                               <span className="text-[10px] font-bold" style={{ color:SILVER }}>{s.email}</span>
                               {/* Botões Editar / Excluir — só para vendas manuais */}
                               <div className="flex items-center gap-2 mt-1.5">

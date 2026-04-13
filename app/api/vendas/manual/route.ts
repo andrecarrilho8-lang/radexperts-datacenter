@@ -6,7 +6,8 @@ export const runtime = 'nodejs';
 
 /* ══════════════════════════════════════════════════════════════════════════
    GET /api/vendas/manual?from=<ms>&to=<ms>
-   Returns manual sales (manual_students) with revenue totals by currency.
+   Returns manual sales (manual_students) with REAL revenue totals:
+   down_payment already paid + paid installments × installment_amount.
    ══════════════════════════════════════════════════════════════════════════ */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -25,12 +26,34 @@ export async function GET(request: Request) {
       ORDER BY ms.entry_date DESC
     `) as any[];
 
-    // Aggregate by currency
+    // Aggregate by currency using REAL paid amount
     const totalsByCurrency: Record<string, { gross: number; count: number }> = {};
     for (const r of rows) {
       const cur = (r.currency || 'BRL').toUpperCase();
       if (!totalsByCurrency[cur]) totalsByCurrency[cur] = { gross: 0, count: 0 };
-      totalsByCurrency[cur].gross += Number(r.total_amount) || 0;
+
+      const ptype = (r.payment_type || 'PIX').toUpperCase();
+      const isPix = ptype === 'PIX' || ptype === 'PIX_AVISTA';
+
+      let realPaid = 0;
+      if (isPix) {
+        // PIX à vista: fully paid at entry
+        realPaid = Number(r.total_amount) || 0;
+      } else {
+        // PIX_MENSAL / PIX_CARTAO / CREDIT_CARD: entrada + paid installments
+        const downAmt = Number(r.down_payment) || 0;
+        const instAmt = Number(r.installment_amount) || Number(r.total_amount) || 0;
+        let paidCount = 0;
+        try {
+          const raw = typeof r.installment_dates === 'string'
+            ? JSON.parse(r.installment_dates)
+            : (r.installment_dates || []);
+          if (Array.isArray(raw)) paidCount = raw.filter((d: any) => d.paid).length;
+        } catch { /* ignore */ }
+        realPaid = downAmt + paidCount * instAmt;
+      }
+
+      totalsByCurrency[cur].gross += realPaid;
       totalsByCurrency[cur].count += 1;
     }
 
