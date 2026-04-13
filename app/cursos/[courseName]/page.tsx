@@ -3627,12 +3627,19 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           }
                           const dates = ((s as any).manualInstallments || []) as InstallmentDate[];
                           const paidCount = dates.filter((d: InstallmentDate) => d.paid).length;
-                          const instAmt = s.valor || 0;
-                          const totalPaid = paidCount * instAmt;
+                          const instAmt   = s.valor || 0;
+                          const downAmt   = Number((s as any).down_payment || 0);
+                          // Total = entrada já paga (down_payment) + parcelas pagas × valor parcela
+                          const totalPaid = downAmt + paidCount * instAmt;
                           return (
                             <>
                               <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(totalPaid, s.currency)}</span>
-                              <span className="text-[9px] font-bold" style={{ color: SILVER }}>{paidCount} paga{paidCount !== 1 ? 's' : ''}</span>
+                              {paidCount > 0
+                                ? <span className="text-[9px] font-bold" style={{ color: SILVER }}>{paidCount} paga{paidCount !== 1 ? 's' : ''}{downAmt > 0 ? ' + entrada' : ''}</span>
+                                : downAmt > 0
+                                  ? <span className="text-[9px] font-bold" style={{ color: SILVER }}>Entrada paga</span>
+                                  : <span className="text-[9px] font-bold" style={{ color: SILVER }}>0 pagas</span>
+                              }
                             </>
                           );
                         }
