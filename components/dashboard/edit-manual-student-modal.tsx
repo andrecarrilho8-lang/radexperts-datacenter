@@ -193,9 +193,21 @@ function InstallmentTracker({
   function setDue(i: number, val: string) {
     const ms = parseInputDate(val);
     if (!ms) return;
-    const next = normalised.map((d, idx) => idx === i ? { ...d, due_ms: ms } : d);
-    onDatesChange(next);
+    if (i === 0) {
+      // Parcela 1 changed → cascade all subsequent (+30 days each)
+      const d = new Date(ms);
+      const y = d.getFullYear(); const mo = d.getMonth(); const day = d.getDate();
+      const next = normalised.map((dt, idx) => {
+        const cascadeMs = new Date(y, mo + idx, day, 12, 0, 0).getTime();
+        return { ...dt, due_ms: cascadeMs };
+      });
+      onDatesChange(next);
+    } else {
+      const next = normalised.map((d, idx) => idx === i ? { ...d, due_ms: ms } : d);
+      onDatesChange(next);
+    }
   }
+
 
   const paidCount = normalised.filter(d => d.paid).length;
 

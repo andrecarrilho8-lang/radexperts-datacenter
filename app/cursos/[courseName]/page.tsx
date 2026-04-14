@@ -2078,8 +2078,17 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   const setInstDate = (idx: number, val: string) => {
     const [y, m, d] = val.split('-').map(Number);
     const ms = new Date(y, m - 1, d, 12, 0, 0).getTime();
-    setInstDates(prev => prev.map((dt, i) => i !== idx ? dt : { ...dt, due_ms: ms }));
+    if (idx === 0) {
+      // Parcela 1 changed → cascade all subsequent (+30 days each)
+      setInstDates(prev => prev.map((dt, i) => ({
+        ...dt,
+        due_ms: new Date(y, m - 1 + i, d, 12, 0, 0).getTime(),
+      })));
+    } else {
+      setInstDates(prev => prev.map((dt, i) => i !== idx ? dt : { ...dt, due_ms: ms }));
+    }
   };
+
 
   // Derived amounts
   const totalAmt  = parseFloat(form.total_amount || '0');
