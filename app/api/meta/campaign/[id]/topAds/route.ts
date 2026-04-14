@@ -3,14 +3,14 @@ import { getCache, setCache, parseMetrics } from '@/app/lib/metaApi';
 
 const BASE = 'https://graph.facebook.com/v19.0';
 const AD_FIELDS = 'ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,outbound_clicks,cpc,ctr,actions,action_values';
-// Subfields explícitos para garantir que os links retornem
+// Include full_picture for higher resolution thumbnail
 const CREATIVE_FIELDS = [
   'id',
   'effective_status',
   'instagram_permalink_url',
   'effective_instagram_story_id',
   'preview_shareable_link',
-  'creative{id,object_story_id,thumbnail_url,image_url,body,link_url,asset_feed_spec{bodies{text},link_urls{website_url}},object_story_spec{link_data{link,message,call_to_action{value{link}},child_attachments{link}},video_data{image_url,message,call_to_action{value{link}}}}}'  
+  'creative{id,object_story_id,thumbnail_url,image_url,body,link_url,asset_feed_spec{bodies{text},link_urls{website_url}},object_story_spec{link_data{link,message,call_to_action{value{link}},child_attachments{link},picture,image_hash},video_data{image_url,message,call_to_action{value{link}}}}}'
 ].join(',');
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -81,16 +81,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         const urlMap:   Record<string, string> = {};
         const bodyMap:  Record<string, string> = {};
         const statusMap:Record<string, string> = {};
+        const creativeIdMap: Record<string, string> = {}; // adId → creativeId (for hi-res fallback)
 
         for (const ad of (crJson.data || [])) {
           const c = ad.creative || {};
           const spec = c.object_story_spec || {};
           if (ad.effective_status) statusMap[ad.id] = ad.effective_status;
+          if (c.id) creativeIdMap[ad.id] = c.id;
 
-          // Thumbnail
-          const thumb = c.image_url || c.thumbnail_url
-            || spec.video_data?.image_url
-            || spec.link_data?.image_hash
+          // Thumbnail — prefer full-res link_data.picture, then image_url, then video still, then thumbnail
+          const thumb =
+            spec.link_data?.picture          // direct image URL from ad (often 600×315 or higher)
+            || c.image_url                   // image ad full-size URL
+            || spec.video_data?.image_url    // video thumbnail
+            || c.thumbnail_url              // fallback low-res
             || '';
           if (thumb) thumbMap[ad.id] = thumb;
 
@@ -119,6 +123,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           if (!igLink && c.object_story_id) { const parts = c.object_story_id.split('_'); if (parts.length === 2) igLink = `https://www.instagram.com/p/${parts[1]}/`; }
           if (!igLink) igLink = `https://www.facebook.com/ads/experience/preview/?ad_id=${ad.id}&platform=INSTAGRAM`;
           if (igLink) igMap[ad.id] = igLink;
+        }
+
+        // Second pass: for ads still lacking a good thumb, try /{creativeId}/picture?type=large
+        const missingThumb = topAds.filter((a: any) => !thumbMap[a.id] && creativeIdMap[a.id]);
+        if (missingThumb.length > 0) {
+          await Promise.allSettled(missingThumb.map(async (a: any) => {
+            try {
+              const picUrl = `${BASE}/${creativeIdMap[a.id]}/picture?redirect=0&type=large&access_token=${accessToken}`;
+              const picRes = await fetch(picUrl);
+              const picJson = await picRes.json();
+              if (picJson?.data?.url) thumbMap[a.id] = picJson.data.url;
+            } catch { /* skip */ }
+          }));
         }
 
         for (const ad of topAds as any[]) {
