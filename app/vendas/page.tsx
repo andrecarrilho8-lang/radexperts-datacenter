@@ -100,7 +100,8 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
     let startDate: Date;
     if (hasEntrada) {
       const [ey, em, ed] = form.entry_date.split('-').map(Number);
-      startDate = new Date(ey, em - 1, ed + 30, 12, 0, 0);
+      // Use calendar month +1 instead of +30 days to avoid day overflow
+      startDate = new Date(ey, em, ed, 12, 0, 0);
     } else {
       const [py, pm, pd] = form.first_payment_date.split('-').map(Number);
       startDate = new Date(py, pm - 1, pd, 12, 0, 0);
@@ -123,11 +124,15 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
     const [y, m, d] = val.split('-').map(Number);
     const ms = new Date(y, m - 1, d, 12, 0, 0).getTime();
     if (idx === 0) {
-      // Parcela 1 changed → cascade all subsequent (+30 days each)
+      // Cascade: recalculate all parcelas with +1 month each from Parcela 1
       setInstDates(prev => prev.map((dt, i) => ({
         ...dt,
         due_ms: new Date(y, m - 1 + i, d, 12, 0, 0).getTime(),
       })));
+      // Sync first_payment_date so useEffect won't override cascade later
+      const hasEnt = (form.payment_type === 'PIX_CARTAO' || form.payment_type === 'PIX_MENSAL')
+        && parseFloat(form.down_payment || '0') > 0;
+      if (!hasEnt) set('first_payment_date', val);
     } else {
       setInstDates(prev => prev.map((dt, i) => i !== idx ? dt : { ...dt, due_ms: ms }));
     }
