@@ -777,8 +777,56 @@ export function CampaignDetailView({ id }: { id: string }) {
           );
         }
 
-        // Active campaigns: no projections shown
-        return null;
+        // --- PROJEÇÕES (campanha ativa) ---
+        const dailySpend   = m.spend / dayCount;
+        const projections  = [{ days: 7, label: '7 dias' }, { days: 14, label: '14 dias' }, { days: 30, label: '30 dias' }];
+
+        return (
+          <div className="rounded-[28px] p-8 mb-12" style={{ background: 'linear-gradient(160deg, rgba(0,22,55,0.95) 0%, rgba(0,15,40,0.9) 100%)', border: `1px solid rgba(232,177,79,0.2)`, boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            {header('Projeções do Analista', 'Baseado no ritmo do período analisado', 'monitoring')}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Gasto médio por dia */}
+              <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-[18px]" style={{ color: GOLD }}>today</span>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Gasto médio por dia</p>
+                </div>
+                <p className="font-headline font-black text-3xl text-white mb-1">{R(dailySpend)}</p>
+                <p className="text-[10px] font-bold mb-4" style={{ color: SILVER }}>Baseado em {dayCount} dias de período</p>
+                {campDetail.createdTime && (
+                  <div className="pt-3" style={{ borderTop: `1px solid ${cardBorder}` }}>
+                    <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: SILVER }}>Campanha ativa há</p>
+                    <p className="font-black text-white text-lg">{daysActive} dias</p>
+                    <p className="text-[9px] font-bold" style={{ color: SILVER }}>desde {D(campDetail.createdTime)}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Investimento projetado */}
+              <div className="rounded-[20px] p-6" style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="material-symbols-outlined text-[18px]" style={{ color: '#38bdf8' }}>trending_up</span>
+                  <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>Investimento projetado</p>
+                </div>
+                <div className="flex flex-col gap-4">
+                  {projections.map(p => (
+                    <div key={p.days}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: SILVER }}>{p.label}</span>
+                        <span className="font-black text-white">{R(dailySpend * p.days)}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${Math.min((p.days / 30) * 100, 100)}%`, background: 'linear-gradient(to right, rgba(232,177,79,0.8), rgba(232,177,79,0.4))' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        );
       })()}
 
       <CampaignPagesSection ads={campDetailAds} type={isVendas ? 'VENDAS' : 'LEADS'} />
