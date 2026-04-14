@@ -2894,7 +2894,17 @@ function EditStudentModal({ student, onClose, onSaved }: {
                       <input type="date" value={new Date(d.due_ms).toISOString().slice(0, 10)}
                         onChange={e => {
                           const ms = new Date(e.target.value + 'T12:00:00').getTime();
-                          if (!isNaN(ms)) setInstDates(prev => prev.map((x, idx) => idx === i ? { ...x, due_ms: ms } : x));
+                          if (isNaN(ms)) return;
+                          if (i === 0) {
+                            // Cascade: all parcelas recalculated from Parcela 1
+                            const dt = new Date(ms);
+                            const y = dt.getFullYear(), mo = dt.getMonth(), day = dt.getDate();
+                            setInstDates(prev => prev.map((x, idx) => ({
+                              ...x, due_ms: new Date(y, mo + idx, day, 12, 0, 0).getTime(),
+                            })));
+                          } else {
+                            setInstDates(prev => prev.map((x, idx) => idx === i ? { ...x, due_ms: ms } : x));
+                          }
                         }}
                         style={{ flex: 1, padding: '4px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: d.paid ? '#4ade80' : 'white', fontSize: 11, fontWeight: 700, outline: 'none' }} />
                       {/* Amount */}
