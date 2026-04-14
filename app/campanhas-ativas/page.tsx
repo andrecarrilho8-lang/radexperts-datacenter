@@ -122,24 +122,13 @@ function AdsTable({ ads, objective }: { ads: any[]; objective: string }) {
                 <td style={{ ...TD, maxWidth: 280 }}>
                   <p style={{ fontSize: 12, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.03em', maxWidth: 280 }} title={ad.name}>{ad.name}</p>
                   {rawUrl ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                      <a href={rawUrl} target="_blank" rel="noopener noreferrer"
-                        title={rawUrl}
-                        style={{ fontSize: 10, fontWeight: 700, color: SKY, display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none', maxWidth: 220, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
-                        onClick={e => e.stopPropagation()}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 11, flexShrink: 0 }}>link</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayUrl}</span>
-                      </a>
-                      <span style={{
-                        fontSize: 9, fontWeight: 900, letterSpacing: '0.08em', flexShrink: 0,
-                        padding: '2px 6px', borderRadius: 5,
-                        background: connRate > 70 ? 'rgba(34,197,94,0.12)' : connRate < 50 ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)',
-                        border: `1px solid ${connRate > 70 ? 'rgba(34,197,94,0.25)' : connRate < 50 ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.1)'}`,
-                        color: connClr,
-                      }}>
-                        {P(connRate)} Connect
-                      </span>
-                    </div>
+                    <a href={rawUrl} target="_blank" rel="noopener noreferrer"
+                      title={rawUrl}
+                      style={{ marginTop: 5, fontSize: 10, fontWeight: 700, color: SKY, display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none', maxWidth: 260, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
+                      onClick={e => e.stopPropagation()}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 11, flexShrink: 0 }}>link</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayUrl}</span>
+                    </a>
                   ) : null}
                 </td>
                 {/* Gasto */}
