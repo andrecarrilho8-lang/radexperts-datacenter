@@ -80,10 +80,10 @@ export async function POST(req: NextRequest) {
         FROM buyer_profiles WHERE email = ${email}
       ` as any[];
 
-      const isHotmart = bpRow && (bpRow.purchase_count || 0) > 0;
+      const isHotmart = (bpRow && (bpRow.purchase_count || 0) > 0) || s.payment_type === 'HOTMART_CHECK';
 
       if (isHotmart && !s.force_update) {
-        // ── Hotmart student: only update non-payment fields ──────────────
+        // ── Hotmart / CSV-indicated Hotmart: only update non-payment fields ──
         await sql`
           INSERT INTO buyer_profiles (email, name, phone, document, vendedor, created_at, updated_at)
           VALUES (${email}, ${s.name.trim().toUpperCase()}, ${s.phone}, ${s.cpf}, ${s.vendedor}, ${now}, ${now})
