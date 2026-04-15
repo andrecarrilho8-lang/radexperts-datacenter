@@ -859,7 +859,7 @@ function manualToStudent(ms: any): Student {
 
   return {
     name: ms.name, email: ms.email,
-    entryDate:   Number(ms.entry_date), lastPayDate: lastPaid,
+    entryDate:   dates.length > 0 ? Number(dates[0].due_ms) : (Number(ms.entry_date) || null),
     turma: 'Manual', valor: instAmt, valorBRL: Number(ms.total_amount),
     currency: msCurrency, flag: msFlag,
     transaction: `MANUAL_${ms.id}`,

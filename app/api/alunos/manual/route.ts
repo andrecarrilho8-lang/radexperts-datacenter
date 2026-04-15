@@ -27,11 +27,11 @@ export async function GET(request: Request) {
     // This eliminates the need for a separate client-side cache lookup for status calculation.
     const rows = course
       ? await sql`
-          SELECT ms.*, bp.bp_em_dia, bp.bp_proximo_pagamento, bp.bp_modelo
+          SELECT DISTINCT ON (LOWER(ms.email)) ms.*, bp.bp_em_dia, bp.bp_proximo_pagamento, bp.bp_modelo
           FROM manual_students ms
           LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
           WHERE ms.course_name = ${course}
-          ORDER BY ms.entry_date DESC`
+          ORDER BY LOWER(ms.email), ms.updated_at DESC`
       : await sql`
           SELECT ms.*, bp.bp_em_dia, bp.bp_proximo_pagamento, bp.bp_modelo
           FROM manual_students ms
