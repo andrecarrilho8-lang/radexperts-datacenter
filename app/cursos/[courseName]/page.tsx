@@ -2931,6 +2931,14 @@ function EditStudentModal({ student, onClose, onSaved }: {
         {/* Buyer Persona */}
         <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 12, marginTop: 20 }}>Vendedor</p>
         <EditSelect label="Vendedor" icon="sell" value={vendedor} onChange={setVendedor} options={VENDEDORES} />
+        <EditField
+          label="Valor Total do Contrato (R$)"
+          icon="payments"
+          value={bpValor}
+          onChange={setBpValor}
+          onEnter={handleSave}
+          placeholder="Ex: 36000"
+        />
         {isManual && (<>
           <EditField label="Modelo" icon="layers" value={bpModelo} onChange={setBpModelo} onEnter={handleSave} placeholder="Recorrência, Assinatura, 1x…" />
           <div style={{ marginBottom: 16 }}>

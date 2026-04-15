@@ -51,6 +51,7 @@ export type ManualStudentFields = {
   // buyer_profiles fields
   document?: string;        // CPF
   vendedor?: string;
+  bp_valor?: string;
   bp_modelo?: string;
   bp_pagamento?: string;
   bp_em_dia?: string;
@@ -307,6 +308,7 @@ export function EditManualStudentModal({
   // BP fields
   const [cpf,         setCpf]         = useState(student.document || '');
   const [vendedor,    setVendedor]    = useState(student.vendedor || '');
+  const [bpValor,     setBpValor]     = useState(student.bp_valor  || '');
   const [modelo,      setModelo]      = useState(student.bp_modelo || '');
   const [status,      setStatus]      = useState(student.bp_em_dia || 'Adimplente');
   const [primParcela, setPrimParcela] = useState(fmtInputDate(student.bp_primeira_parcela));
@@ -381,6 +383,7 @@ export function EditManualStudentModal({
       const bpPayload: Record<string, unknown> = {
         document:            cpf.trim()      || null,
         vendedor:            vendedor.trim() || null,
+        bp_valor:            bpValor.trim()  || null,
         bp_modelo:           modelo.trim()  || null,
         bp_pagamento:        paymentType,
         bp_em_dia:           status,
@@ -412,6 +415,7 @@ export function EditManualStudentModal({
         notes:               notes.trim(),
         document:            cpf.trim(),
         vendedor:            vendedor.trim(),
+        bp_valor:            bpValor.trim(),
         bp_modelo:           modelo.trim(),
         bp_em_dia:           status,
         bp_primeira_parcela: firstDue,
@@ -427,7 +431,7 @@ export function EditManualStudentModal({
   }, [
     name, phone, paymentType, currency, totalAmount, downPayment,
     installments, instAmount, instCount, instDates, notes, entryDate,
-    vendedor, modelo, status, primParcela, ultPagto, proxPagto,
+    vendedor, bpValor, modelo, status, primParcela, ultPagto, proxPagto,
     isParc, student.manualId, student.email, student.entry_date,
     onSaved, onClose,
   ]);
@@ -581,6 +585,9 @@ export function EditManualStudentModal({
             <div className="grid grid-cols-2 gap-4">
               <Field>
                 <Select label="Vendedor" value={vendedor} onChange={setVendedor} options={VENDEDOR_OPTIONS} />
+              </Field>
+              <Field>
+                <Input label="Valor Total do Contrato (R$)" value={bpValor} onChange={setBpValor} placeholder="Ex: 36000" />
               </Field>
               <Field>
                 <Input label="Modelo" value={modelo} onChange={setModelo} placeholder="Recorrência, Assinatura, 1x…" />
