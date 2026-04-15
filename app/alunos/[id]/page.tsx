@@ -620,6 +620,104 @@ export default function AlunoPage() {
                     );
                   })()}
 
+                  {/* ── Pagamentos Manuais ── */}
+                  {(data.manualStudents || []).filter((ms: any) => ms.payment_type && ms.total_amount > 0).length > 0 && (
+                    <div style={{ ...card, border: '1px solid rgba(56,189,248,0.18)' }} className="p-5">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: '#38bdf8' }}>
+                        <span className="material-symbols-outlined text-sm">payments</span>
+                        Pagamentos Manuais
+                      </p>
+                      {(data.manualStudents || []).filter((ms: any) => ms.total_amount > 0).map((ms: any, msi: number) => {
+                        const dates: any[]  = ms.installment_dates || [];
+                        const isPix         = ms.payment_type === 'PIX' || ms.payment_type === 'PIX_AVISTA';
+                        const paidCount     = dates.filter((d: any) => d.paid).length;
+                        const totalPaid     = isPix
+                          ? (dates[0]?.paid ? Number(ms.total_amount) : 0)
+                          : paidCount * Number(ms.installment_amount || 0);
+                        const fmtA = (v: number) => RF(v, ms.currency || 'BRL');
+                        const statusColor = paidCount === dates.length && dates.length > 0 ? '#4ade80' : '#38bdf8';
+
+                        return (
+                          <div key={ms.id || msi} className={msi > 0 ? 'mt-5 pt-5' : ''} style={msi > 0 ? { borderTop: '1px solid rgba(255,255,255,0.06)' } : {}}>
+                            {/* Course name */}
+                            <p className="text-[9px] font-bold uppercase tracking-widest mb-2 truncate" style={{ color: SILVER }}>
+                              {ms.course_name}
+                            </p>
+                            {/* Type + Total */}
+                            <div className="flex justify-between items-baseline mb-1.5">
+                              <span className="text-[10px] font-black" style={{ color: '#38bdf8' }}>
+                                {isPix ? 'PIX à Vista' : `PIX Mensal · ${ms.installments}x`}
+                              </span>
+                              <span className="text-[12px] font-black text-white">{fmtA(Number(ms.total_amount))}</span>
+                            </div>
+                            {/* Paid progress */}
+                            {!isPix && (
+                              <div className="flex justify-between items-baseline mb-3">
+                                <span className="text-[9px] font-bold uppercase" style={{ color: SILVER }}>
+                                  {paidCount}/{dates.length} pagas
+                                </span>
+                                <span className="text-[11px] font-black" style={{ color: statusColor }}>{fmtA(totalPaid)}</span>
+                              </div>
+                            )}
+                            {/* Progress bar */}
+                            {!isPix && dates.length > 0 && (
+                              <div className="w-full rounded-full mb-3" style={{ height: 4, background: 'rgba(255,255,255,0.07)' }}>
+                                <div className="h-full rounded-full transition-all" style={{ width: `${(paidCount / dates.length) * 100}%`, background: statusColor }} />
+                              </div>
+                            )}
+                            {/* Installment list */}
+                            {!isPix && dates.length > 0 && (
+                              <div className="space-y-1.5">
+                                {dates.map((d: any, di: number) => {
+                                  const key = `${ms.id}-${di}`;
+                                  const isLoading = quitando.has(key);
+                                  const due = new Date(Number(d.due_ms));
+                                  return (
+                                    <div key={di} className="flex items-center gap-2 rounded-xl px-2.5 py-1.5"
+                                      style={{ background: d.paid ? 'rgba(74,222,128,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${d.paid ? 'rgba(74,222,128,0.18)' : 'rgba(255,255,255,0.06)'}` }}>
+                                      <span className="material-symbols-outlined text-[13px] flex-shrink-0" style={{ color: d.paid ? '#4ade80' : SILVER }}>
+                                        {d.paid ? 'check_circle' : 'radio_button_unchecked'}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-[9px] font-black" style={{ color: d.paid ? '#4ade80' : 'white' }}>
+                                          P{di + 1}
+                                        </span>
+                                        <span className="text-[9px] ml-1.5" style={{ color: SILVER }}>
+                                          {due.toLocaleDateString('pt-BR')}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] font-black flex-shrink-0" style={{ color: d.paid ? '#4ade80' : 'white' }}>
+                                        {fmtA(Number(ms.installment_amount || 0))}
+                                      </span>
+                                      {!d.paid && (
+                                        <button
+                                          disabled={isLoading}
+                                          onClick={() => handleQuitar(ms, di)}
+                                          className="text-[8px] font-black px-1.5 py-0.5 rounded-lg flex-shrink-0 transition-all"
+                                          style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', cursor: isLoading ? 'wait' : 'pointer' }}
+                                        >
+                                          {isLoading ? '…' : 'Quitar'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {/* PIX à vista single row */}
+                            {isPix && (
+                              <div className="flex items-center gap-2 rounded-xl px-2.5 py-2"
+                                style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.18)' }}>
+                                <span className="material-symbols-outlined text-[14px]" style={{ color: '#4ade80' }}>check_circle</span>
+                                <span className="text-[10px] font-black text-white flex-1">PIX Pago</span>
+                                <span className="text-[11px] font-black" style={{ color: '#4ade80' }}>{fmtA(Number(ms.total_amount))}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* AC personal data */}
                   {ac && (
