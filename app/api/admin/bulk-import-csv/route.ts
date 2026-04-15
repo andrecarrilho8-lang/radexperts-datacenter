@@ -113,14 +113,11 @@ export async function POST(req: NextRequest) {
         installmentDates = [{ due_ms: entryMs, paid: true, paid_ms: entryMs }];
       }
 
-      // Search by email (no course_name constraint) to find ANY existing record → prioritize correct course_name
+      // Search by email + course_name to avoid updating records from other courses
       const existingRows = await sql`
         SELECT id FROM manual_students
-        WHERE LOWER(email) = ${email}
-        ORDER BY
-          CASE WHEN course_name = ${course_name} THEN 0 ELSE 1 END,
-          updated_at DESC
-        LIMIT 1
+        WHERE LOWER(email) = ${email} AND course_name = ${course_name}
+        ORDER BY updated_at DESC LIMIT 1
       ` as any[];
 
       const payload = {
