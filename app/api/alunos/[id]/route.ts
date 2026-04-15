@@ -278,7 +278,7 @@ export async function GET(
         SELECT ms.id, ms.name, ms.email, ms.course_name, ms.entry_date, ms.phone,
                ms.payment_type, ms.currency, ms.total_amount, ms.down_payment,
                ms.installments, ms.installment_amount, ms.installment_dates, ms.notes,
-               ms.created_at, ms.updated_at, ms.document,
+               ms.created_at, ms.updated_at,
                bp.vendedor, bp.bp_modelo, bp.bp_pagamento, bp.bp_em_dia, bp.bp_valor
         FROM manual_students ms
         LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
@@ -307,9 +307,8 @@ export async function GET(
         ltvBRL['BRL'] += realPaid;
         // Capture first-available vendedor/document from manual rows
         if (!manualVendedor && row.vendedor) manualVendedor = row.vendedor;
-        if (!manualDocument && row.document)  manualDocument = row.document;
-        if (!manualPhone    && row.phone)      manualPhone    = row.phone;
-        if (!manualName     && row.name)       manualName     = row.name;
+        if (!manualPhone    && row.phone)     manualPhone    = row.phone;
+        if (!manualName     && row.name)      manualName     = row.name;
       }
       manualStudents = manualRows.map(r => ({
         id:                 r.id,
@@ -333,7 +332,6 @@ export async function GET(
           } catch { return []; }
         })(),
         notes:              r.notes || '',
-        document:           r.document || '',
         // buyer_profile fields from JOIN
         vendedor:           r.vendedor || '',
         bp_modelo:          r.bp_modelo || '',
