@@ -581,15 +581,42 @@ function generatePDF(
     const stHtml   = stLabel === 'Inadimplente' ? '⚠ INADIMPLENTE' : stLabel === 'Quitado' ? '✓ QUITADO' : '● ADIMPLENTE';
     const vendedor = bp.vendedor || '';
     const modelo   = bp.modelo   || '';
-    const instInfo = isManual
-      ? (isPix ? 'PIX à Vista' : `${paidCount}/${inst} pagas`)
-      : (s.paymentIsSub ? `Assin. · ciclo ${s.paymentRecurrency}` : inst > 1 ? `${paidCount}/${inst}` : 'Pago');
     const dadosPessoais = [
       `<b>${s.email}</b>`,
       phone ? `<span style="color:#16a34a">📞 ${phone}</span>` : '',
       cpf   ? `<span style="color:#0369a1">🪪 ${cpf}</span>`  : '',
     ].filter(Boolean).join('<br/>');
-    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${payLabel}${modelo ? ` · ${modelo}` : ''}</td><td style="font-weight:700">${vParc ? fmtMoney(vParc) : '—'}</td><td>${vTotal ? fmtMoney(vTotal) : '—'}</td><td style="color:${stColor};font-weight:900">${stHtml}</td><td style="color:#888">${emDiaLabel}</td><td style="color:#555">${instInfo}</td></tr>`;
+
+    // Origem
+    const origBg    = isManual ? '#dcfce7' : '#dbeafe';
+    const origColor = isManual ? '#166534' : '#1e40af';
+    const origemHtml = `<span style="background:${origBg};color:${origColor};padding:2px 6px;border-radius:4px;font-size:8px;font-weight:900">${isManual ? 'MANUAL' : 'HOTMART'}</span>`;
+
+    // Installment detail
+    const manualDates = ((s as any).manualInstallments || []) as Array<{paid:boolean;due_ms:number;paid_ms:number|null}>;
+    let instDetail = '';
+    if (isManual) {
+      if (isPix) {
+        instDetail = manualDates[0]?.paid
+          ? `<span style="color:#166534">✓ PIX Pago</span>`
+          : `<span style="color:#b45309">◷ Pendente</span>`;
+      } else {
+        instDetail = manualDates.map((d, idx) => d.paid
+          ? `<span style="color:#166534">✓ P${idx+1} ${fmtDate(d.paid_ms ?? d.due_ms)}</span>`
+          : `<span style="color:#b45309">◷ P${idx+1} ${fmtDate(d.due_ms)}</span>`
+        ).join('<br/>');
+      }
+    } else {
+      const ph = (s.paymentHistory || []).slice(-4);
+      instDetail = ph.length > 0
+        ? ph.map(p => `<span style="color:#166534">✓ ${fmtDate(p.date)} ${fmtMoney(p.valor)}</span>`).join('<br/>')
+        : (inst > 1 ? `${paidCount}/${inst} pagas` : '✓ Pago');
+    }
+
+    // Total contrato
+    const valorContrato = bp.valor ? fmtMoney(Number(bp.valor)) : '—';
+
+    return `<tr style="background:${rowBg}"><td style="color:#888;text-align:center">${i+1}</td><td>${origemHtml}</td><td><strong>${s.name.toUpperCase()}</strong></td><td>${dadosPessoais}</td><td>${fmtDate(s.entryDate)}</td><td style="color:#92400e;font-weight:700">${vendedor}</td><td>${payLabel}${modelo ? ` · ${modelo}` : ''}</td><td style="font-weight:700">${vParc ? fmtMoney(vParc) : '—'}</td><td>${vTotal ? fmtMoney(vTotal) : '—'}</td><td>${valorContrato}</td><td style="color:${stColor};font-weight:900">${stHtml}</td><td style="font-size:10px;line-height:1.7">${instDetail}</td></tr>`;
   }).join('');
 
   const active    = students.filter(s => effectiveStatusFor(s, bpCache) === 'ADIMPLENTE').length;
@@ -615,7 +642,7 @@ td{padding:7px 6px;border-bottom:1px solid #eee;vertical-align:top;line-height:1
 <div class="stat" style="background:#fff0f0;border:1px solid #fca5a5"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">Inadimplentes</div></div>
 <div class="stat" style="background:#f0fff4;border:1px solid #86efac"><div class="num" style="color:#16a34a">${quitado}</div><div class="lbl">Quitados</div></div>
 </div>
-<table><thead><tr><th>#</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Vendedor</th><th>Pagamento</th><th>Valor/Parcela</th><th>Total Pago</th><th>Status</th><th>Em Dia</th><th>Detalhe</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th>#</th><th>Origem</th><th>Nome</th><th>Dados Pessoais</th><th>Entrada</th><th>Vendedor</th><th>Pagamento</th><th>V.Parcela</th><th>Total Pago</th><th>V.Contrato</th><th>Status</th><th>Parcelas</th></tr></thead><tbody>${rows}</tbody></table>
 <div class="ftr">RadExperts Data Center · Dados vitalícios</div>
 <script>window.onload=()=>window.print()</script></body></html>`);
   win.document.close();
