@@ -3686,7 +3686,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                             // Fallback to bp_valor from cache for legacy records where total_amount was NULL
                             const bpCacheEntry = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
                             const pixTotal = s.valorBRL || s.valor || Number(bpCacheEntry.valor || bpCacheEntry.bp_valor || 0);
-                            return <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(pixTotal, s.currency)}</span>;
+                            return (
+                              <>
+                                <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(pixTotal, s.currency)}</span>
+                                <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(pixTotal, s.currency)}</span>
+                              </>
+                            );
                           }
                           const dates = ((s as any).manualInstallments || []) as InstallmentDate[];
                           const paidCount = dates.filter((d: InstallmentDate) => d.paid).length;
@@ -3703,6 +3708,9 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                                   ? <span className="text-[9px] font-bold" style={{ color: SILVER }}>Entrada paga</span>
                                   : <span className="text-[9px] font-bold" style={{ color: SILVER }}>0 pagas</span>
                               }
+                              {Number(s.valorBRL) > 0 && (
+                                <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(Number(s.valorBRL), s.currency)}</span>
+                              )}
                             </>
                           );
                         }
@@ -3712,6 +3720,14 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                             {s.valorBRL != null && s.currency !== 'BRL' && (() => {
                               const totalBrl = s.paymentHistory.length > 0 ? s.valorBRL * s.paymentHistory.length : s.valorBRL;
                               return <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(totalBrl)}</span>;
+                            })()}
+                            {(() => {
+                              const bpH = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
+                              const totalContrato = Number(bpH.bp_valor || bpH.valor || 0);
+                              if (!totalContrato) return null;
+                              return (
+                                <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(totalContrato, s.currency)}</span>
+                              );
                             })()}
                           </>
                         );
