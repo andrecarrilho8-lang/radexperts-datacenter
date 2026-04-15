@@ -344,12 +344,16 @@ export async function GET(
     // Primary LTV = BRL total (most common); expose breakdown for UI
     const ltv = ltvBRL['BRL'] || 0;
 
-    const uniqueProducts = [...new Set(
-      rawSales
+    const uniqueProducts = [...new Set([
+      ...rawSales
         .filter((s: any) => APPROVED.has((s.purchase?.status || '').toUpperCase()))
         .map((s: any) => s.product?.name || '')
-        .filter(Boolean)
-    )];
+        .filter(Boolean),
+      ...manualStudents
+        .filter((ms: any) => Number(ms.total_amount) > 0)
+        .map((ms: any) => ms.course_name || '')
+        .filter(Boolean),
+    ])];
 
     // Hotmart buyer name/phone/document from first sale with buyer data
     const hotmartBuyer    = rawSales.find((s: any) => s.buyer?.name || s.buyer?.phone)?.buyer || null;

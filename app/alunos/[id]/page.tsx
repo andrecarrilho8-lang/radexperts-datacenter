@@ -914,7 +914,9 @@ export default function AlunoPage() {
               )}
 
               {/* ── Compras Manuais ────────────────────────────────── */}
-              {(data.manualStudents || []).length > 0 && (() => {
+              {(() => {
+                const msFiltered = (data.manualStudents || []).filter((ms: any) => Number(ms.total_amount) > 0);
+                if (msFiltered.length === 0) return null;
                 function ptLabel(pt: string) {
                   const p = (pt || '').toUpperCase();
                   if (p === 'PIX' || p === 'PIX_AVISTA') return 'PIX à Vista';
@@ -945,14 +947,14 @@ export default function AlunoPage() {
                     <div className="px-7 py-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
                       <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: GOLD }}>
                         <span className="material-symbols-outlined text-sm">edit_note</span>
-                        Compras Manuais · {data.manualStudents.length} {data.manualStudents.length === 1 ? 'registro' : 'registros'}
+                        Compras · {msFiltered.length} {msFiltered.length === 1 ? 'registro' : 'registros'}
                         <span className="ml-auto text-[9px]" style={{ color: SILVER }}>
-                          Total: {R(data.manualStudents.reduce((s: number, ms: any) => s + (Number(ms.total_amount) || 0), 0))}
+                          Total: {R(msFiltered.reduce((s: number, ms: any) => s + (Number(ms.total_amount) || 0), 0))}
                         </span>
                       </p>
                     </div>
                     <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-                      {data.manualStudents.map((ms: any, idx: number) => {
+                      {msFiltered.map((ms: any, idx: number) => {
                         const st = msEffectiveStatus(ms);
                         const isOk   = st === 'ADIMPLENTE';
                         const isNok  = st === 'INADIMPLENTE';
