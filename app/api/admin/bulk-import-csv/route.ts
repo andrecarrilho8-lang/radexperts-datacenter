@@ -80,7 +80,10 @@ export async function POST(req: NextRequest) {
         FROM buyer_profiles WHERE email = ${email}
       ` as any[];
 
-      const isHotmart = (bpRow && (bpRow.purchase_count || 0) > 0) || s.payment_type === 'HOTMART_CHECK';
+      // Explicit PIX from CSV → never treat as Hotmart (student may buy other courses via Hotmart)
+      const isExplicitPix = s.payment_type === 'PIX_AVISTA' || s.payment_type === 'PIX_MENSAL';
+      const isHotmart = s.payment_type === 'HOTMART_CHECK' ||
+        (!isExplicitPix && bpRow && (bpRow.purchase_count || 0) > 0);
 
       if (isHotmart && !s.force_update) {
         // ── Hotmart / CSV-indicated Hotmart: only update non-payment fields ──
