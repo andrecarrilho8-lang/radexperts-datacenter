@@ -13,6 +13,7 @@ interface ImportStudent {
   cpf: string;
   vendedor: string;
   payment_type: 'PIX_AVISTA' | 'PIX_MENSAL' | 'PIX_CARTAO' | 'HOTMART_CHECK';
+  force_update?: boolean;   // bypass Hotmart check and always write manual record
   currency: string;
   total_amount: number;
   down_payment: number;
@@ -36,16 +37,21 @@ function buildInstallmentDates(
 ): Array<{ due_ms: number; paid: boolean; paid_ms: number | null }> {
   const d = new Date(entryMs);
   const y = d.getFullYear(), mo = d.getMonth(), day = d.getDate();
+  // Compare dates by YMD to avoid timezone-induced off-by-hours bugs
+  const ymd = (ms: number) => {
+    const dt = new Date(ms);
+    return dt.getUTCFullYear() * 10000 + dt.getUTCMonth() * 100 + dt.getUTCDate();
+  };
+  const proxYMD = proximoMs ? ymd(proximoMs) : null;
   const dates = [];
   for (let i = 0; i < installments; i++) {
     const dueMs = new Date(y, mo + i, day, 12, 0, 0).getTime();
     let paid = allPaid;
-    if (!paid && proximoMs) {
-      // all installments with due_ms < proximo_pagamento are paid
-      paid = dueMs < proximoMs;
+    if (!paid && proxYMD !== null) {
+      // paid = installment's date is strictly before próximo pagamento date
+      paid = ymd(dueMs) < proxYMD;
     }
-    // paid_ms: use ultimo_pagamento only for the last paid, or the due_ms
-    const paid_ms = paid ? (ultimoMs && i === installments - 1 ? ultimoMs : dueMs) : null;
+    const paid_ms = paid ? dueMs : null;
     dates.push({ due_ms: dueMs, paid, paid_ms });
   }
   return dates;
@@ -76,7 +82,7 @@ export async function POST(req: NextRequest) {
 
       const isHotmart = bpRow && (bpRow.purchase_count || 0) > 0;
 
-      if (isHotmart) {
+      if (isHotmart && !s.force_update) {
         // ── Hotmart student: only update non-payment fields ──────────────
         await sql`
           INSERT INTO buyer_profiles (email, name, phone, document, vendedor, created_at, updated_at)
