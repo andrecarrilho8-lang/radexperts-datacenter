@@ -2777,7 +2777,16 @@ function EditStudentModal({ student, onClose, onSaved }: {
           </div>
           <div>
             <h3 style={{ color: 'white', fontWeight: 900, fontSize: 15, margin: 0 }}>Editar Informações</h3>
-            <p style={{ color: SILVER, fontSize: 11, margin: 0, marginTop: 2 }}>{student.name} · {student.email}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <p style={{ color: SILVER, fontSize: 11, margin: 0 }}>{student.name} · {student.email}</p>
+              {(student as any).source !== 'manual' ? (
+                <span style={{ fontSize: 7, fontWeight: 900, background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.35)',
+                  color: '#38bdf8', borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>HOTMART</span>
+              ) : (
+                <span style={{ fontSize: 7, fontWeight: 900, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
+                  color: '#4ade80', borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>MANUAL</span>
+              )}
+            </div>
           </div>
           <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: SILVER, cursor: 'pointer', padding: 4 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
@@ -3563,6 +3572,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
                             color: GREEN, borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                             MANUAL
+                          </span>
+                        )}
+                        {(s as any).source !== 'manual' && (
+                          <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.35)',
+                            color: '#38bdf8', borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                            HOTMART
                           </span>
                         )}
                       </div>
