@@ -154,9 +154,20 @@ export async function POST(request: Request) {
             updated_at         = ${now}
         `;
 
-        // 3. Auto-attribute vendedor from sck_vendedor_map if SCK is present and vendedor not yet set
+        // 3. Auto-attribute vendedor from sck_vendedor_map OR direct sck name match
         if (sck) {
-          const updated = await sql`
+          // Known vendors and their keyword triggers (case-insensitive substring of sck)
+          const VENDEDOR_SCK_KEYWORDS: [string, string][] = [
+            ['nackson', 'Nackson'],
+            ['samuel',  'Samuel'],
+            ['alba',    'Alba'],
+            ['pacheco', 'Pacheco'],
+            ['ana',     'Ana'],
+          ];
+          const sckLower = sck.toLowerCase();
+
+          // Try exact sck_vendedor_map lookup first
+          let updated = await sql`
             UPDATE buyer_profiles bp
             SET
               vendedor   = svm.vendedor,
@@ -167,8 +178,29 @@ export async function POST(request: Request) {
               AND (bp.vendedor IS NULL OR TRIM(bp.vendedor) = '')
             RETURNING bp.vendedor
           ` as any[];
+
           if (updated.length > 0) {
-            console.log(`[Webhook] Vendedor atribuído automaticamente: ${buyerEmail} → ${updated[0].vendedor} (sck=${sck})`);
+            console.log(`[Webhook] Vendedor (sck_map): ${buyerEmail} → ${updated[0].vendedor} (sck=${sck})`);
+          } else {
+            // Fallback: direct keyword match in sck value
+            const directMatch = VENDEDOR_SCK_KEYWORDS.find(([kw]) => sckLower.includes(kw));
+            if (directMatch) {
+              const [, vendedorName] = directMatch;
+              await sql`
+                UPDATE buyer_profiles SET
+                  vendedor   = ${vendedorName},
+                  updated_at = ${now}
+                WHERE email = ${buyerEmail}
+                  AND (vendedor IS NULL OR TRIM(vendedor) = '')
+              `;
+              // Also persist to sck_vendedor_map so future lookups hit the fast path
+              await sql`
+                INSERT INTO sck_vendedor_map (sck, vendedor)
+                VALUES (${sck}, ${vendedorName})
+                ON CONFLICT (sck) DO NOTHING
+              `;
+              console.log(`[Webhook] Vendedor (direct sck match): ${buyerEmail} → ${vendedorName} (sck=${sck})`);
+            }
           }
         }
       }
