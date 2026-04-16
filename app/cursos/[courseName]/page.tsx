@@ -3724,7 +3724,11 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                             return (
                               <>
                                 <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(pixTotal, s.currency)}</span>
-                                <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(pixTotal, s.currency)}</span>
+                                {(() => {
+                                  const contractVal = Number(bpCacheEntry.bp_valor || bpCacheEntry.valor || 0);
+                                  if (!contractVal || contractVal === pixTotal) return null;
+                                  return <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(contractVal, s.currency)}</span>;
+                                })()}
                               </>
                             );
                           }
