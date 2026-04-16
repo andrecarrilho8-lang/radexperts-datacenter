@@ -34,7 +34,8 @@ export function useDuplicateDetection({ getEmail, onEmailSet }: Options) {
     setMergeError('');
     if (timer.current) clearTimeout(timer.current);
     const trimmed = name.trim();
-    if (trimmed.length < 3) { setDupMatches([]); return; }
+    const words = trimmed.split(/\s+/).filter(w => w.length > 1);
+    if (words.length < 2) { setDupMatches([]); return; }
     timer.current = setTimeout(async () => {
       setDupLoading(true);
       try {
