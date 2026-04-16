@@ -11,6 +11,7 @@ import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { useRouter } from 'next/navigation';
 import { EditManualStudentModal, type ManualStudentFields } from '@/components/dashboard/edit-manual-student-modal';
+import { useDuplicateDetection } from '@/components/dashboard/use-duplicate-detection';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -82,6 +83,13 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
   const [instDates, setInstDates] = useState<InstallmentDate[]>([]);
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
+
+  // ── Duplicate detection ──────────────────────────────────────────────────────
+  const { handleNameChange, DuplicateCard, reset: resetDup } = useDuplicateDetection({
+    getEmail:    () => form.email,
+    onEmailSet:  (email) => setForm(f => ({ ...f, email })),
+  });
+  const handleName = (v: string) => handleNameChange(v, (name) => setForm(f => ({ ...f, name })));
 
   useEffect(() => {
     fetch('/api/cursos').then(r => r.json()).then(d => {
@@ -261,7 +269,7 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
           <div>
             <label style={LABEL}>Nome *</label>
             <input style={INPUT} placeholder="Nome completo" value={form.name}
-              onChange={e => set('name', e.target.value)} />
+              onChange={e => handleName(e.target.value)} />
           </div>
           <div>
             <label style={LABEL}>Email *</label>
@@ -270,7 +278,9 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
           </div>
         </div>
 
-        {/* Row 2: Telefone + Data de Entrada */}
+        {/* Duplicate detection card */}
+        <DuplicateCard />
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
           <div>
             <label style={LABEL}>Telefone *</label>

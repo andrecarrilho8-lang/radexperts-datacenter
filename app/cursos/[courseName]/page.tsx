@@ -7,6 +7,7 @@ import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import * as XLSX from 'xlsx';
 import { resolveCourseName } from '@/app/lib/slug';
+import { useDuplicateDetection } from '@/components/dashboard/use-duplicate-detection';
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
@@ -2073,6 +2074,13 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
 
+  // ── Duplicate detection ──────────────────────────────────────────────────────
+  const { handleNameChange, DuplicateCard } = useDuplicateDetection({
+    getEmail:   () => form.email,
+    onEmailSet: (email) => setForm(f => ({ ...f, email })),
+  });
+  const handleName = (v: string) => handleNameChange(v, (name) => setForm(f => ({ ...f, name })));
+
   useEffect(() => {
     const needsDates = ['PIX_CARTAO', 'CREDIT_CARD', 'PIX_MENSAL'].includes(form.payment_type);
     if (!needsDates || form.installments < 1) { setInstDates([]); return; }
@@ -2235,7 +2243,7 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
             <div>
               <label style={LABEL}>Nome *</label>
               <input style={INPUT} placeholder="Nome completo" value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
+                onChange={e => handleName(e.target.value)} required />
             </div>
             <div>
               <label style={LABEL}>Email *</label>
@@ -2243,6 +2251,9 @@ function AddStudentModal({ courseName, onClose, onSaved }: {
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
             </div>
           </div>
+
+          {/* Duplicate detection card */}
+          <DuplicateCard />
 
           {/* Row 2: telefone + data */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
