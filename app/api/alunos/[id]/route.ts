@@ -110,7 +110,8 @@ export async function GET(
         SELECT
           name, phone, document,
           vendedor, bp_valor, bp_pagamento, bp_modelo, bp_parcela,
-          bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia
+          bp_primeira_parcela, bp_ultimo_pagamento, bp_proximo_pagamento, bp_em_dia,
+          hotmart_email
         FROM buyer_profiles
         WHERE email = ${email}
         LIMIT 1
@@ -130,6 +131,7 @@ export async function GET(
           ultimo_pagamento:   r.bp_ultimo_pagamento  ? new Date(Number(r.bp_ultimo_pagamento)).toISOString() : null,
           proximo_pagamento:  r.bp_proximo_pagamento ? new Date(Number(r.bp_proximo_pagamento)).toISOString() : null,
           em_dia:             r.bp_em_dia || null,
+          hotmart_email:      r.hotmart_email || null,
         };
       }
     } catch { /* columns may not exist yet — ignore */ }
@@ -211,8 +213,10 @@ export async function GET(
     }
 
     // ── 2. Hotmart ──────────────────────────────────────────────────────────
+    // Use hotmart_email alias if set (for unified profiles where primary email ≠ Hotmart email)
+    const hotmartEmail = (buyerPersona as any)?.hotmart_email || email;
     const token   = await getHotmartToken();
-    const rawSales = await fetchAllHotmartByEmail(token, email);
+    const rawSales = await fetchAllHotmartByEmail(token, hotmartEmail);
 
     const APPROVED = new Set(['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED']);
 
