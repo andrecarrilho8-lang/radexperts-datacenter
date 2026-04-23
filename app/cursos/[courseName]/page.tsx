@@ -888,7 +888,7 @@ function manualToStudent(ms: any): Student {
   return {
     name: ms.name, email: ms.email,
     entryDate:   dates.length > 0 ? Number(dates[0].due_ms) : (Number(ms.entry_date) || null),
-    turma: 'Manual', valor: instAmt, valorBRL: Number(ms.total_amount),
+    turma: 'Manual', valor: instAmt, valorBRL: Number(ms.total_amount) || instAmt,
     currency: msCurrency, flag: msFlag,
     transaction: `MANUAL_${ms.id}`,
     phone: ms.phone, source: 'manual', manualId: ms.id,
@@ -907,6 +907,8 @@ function manualToStudent(ms: any): Student {
       date: d.paid_ms ?? d.due_ms, valor: instAmt,
       recurrencyNumber: i + 1, index: i,
     })),
+    // hotmartEnriched: true when backfill has populated payment data from Hotmart
+    hotmartEnriched: !!(ms.bp_em_dia || (instAmt > 0 && Number(ms.total_amount) > 0 && dates.length > 0)),
     // Extra fields for pre-filling the edit modal (not in Student type, accessed via `as any`)
     down_payment:       Number(ms.down_payment)       || 0,
     installment_amount: Number(ms.installment_amount) || 0,
@@ -918,6 +920,7 @@ function manualToStudent(ms: any): Student {
     bpModelo:           ms.bp_modelo ?? undefined,
     bpProximoPagamento: ms.bp_proximo_pagamento != null ? Number(ms.bp_proximo_pagamento) : undefined,
   } as any as Student;
+
 
 }
 
@@ -3705,10 +3708,18 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           title={s.name.toUpperCase()}
                         >{s.name.toUpperCase()}</button>
                         {(s as any).source === 'manual' && (
-                          <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
-                            color: GREEN, borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                            MANUAL
-                          </span>
+                          <>
+                            <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.3)',
+                              color: GREEN, borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                              MANUAL
+                            </span>
+                            {(s as any).hotmartEnriched && (
+                              <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.3)',
+                                color: '#38bdf8', borderRadius: 99, padding: '1px 6px', flexShrink: 0, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                                +HM
+                              </span>
+                            )}
+                          </>
                         )}
                         {(s as any).source !== 'manual' && (
                           <span style={{ fontSize: 8, fontWeight: 900, background: 'rgba(56,189,248,0.15)', border: '1px solid rgba(56,189,248,0.35)',
@@ -3778,7 +3789,14 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           const pt = (s as any).paymentType || 'PIX';
                           const isPix = pt === 'PIX' || pt === 'PIX_AVISTA';
                           if (isPix) {
-                            return <span className="text-[11px] font-black" style={{ color: '#38bdf8' }}>PIX</span>;
+                            // PIX à vista — show label + total value
+                            const pixVal = s.valor || s.valorBRL || 0;
+                            return (
+                              <>
+                                <span className="text-[11px] font-black" style={{ color: '#38bdf8' }}>PIX</span>
+                                {pixVal > 0 && <span className="text-[11px] font-bold" style={{ color: GOLD }}>{fmtMoneyByCurrency(pixVal, s.currency)}</span>}
+                              </>
+                            );
                           }
                           const instAmt = s.valor || 0;
                           const insts = (s as any).paymentInstallments || 1;
