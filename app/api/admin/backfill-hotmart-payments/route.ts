@@ -163,14 +163,19 @@ export async function POST(request: Request) {
       const isSub          = primary.paymentMode === 'SUBSCRIPTION';
       const inst           = primary.installmentsNumber;
       const maxRecur       = primary.maxRecurrency;
-      const isSmartInstall = !isSub && maxRecur > 1;
-      const isCardInstall  = !isSub && !isSmartInstall && inst > 1;
+      // Smart Installment = Hotmart charges monthly AND each charge is 1 of N installments.
+      // Requires BOTH maxRecur > 1 (multiple charges) AND inst > 1 (installment plan).
+      // If inst = 1 but maxRecur > 1 → it's a subscription/recurring charge, not smart installment.
+      const isSmartInstall = !isSub && maxRecur > 1 && inst > 1;
+      // It's subscription-like recurring payment when recurrency > 1 but installments = 1
+      const isRecurring    = !isSub && maxRecur > 1 && inst <= 1;
+      const isCardInstall  = !isSub && !isSmartInstall && !isRecurring && inst > 1;
 
       // Map Hotmart payment type → manual_students payment_type enum
       let dbPaymentType: string;
       const pm = primary.paymentMethod || primary.paymentType;
-      if (isSub) {
-        dbPaymentType = 'PIX_MENSAL'; // subscription → monthly
+      if (isSub || isRecurring) {
+        dbPaymentType = 'PIX_MENSAL'; // subscription/recurring → monthly
       } else if (pm.includes('PIX') || pm.includes('WALLET')) {
         dbPaymentType = 'PIX';
       } else if (pm.includes('BILLET') || pm.includes('BOLETO')) {
@@ -190,11 +195,15 @@ export async function POST(request: Request) {
       const valorParc  = sortedPay[0]?.valor ?? agg.firstSale?.purchase?.price?.value ?? 0;
 
       // Total contract value
+      // - Smart install: parcela × total installments
+      // - Card install: the single authorized amount (already the total)
+      // - Recurring/sub: value of the most recent charge (each charge is independent)
+      // - PIX/boleto: single payment value
       const dbTotalAmount = isSmartInstall
         ? valorParc * inst
-        : isCardInstall
-          ? valorParc
-          : valorParc; // PIX / boleto / sub = 1× payment
+        : (isRecurring || isSub)
+          ? sortedPay[sortedPay.length - 1]?.valor ?? valorParc  // last charge
+          : valorParc;
 
       // Build installment_dates from actual payment history
       const dbInstallmentDates = sortedPay.map(p => ({
@@ -214,7 +223,8 @@ export async function POST(request: Request) {
 
       // Human-readable payment label (for buyer_profiles)
       let bpPagamento = 'Outro';
-      if (isSub)              bpPagamento = 'Assinatura Mensal';
+      if (isSub)               bpPagamento = 'Assinatura Mensal';
+      else if (isRecurring)    bpPagamento = `Recorrência${maxRecur > 1 ? ` (${maxRecur}× cobranças)` : ''}`;
       else if (isSmartInstall) bpPagamento = `Parcelamento Inteligente ${inst}×`;
       else if (pm.includes('PIX') || pm.includes('WALLET')) bpPagamento = 'PIX';
       else if (pm.includes('BILLET') || pm.includes('BOLETO')) bpPagamento = 'Boleto';
@@ -228,7 +238,7 @@ export async function POST(request: Request) {
       // bp_em_dia
       const daysSinceLastPay = (nowMs - lastDate) / 86_400_000;
       let bpEmDia: string;
-      if (isSub) {
+      if (isSub || isRecurring) {
         bpEmDia = daysSinceLastPay > 65 ? 'QUITADO' : daysSinceLastPay > 35 ? 'NÃO' : 'SIM';
       } else if (isSmartInstall) {
         bpEmDia = maxRecur >= inst && inst > 1 ? 'QUITADO'
