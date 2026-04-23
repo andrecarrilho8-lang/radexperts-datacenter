@@ -79,6 +79,7 @@ export async function POST(request: Request) {
       installmentsNumber: number; maxRecurrency: number;
       firstTs: number; latestTs: number;
       payments: PayRecord[];
+      currency: string;
     };
     type EmailAgg = {
       firstTs: number; latestTs: number; firstSale: any;
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
       const payMethod = (s.purchase?.payment?.method || payType).toUpperCase();
       const instNum  = s.purchase?.payment?.installments_number || 1;
       const valor    = s.purchase?.price?.value ?? 0;
+      const saleCurrency = (s.purchase?.price?.currency_value || 'BRL').toUpperCase();
 
       const cur = hotmartMap.get(buyerEmail);
       if (!cur) {
@@ -107,6 +109,7 @@ export async function POST(request: Request) {
           paymentMode: payMode, paymentType: payType, paymentMethod: payMethod,
           installmentsNumber: instNum, maxRecurrency: recur,
           firstTs: ts, latestTs: ts, payments: [{ date: ts, valor }],
+          currency: saleCurrency,
         });
         hotmartMap.set(buyerEmail, { firstTs: ts, latestTs: ts, firstSale: s, offers });
       } else {
@@ -118,6 +121,7 @@ export async function POST(request: Request) {
             paymentMode: payMode, paymentType: payType, paymentMethod: payMethod,
             installmentsNumber: instNum, maxRecurrency: recur,
             firstTs: ts, latestTs: ts, payments: [{ date: ts, valor }],
+            currency: saleCurrency,
           });
         } else {
           oe.payments.push({ date: ts, valor });
@@ -132,7 +136,7 @@ export async function POST(request: Request) {
     // ── 3. Load manual_students for this course ────────────────────────────
     const manualRows = (await sql`
       SELECT id, email, name, payment_type, total_amount, installments,
-             installment_amount, installment_dates, entry_date
+             installment_amount, installment_dates, entry_date, currency
       FROM manual_students
       WHERE course_name = ${resolvedName}
     `) as any[];
@@ -284,6 +288,7 @@ export async function POST(request: Request) {
             installments        = ${inst},
             installment_dates   = ${JSON.stringify(dbInstallmentDates)},
             entry_date          = ${firstDate},
+            currency            = ${primary.currency},
             updated_at          = ${nowMs}
           WHERE id = ${row.id}
         `;
