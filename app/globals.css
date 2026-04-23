@@ -32,6 +32,10 @@
     0%   { background-position: -400px 0; }
     100% { background-position: 400px 0; }
   }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
   --animate-pulse-slow:       pulse-slow 2.8s cubic-bezier(0.4,0,0.6,1) infinite;
   --animate-loading-bar-fast: loading-bar 1.8s cubic-bezier(0.4,0,0.2,1) infinite;
   --animate-shimmer:          shimmer 2.2s ease-in-out infinite;

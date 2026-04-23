@@ -3131,6 +3131,32 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
   } | null>(null);
   const [turmas,         setTurmas]         = useState<string[]>([]);
   const [loading,        setLoading]        = useState(true);
+
+  // ── Hotmart Sync state ──────────────────────────────────────────────────────
+  const [syncing,        setSyncing]        = useState(false);
+  const [syncResult,     setSyncResult]     = useState<{ synced: number; total: number; errors: string[] } | null>(null);
+  const [syncError,      setSyncError]      = useState('');
+
+  const handleHotmartSync = async () => {
+    if (syncing) return;
+    setSyncing(true); setSyncResult(null); setSyncError('');
+    try {
+      const res = await fetch('/api/alunos/sync-hotmart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseName: decoded }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro desconhecido');
+      setSyncResult({ synced: data.synced, total: data.total, errors: data.errors || [] });
+      // Invalidate buyer persona cache so the table refreshes with new data
+      setBuyerPersonaCache({});
+    } catch (e: any) {
+      setSyncError(e.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
   const [turmaFilter,  setTurmaFilter]  = useState('');
   const [search,       setSearch]       = useState('');
   const [page,         setPage]         = useState(0);
@@ -3471,6 +3497,70 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>table_view</span>
                   Importar Planilha
                 </button>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ width: 1, height: 48, background: 'rgba(255,255,255,0.09)', flexShrink: 0 }} />
+
+            {/* ── Group 3: Hotmart Sync ────────────────────────────────────── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em',
+                color: 'rgba(168,178,192,0.6)', margin: 0, paddingLeft: 2 }}>Hotmart</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  id="btn-sync-hotmart"
+                  onClick={handleHotmartSync}
+                  disabled={syncing || loading}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px',
+                    borderRadius: 12, fontWeight: 900, fontSize: 11, textTransform: 'uppercase',
+                    letterSpacing: '0.12em', cursor: syncing || loading ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s', opacity: syncing || loading ? 0.65 : 1,
+                    background: syncing ? 'rgba(232,177,79,0.12)' : 'rgba(232,177,79,0.07)',
+                    border: `1px solid ${syncing ? 'rgba(232,177,79,0.55)' : 'rgba(232,177,79,0.28)'}`,
+                    color: GOLD,
+                  }}
+                >
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: 16, animation: syncing ? 'spin 1s linear infinite' : 'none' }}
+                  >
+                    {syncing ? 'progress_activity' : 'sync'}
+                  </span>
+                  {syncing ? 'Sincronizando...' : 'Sincronizar Pagamentos'}
+                </button>
+
+                {/* Result badge */}
+                {syncResult && !syncing && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 900, padding: '4px 10px', borderRadius: 99,
+                      background: syncResult.errors.length > 0 ? 'rgba(251,191,36,0.12)' : 'rgba(74,222,128,0.12)',
+                      color:      syncResult.errors.length > 0 ? '#fbbf24' : '#4ade80',
+                      border:     `1px solid ${syncResult.errors.length > 0 ? 'rgba(251,191,36,0.35)' : 'rgba(74,222,128,0.35)'}`,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      ✓ {syncResult.synced}/{syncResult.total} atualizados
+                    </span>
+                    <button
+                      onClick={() => setSyncResult(null)}
+                      style={{ background: 'none', border: 'none', color: SILVER, cursor: 'pointer', padding: 2 }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>close</span>
+                    </button>
+                  </div>
+                )}
+                {syncError && !syncing && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 900, padding: '4px 10px', borderRadius: 99,
+                    background: 'rgba(248,113,113,0.12)', color: '#f87171',
+                    border: '1px solid rgba(248,113,113,0.35)', whiteSpace: 'nowrap', maxWidth: 200,
+                    overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                    ✗ {syncError}
+                  </span>
+                )}
               </div>
             </div>
 
