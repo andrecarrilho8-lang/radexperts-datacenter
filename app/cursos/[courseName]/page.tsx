@@ -469,6 +469,15 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
   // installment_dates are the ground truth for payment control.
   // Check them BEFORE bp_em_dia to avoid stale bp_proximo_pagamento overriding correct data.
   if ((s as any).source === 'manual') {
+    // ── If bp_em_dia is set (backfill-enriched OR manually set), it has HIGHEST priority ──
+    // This prevents "all Hotmart dates are paid → QUITADO" from overriding a live recurring plan
+    if (rawEmDia != null && rawEmDia !== '') {
+      const up = String(rawEmDia).toUpperCase().trim();
+      if (up === 'QUITADO') return 'QUITADO';
+      if (up === 'NÃO' || up === 'NAO' || up === 'NÂO' || up === 'INADIMPLENTE') return 'INADIMPLENTE';
+      if (up === 'SIM' || up === 'ADIMPLENTE') return 'ADIMPLENTE';
+    }
+    // ── No bp_em_dia: use installment_dates (manual payment schedule only) ──
     const dates: InstallmentDate[] = (s as any).manualInstallments || [];
     if (dates.length > 0) {
       const allPaid = dates.every(d => d.paid);
@@ -477,13 +486,6 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
       const hasOverdue = dates.some(d => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
       if (hasOverdue) return 'INADIMPLENTE';
       return 'ADIMPLENTE';
-    }
-    // No installment_dates: fall back to bp_em_dia
-    if (rawEmDia != null && rawEmDia !== '') {
-      const up = String(rawEmDia).toUpperCase().trim();
-      if (up === 'QUITADO') return 'QUITADO';
-      if (up === 'NÃO' || up === 'NAO' || up === 'NÂO' || up === 'INADIMPLENTE') return 'INADIMPLENTE';
-      if (up === 'SIM' || up === 'ADIMPLENTE') return 'ADIMPLENTE';
     }
     return 'ADIMPLENTE';
   }
