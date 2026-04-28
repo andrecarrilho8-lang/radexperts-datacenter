@@ -1,9 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import Link            from 'next/link';
+import { useRouter }   from 'next/navigation';
 import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
+
+const slugify = (s: string) =>
+  (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 const GOLD   = '#E8B14F';
 const SILVER = '#A8B2C0';
@@ -208,7 +213,14 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
         </div>
       </td>
       <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
-        <span className="text-[11px] font-black uppercase tracking-tight leading-tight block" style={{ color: SILVER }}>{o.product}</span>
+        <Link href={`/cursos/${slugify(o.product || '')}`}
+          className="text-[11px] font-black uppercase tracking-tight leading-tight block group"
+          style={{ color: SILVER, textDecoration: 'none' }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#38bdf8'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = SILVER; }}>
+          {o.product}
+          <span className="material-symbols-outlined align-middle ml-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontSize: 11, color: '#38bdf8' }}>open_in_new</span>
+        </Link>
       </td>
       <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black"
@@ -382,7 +394,16 @@ export default function InadimplentesPage() {
                                     )}
                                   </div>
                                 </td>
-                                <td className="py-3 px-4"><span className="text-[12px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product.name}</span></td>
+                                <td className="py-3 px-4">
+                                  <Link href={`/cursos/${slugify(o.product?.name || '')}`}
+                                    className="text-[12px] font-black uppercase tracking-tight leading-4 block group"
+                                    style={{ color: SILVER, textDecoration: 'none' }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = '#38bdf8'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = SILVER; }}>
+                                    {o.product.name}
+                                    <span className="material-symbols-outlined align-middle ml-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontSize: 11, color: '#38bdf8' }}>open_in_new</span>
+                                  </Link>
+                                </td>
                                 <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-bold text-white">{fmtDate(o.accessionDate)}</span></td>
                                 <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black" style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>{dias}d</span></td>
                               </tr>
