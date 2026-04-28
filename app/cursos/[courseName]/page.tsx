@@ -3841,10 +3841,11 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         const isOk   = status === 'ADIMPLENTE';
                         const isNok  = status === 'INADIMPLENTE';
                         const isQuit = status === 'QUITADO';
-                        const badgeBg    = isOk ? 'rgba(74,222,128,0.12)' : isQuit ? 'rgba(56,189,248,0.12)' : isNok ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.07)';
-                        const badgeColor = isOk ? GREEN : isQuit ? '#38bdf8' : isNok ? '#f87171' : SILVER;
-                        const badgeBorder= isOk ? 'rgba(74,222,128,0.3)' : isQuit ? 'rgba(56,189,248,0.3)' : isNok ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.15)';
-                        const badgeLabel = isOk ? '● Adimplente' : isQuit ? '✔ Quitado' : isNok ? '✗ Inadimplente' : '—';
+                        const badgeBg    = isOk   ? 'rgba(56,189,248,0.12)'  : isQuit ? 'rgba(74,222,128,0.14)' : 'rgba(239,68,68,0.18)';
+                        const badgeColor = isOk   ? '#38bdf8'                 : isQuit ? '#4ade80'               : '#f87171';
+                        const badgeBorder= isOk   ? 'rgba(56,189,248,0.25)'  : isQuit ? 'rgba(74,222,128,0.3)'  : 'rgba(239,68,68,0.4)';
+                        const badgeIcon  = isOk   ? 'check_circle'            : isQuit ? 'verified'              : 'warning';
+                        const badgeLabel = isOk   ? 'Adimplente'              : isQuit ? 'Quitado'               : 'Inadimplente';
                         const modelo = (s as any).bpModelo ?? bp.modelo ?? '';
                         // Filter out legacy CPF data that was stored in notes during migration
                         const rawObs = (s as any).notes ?? '';
@@ -3854,10 +3855,12 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                           .trim();
                         return (
                           <div className="flex flex-col gap-0.5 pt-1">
-                            <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{
-                              background: badgeBg, color: badgeColor,
-                              border: `1px solid ${badgeBorder}`, width: 'fit-content',
-                            }}>{badgeLabel}</span>
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider w-fit${isNok ? ' animate-pulse' : ''}`} style={{
+                              background: badgeBg, color: badgeColor, border: `1px solid ${badgeBorder}`,
+                            }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>{badgeIcon}</span>
+                              {badgeLabel}
+                            </span>
                             {modelo && <span className="text-[9px] font-bold" style={{ color: SILVER }}>{modelo}</span>}
                             {obs    && <span className="text-[9px] italic" style={{ color: SILVER }}>{obs}</span>}
                           </div>
