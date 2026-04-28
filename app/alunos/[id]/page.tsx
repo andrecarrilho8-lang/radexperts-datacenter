@@ -531,22 +531,37 @@ export default function AlunoPage() {
                     const bp  = data.buyerPersona;
                     const ms  = (data.manualStudents || [])[0]; // primary manual record
 
-                    // ── Effective status: same hierarchy as cursos/page.tsx effectiveStatusFor ──
-                    // Priority: installment_dates (ground truth) > bp_em_dia fallback
+                    // ── Effective status: evaluate ALL manual records — worst case wins ──
+                    // INADIMPLENTE > ADIMPLENTE > QUITADO
+                    // This prevents a record without installment_dates (falling back to a stale
+                    // bp.em_dia = 'QUITADO') from masking the real overdue status of another record.
+                    const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
+                    const computeRecordStatus = (rec: any): 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO' => {
+                      const dates: any[] = rec?.installment_dates || [];
+                      if (dates.length > 0) {
+                        if (dates.every((d: any) => d.paid)) return 'QUITADO';
+                        if (dates.some((d: any) => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now())) return 'INADIMPLENTE';
+                        return 'ADIMPLENTE';
+                      }
+                      // No installment_dates: fall back to bp_em_dia
+                      const up = ((bp.em_dia) || '').toUpperCase().trim();
+                      if (up === 'QUITADO') return 'QUITADO';
+                      if (up === 'NÃO' || up === 'NAO' || up === 'INADIMPLENTE') return 'INADIMPLENTE';
+                      return 'ADIMPLENTE';
+                    };
+                    const allManual: any[] = data.manualStudents || [];
                     let effectiveStatus: 'ADIMPLENTE' | 'INADIMPLENTE' | 'QUITADO' = 'ADIMPLENTE';
-                    const instDates: any[] = ms?.installment_dates || [];
-                    if (instDates.length > 0) {
-                      const allPaid = instDates.every((d: any) => d.paid);
-                      if (allPaid) {
+                    if (allManual.length > 0) {
+                      const statuses = allManual.map(computeRecordStatus);
+                      if (statuses.includes('INADIMPLENTE')) {
+                        effectiveStatus = 'INADIMPLENTE';
+                      } else if (statuses.every((s: string) => s === 'QUITADO')) {
                         effectiveStatus = 'QUITADO';
                       } else {
-                        const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
-                        const hasOverdue = instDates.some((d: any) => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
-                        if (hasOverdue) effectiveStatus = 'INADIMPLENTE';
-                        // else stays ADIMPLENTE
+                        effectiveStatus = 'ADIMPLENTE';
                       }
                     } else if (bp.em_dia) {
-                      // No installment_dates: fall back to bp_em_dia
+                      // No manual records at all: fall back to bp_em_dia
                       const up = (bp.em_dia || '').toUpperCase().trim();
                       if (up === 'QUITADO') effectiveStatus = 'QUITADO';
                       else if (up === 'NÃO' || up === 'NAO' || up === 'INADIMPLENTE') effectiveStatus = 'INADIMPLENTE';
