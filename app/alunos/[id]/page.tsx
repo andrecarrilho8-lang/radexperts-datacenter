@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { Navbar } from '@/components/dashboard/navbar';
 import { EditManualStudentModal, type ManualStudentFields } from '@/components/dashboard/edit-manual-student-modal';
+import { slugify } from '@/app/lib/slug';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -979,7 +981,20 @@ export default function AlunoPage() {
                           <div key={idx} className="px-7 py-5">
                             {/* Row 1: course + status badge + total */}
                             <div className="flex flex-wrap items-center gap-3 mb-3">
-                              <span className="font-black text-white text-[13px] leading-tight flex-1">{ms.course_name || '—'}</span>
+                              {ms.course_name ? (
+                                <Link
+                                  href={`/cursos/${slugify(ms.course_name)}`}
+                                  className="font-black text-white text-[13px] leading-tight flex-1 flex items-center gap-1.5 group"
+                                  style={{ textDecoration: 'none' }}
+                                >
+                                  <span className="group-hover:text-[#E8B14F] transition-colors duration-200" style={{ borderBottom: '1px dashed rgba(232,177,79,0.4)' }}>
+                                    {ms.course_name}
+                                  </span>
+                                  <span className="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0" style={{ fontSize: 14, color: '#E8B14F' }}>open_in_new</span>
+                                </Link>
+                              ) : (
+                                <span className="font-black text-white text-[13px] leading-tight flex-1">—</span>
+                              )}
                               <span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{ background: stBg, color: stColor, border: `1px solid ${stBorder}` }}>{stLabel}</span>
                               <span className="font-black text-[14px]" style={{ color: '#4ade80' }}>{R(Number(ms.total_amount) || 0)}</span>
                             </div>
