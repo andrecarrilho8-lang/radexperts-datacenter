@@ -152,6 +152,12 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
       <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
         <NameBtn name={o.name} email={o.email} router={router} />
         <div className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.email}</div>
+        {o.vendedor && (
+          <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md" style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.2)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 10, color: GOLD }}>sell</span>
+            <span className="text-[10px] font-black uppercase" style={{ color: GOLD }}>{o.vendedor}</span>
+          </div>
+        )}
       </td>
       <td className="py-3 px-4" style={{ verticalAlign: 'top' }}>
         <div className="flex flex-col gap-2">
@@ -161,35 +167,35 @@ function ManualOverdueRow({ o: initialO, onPaid, router }: {
             {!isPix && o.totalInstallments > 1 && paidCount > 0 && <span className="text-[9px] font-bold" style={{ color: '#4ade80' }}>· {fmtBRL(o.amount * paidCount)} pagos</span>}
           </div>
           {dates.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {dates.map((d: any, di: number) => {
                 const due     = Number(d.due_ms);
                 const overdue = !d.paid && due + GRACE < now;
                 const future  = !d.paid && due > now;
                 const grace   = !d.paid && !overdue && !future;
                 const isPaying = paying === di;
-                const bg     = d.paid ? 'rgba(74,222,128,0.08)' : overdue ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)';
-                const border = d.paid ? 'rgba(74,222,128,0.25)' : overdue ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)';
-                const clr    = d.paid ? '#4ade80'               : overdue ? '#f87171'               : SILVER;
+                const bg     = d.paid ? 'rgba(74,222,128,0.10)' : overdue ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.05)';
+                const border = d.paid ? 'rgba(74,222,128,0.3)'  : overdue ? 'rgba(239,68,68,0.35)'  : 'rgba(255,255,255,0.1)';
+                const clr    = d.paid ? '#4ade80'               : overdue ? '#f87171'                : SILVER;
                 return (
-                  <div key={di} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1"
+                  <div key={di} className="inline-flex items-center gap-2 rounded-lg px-3 py-2"
                     style={{ background: bg, border: `1px solid ${border}` }}>
-                    <div className="flex flex-col leading-none">
-                      <span className="text-[8px] font-black uppercase" style={{ color: clr }}>
+                    <div className="flex flex-col leading-tight gap-0.5">
+                      <span className="text-[11px] font-black uppercase" style={{ color: clr }}>
                         {d.paid ? '✓' : overdue ? '⚠' : '◷'} P{di + 1}
                       </span>
-                      <span className="text-[8px]" style={{ color: clr }}>{due > 0 ? fmtDate(due) : '—'}</span>
-                      {d.paid && d.paid_ms && <span className="text-[7px]" style={{ color: '#4ade8070' }}>≪ {fmtDate(d.paid_ms)}</span>}
+                      <span className="text-[11px] font-bold" style={{ color: clr }}>{due > 0 ? fmtDate(due) : '—'}</span>
+                      {d.paid && d.paid_ms && <span className="text-[9px]" style={{ color: '#4ade8070' }}>≪ {fmtDate(d.paid_ms)}</span>}
                     </div>
                     {!d.paid && (overdue || grace) && (
                       <button onClick={() => handleQuitar(di)} disabled={paying != null}
                         className="inline-flex items-center gap-1 font-black px-2.5 py-1 rounded-lg whitespace-nowrap transition-all"
-                        style={{ fontSize: '11px', background: isPaying ? 'rgba(255,255,255,0.05)' : `${GOLD}25`,
+                        style={{ fontSize: '12px', background: isPaying ? 'rgba(255,255,255,0.05)' : `${GOLD}25`,
                           border: `1px solid ${GOLD}60`, color: isPaying ? SILVER : GOLD,
                           cursor: paying != null ? 'wait' : 'pointer', opacity: paying != null && !isPaying ? 0.45 : 1, flexShrink: 0, letterSpacing: '0.02em' }}>
                         {isPaying
-                          ? <span className="material-symbols-outlined animate-spin" style={{ fontSize: 13 }}>progress_activity</span>
-                          : <span className="material-symbols-outlined" style={{ fontSize: 13 }}>payments</span>}
+                          ? <span className="material-symbols-outlined animate-spin" style={{ fontSize: 14 }}>progress_activity</span>
+                          : <span className="material-symbols-outlined" style={{ fontSize: 14 }}>payments</span>}
                         {isPaying ? 'Salvando…' : 'Quitar'}
                       </button>
                     )}
@@ -225,12 +231,14 @@ type Overdue = {
   lastTransaction: string;
   isSub: boolean; isSmartInstall: boolean;
   paidCount: number; paidTotal: number; installments: number;
+  vendedor?: string;
 };
 type ManualOverdue = {
   name: string; email: string; product: string;
   dueDate: number; daysOverdue: number; amount: number;
   installmentNum: number; totalInstallments: number;
   paymentType?: string; paymentLabel?: string; paidCount?: number;
+  vendedor?: string;
 };
 type Data = {
   overdue: Overdue[];
@@ -366,6 +374,12 @@ export default function InadimplentesPage() {
                                     <div className="flex items-center gap-2"><Flag currency={o.currency} /><NameBtn name={o.subscriber.name} email={o.subscriber.email} router={router} /></div>
                                     <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
                                     {o.plan && <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Oferta: {o.plan}</span>}
+                                    {o.vendedor && (
+                                      <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md w-fit" style={{ background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.2)' }}>
+                                        <span className="material-symbols-outlined" style={{ fontSize: 10, color: GOLD }}>sell</span>
+                                        <span className="text-[10px] font-black uppercase" style={{ color: GOLD }}>{o.vendedor}</span>
+                                      </div>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="py-3 px-4"><span className="text-[12px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product.name}</span></td>

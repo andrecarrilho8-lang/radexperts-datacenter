@@ -331,6 +331,21 @@ export async function GET() {
     // Filter overdue: exclude anyone with an active subscription (they're paying normally)
     const filteredOverdue = overdue.filter(o => !activeEmailSet.has(o.email));
 
+    // Enrich Hotmart overdue with vendedor from buyer_profiles
+    if (filteredOverdue.length > 0) {
+      try {
+        const db2 = getDb();
+        const emails = filteredOverdue.map(o => o.email);
+        const bpRows = await db2`
+          SELECT LOWER(email) AS email, vendedor
+          FROM buyer_profiles
+          WHERE LOWER(email) = ANY(${emails})
+        ` as any[];
+        const vendedorMap = new Map(bpRows.map((r: any) => [r.email, r.vendedor || '']));
+        filteredOverdue.forEach(o => { (o as any).vendedor = vendedorMap.get(o.email) || ''; });
+      } catch { /* ignore — vendedor is optional */ }
+    }
+
     /* ── 4. Manual upcoming & overdue (from installment_dates + bp_em_dia) ── */
     const manualUpcoming: any[] = [];
     const manualOverdue:  any[] = [];
@@ -364,7 +379,7 @@ export async function GET() {
                ms.payment_type, ms.currency,
                ms.total_amount, ms.installments, ms.installment_amount, ms.installment_dates,
                bp.bp_proximo_pagamento, bp.bp_em_dia, bp.bp_ultimo_pagamento,
-               bp.bp_primeira_parcela
+               bp.bp_primeira_parcela, bp.vendedor
         FROM manual_students ms
         LEFT JOIN buyer_profiles bp ON LOWER(bp.email) = LOWER(ms.email)
         WHERE COALESCE(ms.total_amount, 0) > 0
@@ -428,6 +443,7 @@ export async function GET() {
               paymentType: ptype, paymentLabel: label,
               paidCount,
               installment_dates: instDates,
+              vendedor: row.vendedor || '',
               source: 'manual',
             });
           }
@@ -459,6 +475,7 @@ export async function GET() {
               installmentNum: 1, totalInstallments: 1,
               paymentType: ptype, paymentLabel: label,
               paidCount: paidCount || 0,
+              vendedor: row.vendedor || '',
               source: 'manual',
             });
           }
@@ -487,6 +504,7 @@ export async function GET() {
           installmentNum: 1, totalInstallments: totalInst,
           paymentType: ptype, paymentLabel: ptLabel(ptype),
           paidCount: 0,
+          vendedor: row.vendedor || '',
           source: 'manual',
         });
       }
