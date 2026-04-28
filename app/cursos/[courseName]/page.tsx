@@ -465,27 +465,45 @@ function effectiveStatusFor(s: Student, bpCache: Record<string, Record<string, a
   const cacheEntry = bpCache[(s.email || '').toLowerCase()] || {};
   const rawEmDia = ((s as any).bpEmDia ?? cacheEntry.em_dia);
 
-  // ── MANUAL STUDENTS WITH installment_dates: highest priority ──────────────
-  // installment_dates are the ground truth for payment control.
-  // Check them BEFORE bp_em_dia to avoid stale bp_proximo_pagamento overriding correct data.
+  // ── MANUAL STUDENTS WITH installment_dates ────────────────────────────────
+  // Priority order (installment_dates are the SOLE authority when present):
+  //  1. subStatus === 'OVERDUE'  → INADIMPLENTE (backup: computed immediately in manualToStudent)
+  //  2. Overdue installment_dates (after 15-day grace) → INADIMPLENTE
+  //  3. All installments paid    → QUITADO
+  //  4. Dates present but not done yet → ADIMPLENTE (NO fallthrough to bp_em_dia)
+  //  5. No dates: bp_em_dia fallback
+  //  6. Default                  → ADIMPLENTE
   if ((s as any).source === 'manual') {
-    // ── If bp_em_dia is set (backfill-enriched OR manually set), it has HIGHEST priority ──
-    // This prevents "all Hotmart dates are paid → QUITADO" from overriding a live recurring plan
+    const dates: InstallmentDate[] = (s as any).manualInstallments || [];
+
+    // Backup: subStatus is computed in manualToStudent directly from dates without grace period.
+    // If OVERDUE, the student is genuinely late (not just within grace), so trust it.
+    if ((s as any).subStatus === 'OVERDUE') return 'INADIMPLENTE';
+
+    if (dates.length > 0) {
+      // installment_dates present → they are authoritative; do NOT fall through to bp_em_dia
+      const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const hasOverdue = dates.some(d => {
+        if (d.paid) return false;
+        const ms = Number(d.due_ms);
+        return !isNaN(ms) && ms > 0 && ms + GRACE_15 < now;
+      });
+      if (hasOverdue) return 'INADIMPLENTE';
+
+      const allPaid = dates.every(d => d.paid);
+      if (allPaid) return 'QUITADO';
+
+      // Has dates, some paid, none overdue → ADIMPLENTE (do NOT consult bp_em_dia)
+      return 'ADIMPLENTE';
+    }
+
+    // No installment_dates → fall back to bp_em_dia (legacy or PIX à-vista students)
     if (rawEmDia != null && rawEmDia !== '') {
       const up = String(rawEmDia).toUpperCase().trim();
       if (up === 'QUITADO') return 'QUITADO';
       if (up === 'NÃO' || up === 'NAO' || up === 'NÂO' || up === 'INADIMPLENTE') return 'INADIMPLENTE';
       if (up === 'SIM' || up === 'ADIMPLENTE') return 'ADIMPLENTE';
-    }
-    // ── No bp_em_dia: use installment_dates (manual payment schedule only) ──
-    const dates: InstallmentDate[] = (s as any).manualInstallments || [];
-    if (dates.length > 0) {
-      const allPaid = dates.every(d => d.paid);
-      if (allPaid) return 'QUITADO';
-      const GRACE_15 = 15 * 24 * 60 * 60 * 1000;
-      const hasOverdue = dates.some(d => !d.paid && Number(d.due_ms) + GRACE_15 < Date.now());
-      if (hasOverdue) return 'INADIMPLENTE';
-      return 'ADIMPLENTE';
     }
     return 'ADIMPLENTE';
   }
@@ -3767,26 +3785,17 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                         );
                       })()}
                     </div>
-                    {/* Total Pago — for manual: sum of paid installment_dates */}
+                    {/* Total Pago — only data scoped to THIS course */}
                     <div className="flex flex-col gap-0.5 pt-1">
                       {(() => {
                         if ((s as any).source === 'manual') {
                           const pt = (s as any).paymentType || 'PIX';
                           const isPix = pt === 'PIX' || pt === 'PIX_AVISTA';
                           if (isPix) {
-                            // PIX à vista: total_amount is what was paid
-                            // Fallback to bp_valor from cache for legacy records where total_amount was NULL
-                            const bpCacheEntry = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
-                            const pixTotal = s.valorBRL || s.valor || Number(bpCacheEntry.valor || bpCacheEntry.bp_valor || 0);
+                            // PIX à vista: use only the per-course record value
+                            const pixTotal = s.valorBRL || s.valor || 0;
                             return (
-                              <>
-                                <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(pixTotal, s.currency)}</span>
-                                {(() => {
-                                  const contractVal = Number(bpCacheEntry.bp_valor || bpCacheEntry.valor || 0);
-                                  if (!contractVal || contractVal === pixTotal) return null;
-                                  return <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(contractVal, s.currency)}</span>;
-                                })()}
-                              </>
+                              <span className="text-[12px] font-bold text-white">{pixTotal > 0 ? fmtMoneyByCurrency(pixTotal, s.currency) : '—'}</span>
                             );
                           }
                           const dates = ((s as any).manualInstallments || []) as InstallmentDate[];
@@ -3804,26 +3813,16 @@ export default function CursoDetailPage({ params }: { params: Promise<{ courseNa
                                   ? <span className="text-[9px] font-bold" style={{ color: SILVER }}>Entrada paga</span>
                                   : <span className="text-[9px] font-bold" style={{ color: SILVER }}>0 pagas</span>
                               }
-                              {Number(s.valorBRL) > 0 && (
-                                <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(Number(s.valorBRL), s.currency)}</span>
-                              )}
                             </>
                           );
                         }
+                        // Hotmart: paymentHistory is already filtered per-course by the API
                         return (
                           <>
                             <span className="text-[12px] font-bold text-white">{fmtMoneyByCurrency(vTotal(s), s.currency)}</span>
                             {s.valorBRL != null && s.currency !== 'BRL' && (() => {
                               const totalBrl = s.paymentHistory.length > 0 ? s.valorBRL * s.paymentHistory.length : s.valorBRL;
                               return <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtMoney(totalBrl)}</span>;
-                            })()}
-                            {(() => {
-                              const bpH = buyerPersonaCache[(s.email || '').toLowerCase()] || {};
-                              const totalContrato = Number(bpH.bp_valor || bpH.valor || 0);
-                              if (!totalContrato) return null;
-                              return (
-                                <span className="text-[9px] font-bold" style={{ color: '#63b3ed', letterSpacing: '0.04em' }}>Total: {fmtMoneyByCurrency(totalContrato, s.currency)}</span>
-                              );
                             })()}
                           </>
                         );
