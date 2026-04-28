@@ -583,9 +583,9 @@ export default function AlunoPage() {
                         <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: GOLD }}>
                           <span className="material-symbols-outlined text-sm">manage_accounts</span>
                           Status
-                          {isOk   && <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}>✓ Adimplente</span>}
-                          {isNok  && <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>✗ Inadimplente</span>}
-                          {isQuit && <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.3)' }}>✔ Quitado</span>}
+                          {isOk   && <span className="inline-flex items-center gap-1 text-[8px] font-black px-2 py-0.5 rounded-lg ml-2" style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)' }}><span className="material-symbols-outlined" style={{ fontSize: 10 }}>check_circle</span>Adimplente</span>}
+                          {isNok  && <span className="inline-flex items-center gap-1 text-[8px] font-black px-2 py-0.5 rounded-lg ml-2 animate-pulse" style={{ background: 'rgba(239,68,68,0.18)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)' }}><span className="material-symbols-outlined" style={{ fontSize: 10 }}>warning</span>Inadimplente</span>}
+                          {isQuit && <span className="inline-flex items-center gap-1 text-[8px] font-black px-2 py-0.5 rounded-lg ml-2" style={{ background: 'rgba(74,222,128,0.14)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.3)' }}><span className="material-symbols-outlined" style={{ fontSize: 10 }}>verified</span>Quitado</span>}
                           {!isOk && !isNok && !isQuit && bp.em_dia && (
                             <span className="text-[8px] font-black px-2 py-0.5 rounded-full ml-2" style={{ background: 'rgba(255,255,255,0.08)', color: SILVER }}>· {bp.em_dia}</span>
                           )}
@@ -976,10 +976,11 @@ export default function AlunoPage() {
                         const isOk   = st === 'ADIMPLENTE';
                         const isNok  = st === 'INADIMPLENTE';
                         const isQuit = st === 'QUITADO';
-                        const stBg    = isOk ? GREEN_CARD : isQuit ? BLUE_CARD : RED_CARD;
-                        const stColor = isOk ? '#4ade80' : isQuit ? '#38bdf8' : '#f87171';
-                        const stLabel = isOk ? '● Adimplente' : isQuit ? '✔ Quitado' : '✗ Inadimplente';
-                        const stBorder= isOk ? 'rgba(74,222,128,0.3)' : isQuit ? 'rgba(56,189,248,0.3)' : 'rgba(239,68,68,0.3)';
+                        const stBg    = isOk ? 'rgba(56,189,248,0.12)'  : isQuit ? 'rgba(74,222,128,0.14)' : 'rgba(239,68,68,0.18)';
+                        const stColor = isOk ? '#38bdf8'                 : isQuit ? '#4ade80'               : '#f87171';
+                        const stLabel = isOk ? 'Adimplente'              : isQuit ? 'Quitado'               : 'Inadimplente';
+                        const stBorder= isOk ? 'rgba(56,189,248,0.25)'  : isQuit ? 'rgba(74,222,128,0.3)'  : 'rgba(239,68,68,0.4)';
+                        const stIcon  = isOk ? 'check_circle'            : isQuit ? 'verified'               : 'warning';
 
                         const ptRaw   = ms.payment_type || 'PIX';
                         const ptUp    = ptRaw.toUpperCase();
@@ -1010,7 +1011,7 @@ export default function AlunoPage() {
                               ) : (
                                 <span className="font-black text-white text-[13px] leading-tight flex-1">—</span>
                               )}
-                              <span className="text-[9px] font-black px-2.5 py-1 rounded-full" style={{ background: stBg, color: stColor, border: `1px solid ${stBorder}` }}>{stLabel}</span>
+                              <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg${isNok ? ' animate-pulse' : ''}`} style={{ background: stBg, color: stColor, border: `1px solid ${stBorder}` }}><span className="material-symbols-outlined" style={{ fontSize: 12 }}>{stIcon}</span>{stLabel}</span>
                               <span className="font-black text-[14px]" style={{ color: '#4ade80' }}>{R(Number(ms.total_amount) || 0)}</span>
                             </div>
 
