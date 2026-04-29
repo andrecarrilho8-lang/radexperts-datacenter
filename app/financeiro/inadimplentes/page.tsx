@@ -1,9 +1,8 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link            from 'next/link';
 import { useRouter }   from 'next/navigation';
-import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
 const slugify = (s: string) =>
@@ -289,7 +288,6 @@ export default function InadimplentesPage() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'linear-gradient(160deg, rgba(40,0,0,0.4) 0%, rgba(0,8,30,0.5) 100%)' }} />
       <div className="min-h-screen pb-24" style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10">
 

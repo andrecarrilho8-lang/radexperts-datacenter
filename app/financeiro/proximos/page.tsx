@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
 const GOLD   = '#E8B14F';
@@ -143,7 +142,6 @@ export default function ProximosPage() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'linear-gradient(160deg, rgba(0,12,40,0.58) 0%, rgba(0,22,60,0.48) 100%)' }} />
       <div className="min-h-screen pb-24" style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10">
 

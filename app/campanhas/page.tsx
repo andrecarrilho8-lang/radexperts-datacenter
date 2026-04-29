@@ -1,11 +1,10 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { useDashboard } from '@/app/lib/context';
 import { useDashboardData } from '@/app/lib/hooks';
 import { R, N, P, D, PALETTE } from '@/app/lib/utils';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { FeedbackModal } from '@/components/dashboard/feedback-modal';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
@@ -67,7 +66,6 @@ export default function CampanhasPage() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'linear-gradient(160deg, rgba(0,0,8,0.65) 0%, rgba(5,8,20,0.58) 100%)' }} />
       <div style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}>
-        <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10 pb-24">
 

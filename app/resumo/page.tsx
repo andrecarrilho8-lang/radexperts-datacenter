@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -11,7 +11,6 @@ import { BudgetSplit } from '@/components/dashboard/campaign-details';
 import { TopAdCard } from '@/components/dashboard/campaign-details';
 import { CampaignTable } from '@/components/dashboard/campaign-table';
 import { FeedbackModal } from '@/components/dashboard/feedback-modal';
-import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
 const GOLD   = '#E8B14F';
@@ -108,7 +107,6 @@ export default function ResumoPage() {
 
         {/* Conteúdo em fluxo normal — fica POR CIMA da imagem */}
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <Navbar />
           <div className="h-[146px]" />
 
           <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pb-20">

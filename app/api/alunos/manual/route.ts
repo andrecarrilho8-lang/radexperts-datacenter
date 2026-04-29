@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDb, ensureSchema } from '@/app/lib/db';
 import { setCache } from '@/app/lib/metaApi';
 import { invalidateSalesCache } from '@/app/lib/salesCache';
+import { logActivity, extractActor, extractIp } from '@/app/lib/activityLog';
 
 // Bust both caches so next visit reflects the new student immediately
 function bustCursosCache() {
@@ -125,6 +126,17 @@ export async function POST(request: Request) {
     }
 
     bustCursosCache();
+
+    logActivity({
+      ...extractActor(request),
+      action:      'STUDENT_CREATED',
+      entity_type: 'manual_student',
+      entity_id:   rows[0].id,
+      entity_name: name.toUpperCase(),
+      metadata:    { course: course_name, email: email.toLowerCase(), payment_type: dbPayType, total_amount },
+      ip:          extractIp(request),
+    });
+
     return NextResponse.json({ student: rows[0] }, { status: 201 });
   } catch (e: any) {
     if (e.message?.includes('duplicate') || e.message?.includes('unique')) {

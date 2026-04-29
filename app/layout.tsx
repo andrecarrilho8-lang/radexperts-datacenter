@@ -3,6 +3,8 @@ import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import { DashboardProvider } from "./lib/context";
 import { Suspense } from "react";
 import { PageLoader } from "@/components/ui/page-loader";
+import { Navbar } from "@/components/dashboard/navbar";
+import { GlobalSearch } from "@/components/dashboard/global-search";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"] });
@@ -42,6 +44,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Suspense fallback={null}>
               <PageLoader />
             </Suspense>
+            <Navbar />
+            <GlobalSearch />
             {children}
             <footer className="mt-auto border-t py-4 px-8" style={{ borderColor: 'rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)' }}>
               <div className="max-w-[1600px] mx-auto flex items-center justify-between flex-wrap gap-2">

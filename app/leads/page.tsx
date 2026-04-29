@@ -1,7 +1,6 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { useDashboard } from '@/app/lib/context';
 import { useRouter }    from 'next/navigation';
@@ -302,7 +301,6 @@ function LeadsPage() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'linear-gradient(160deg, rgba(0,0,8,0.65) 0%, rgba(5,8,20,0.58) 100%)' }} />
       <div style={{ position: 'relative', zIndex: 1 }}>
-      <Navbar />
       <div className="h-[146px]" />
       <main className="px-3 sm:px-6 pb-20" style={{ maxWidth: 1440, margin: '0 auto' }}>
 

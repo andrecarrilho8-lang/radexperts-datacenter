@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { slugify } from '@/app/lib/slug';
 
@@ -66,7 +65,6 @@ export default function CursosPage() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'linear-gradient(160deg, rgba(0,12,40,0.58) 0%, rgba(0,22,60,0.48) 100%)' }} />
       <div style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}>
-        <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1400px] mx-auto pt-6 sm:pt-10 pb-24">
 

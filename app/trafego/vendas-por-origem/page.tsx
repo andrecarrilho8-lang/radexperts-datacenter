@@ -1,7 +1,6 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { useDashboard } from '@/app/lib/context';
 import { R }            from '@/app/lib/utils';
@@ -539,7 +538,6 @@ export default function VendasPorOrigemPage() {
   return (
     <LoginWrapper>
       <div style={{ minHeight: '100vh' }}>
-        <Navbar />
         <div style={{ height: 80 }} />
 
         <main style={{ padding: 'clamp(16px, 3vw, 40px) clamp(12px, 3vw, 24px) 96px', maxWidth: 1900, margin: '0 auto' }}>

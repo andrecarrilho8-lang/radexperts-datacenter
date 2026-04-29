@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import { R, N, P } from '@/app/lib/utils';
 
@@ -219,7 +220,8 @@ export function LoginScreen({ onLogin }: { onLogin: (token: string, role: string
   const [pass, setPass] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+  // Fixed on mount — Math.random() at render time causes flicker on every keystroke
+  const [greeting] = useState(() => GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

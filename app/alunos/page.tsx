@@ -1,9 +1,8 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import * as XLSX from 'xlsx';
 
@@ -176,7 +175,6 @@ export default function AlunosPage() {
         </div>
 
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <Navbar />
           <div className="h-[146px]" />
 
           <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-8 pb-24">

@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Navbar }       from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
 const GOLD   = '#E8B14F';
@@ -10,11 +9,9 @@ const NAVY   = '#001a35';
 const SILVER = '#A8B2C0';
 
 /* ─── Tab config ────────────────────────────────────────────────────────────── */
-type Tab = 'entradas' | 'proximos' | 'inadimplentes';
+type Tab = 'entradas';
 const TABS: { key: Tab; label: string; icon: string; accent: string; rowTint: string }[] = [
-  { key: 'entradas',      label: 'Últimas Entradas',    icon: 'payments',         accent: '#4ade80', rowTint: 'rgba(74,222,128,' },
-  { key: 'proximos',      label: 'Próximos Pagamentos', icon: 'event_upcoming',   accent: '#38bdf8', rowTint: 'rgba(56,189,248,' },
-  { key: 'inadimplentes', label: 'Inadimplentes',       icon: 'warning',          accent: '#f87171', rowTint: 'rgba(248,113,113,' },
+  { key: 'entradas', label: 'Últimas Entradas', icon: 'payments', accent: '#4ade80', rowTint: 'rgba(74,222,128,' },
 ];
 
 /* ─── Helpers ───────────────────────────────────────────────────────────────── */
@@ -623,9 +620,7 @@ export default function FinanceiroOverviewPage() {
 
   const tab = TABS.find(t => t.key === activeTab)!;
   const counts = {
-    entradas:       (data?.hotmartEntries.length ?? 0) + (data?.manualEntries.length ?? 0),
-    proximos:       (data?.upcoming.length ?? 0) + (data?.manualUpcoming?.length ?? 0),
-    inadimplentes:  (data?.overdue.length ?? 0) + (data?.manualOverdue?.length ?? 0),
+    entradas: (data?.hotmartEntries.length ?? 0) + (data?.manualEntries.length ?? 0),
   };
 
   return (
@@ -634,7 +629,6 @@ export default function FinanceiroOverviewPage() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'linear-gradient(160deg, rgba(0,12,40,0.58) 0%, rgba(0,22,60,0.48) 100%)' }} />
       <div className="min-h-screen pb-24" style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10">
 
@@ -649,7 +643,7 @@ export default function FinanceiroOverviewPage() {
               <h1 className="font-black text-3xl text-white leading-none">Financeiro</h1>
               <p className="text-[11px] font-black uppercase tracking-widest mt-1" style={{ color: SILVER }}>
                 {loading ? 'Carregando...' :
-                  `${data?.totalTransactions ?? 0} transações · ${data?.totalSubs ?? 0} assinaturas · ${data?.overdue.length ?? 0} inadimplentes`}
+                  `${data?.totalTransactions ?? 0} transações · ${data?.totalSubs ?? 0} assinaturas`}
               </p>
             </div>
           </div>
@@ -739,337 +733,6 @@ export default function FinanceiroOverviewPage() {
 
             </div>
           )}
-
-          {/* ══════════════════════════════════════════════════════════════════
-              TAB: PRÓXIMOS PAGAMENTOS
-              Columns: Data Próx. Cobrança | Valor | Dias | Nome | Oferta | Produto
-          ══════════════════════════════════════════════════════════════════ */}
-          {activeTab === 'proximos' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-                              {/* ─ Hotmart upcoming */}
-              <div style={tabStyle('#38bdf8')}>
-                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: '1px solid #38bdf822' }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: '#38bdf815', border: '1px solid #38bdf835' }}>
-                    <span className="material-symbols-outlined text-xl" style={{ color: '#38bdf8' }}>event_upcoming</span>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>Próximos Pagamentos Hotmart</p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>cobranças de assinatura ativa ordenadas por data</p>
-                  </div>
-                  <span className="ml-auto px-3 py-1 rounded-full text-[11px] font-black" style={{ background: '#38bdf818', color: '#38bdf8' }}>
-                    {loading ? '…' : (data?.upcoming || []).length}
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: 120 }} />
-                      <col style={{ width: 150 }} />
-                      <col style={{ width: 65 }} />
-                      <col />
-                      <col style={{ width: 180 }} />
-                      <col style={{ width: 200 }} />
-                    </colgroup>
-                    <thead><tr style={{ background: '#38bdf808' }}>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Data Próx. Cobr.</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Oferta</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
-                    </tr></thead>
-                    <tbody>
-                      {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={6} accent="#38bdf8" />) :
-                        (data?.upcoming || []).length === 0
-                          ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Nenhuma cobrança próxima.</td></tr>
-                          : (data!.upcoming).map((u, idx) => {
-                              const dias = daysUntil(u.dateNextCharge);
-                              const urgColor = dias <= 3 ? '#f87171' : dias <= 7 ? GOLD : '#38bdf8';
-                              const rowBg = idx % 2 === 0 ? 'transparent' : '#38bdf805';
-                              const cycleNum = u.plan ? `Assinatura` : 'Assinatura';
-                              const daysSinceJoin = u.accessionDate ? Math.floor((Date.now() - u.accessionDate) / 86_400_000) : 0;
-                              return (
-                                <tr key={u.subscriberCode || idx} style={{ background: rowBg, borderBottom: '1px solid #38bdf815' }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = '#38bdf80d')}
-                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-black text-white">{fmtDate(u.dateNextCharge)}</span></td>
-                                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                                    <div className="flex flex-col items-end gap-0.5">
-                                      <span className="font-black text-lg" style={{ color: '#38bdf8' }}>{fmtLocalCurrency(u.amount, u.currency)}</span>
-                                      {u.currency !== 'BRL' && u.amountBRL && <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtBRL(u.amountBRL)}</span>}
-                                      <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>
-                                        {cycleNum}
-                                      </span>
-                                      <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-                                        {u.accessionDate ? `Desde ${fmtDate(u.accessionDate)} · ${daysSinceJoin}d` : ''}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black" style={{ background: `${urgColor}18`, border: `1px solid ${urgColor}40`, color: urgColor }}>{dias}d</span></td>
-                                  <td className="py-3 px-4">
-                                    <div className="flex flex-col">
-                                      <div className="flex items-center gap-2"><Flag currency={u.currency} /><NameBtn name={u.subscriber.name} email={u.subscriber.email} router={router} /></div>
-                                      <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{u.subscriber.email}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4"><span className="text-[11px] font-bold" style={{ color: SILVER }}>{u.plan}</span></td>
-                                  <td className="py-3 px-4"><span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{u.product.name}</span></td>
-                                </tr>
-                              );
-                            })
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-                            {/* ─ PIX Manual upcoming */}
-              <div style={tabStyle(GOLD)}>
-                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${GOLD}22` }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}35` }}>
-                    <span className="material-symbols-outlined text-xl" style={{ color: GOLD }}>edit_note</span>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>Próximos Pagamentos PIX Manual</p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>próxima parcela não paga de cada aluno manual</p>
-                  </div>
-                  <span className="ml-auto px-3 py-1 rounded-full text-[11px] font-black" style={{ background: `${GOLD}18`, color: GOLD }}>
-                    {loading ? '…' : (data?.manualUpcoming || []).length}
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: 120 }} />
-                      <col style={{ width: 150 }} />
-                      <col style={{ width: 65 }} />
-                      <col />
-                      <col style={{ width: 120 }} />
-                      <col style={{ width: 200 }} />
-                    </colgroup>
-                    <thead><tr style={{ background: `${GOLD}08` }}>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Data Vencimento</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Parcela</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
-                    </tr></thead>
-                    <tbody>
-                      {loading ? [...Array(5)].map((_, i) => <SkelRow key={i} cols={7} accent={GOLD} />) :
-                        (data?.manualUpcoming || []).length === 0
-                          ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>Nenhum próximo pagamento manual encontrado.</td></tr>
-                          : (data!.manualUpcoming).map((u, idx) => {
-                              const dias = daysUntil(u.dueDate);
-                              const urgColor = dias <= 3 ? '#f87171' : dias <= 7 ? '#fb923c' : GOLD;
-                              const rowBg = idx % 2 === 0 ? 'transparent' : `${GOLD}05`;
-                              const isPix = (u.paymentType || '').toUpperCase() === 'PIX' || (u.paymentType || '').toUpperCase() === 'PIX_AVISTA';
-                              const paidCount = u.paidCount ?? 0;
-                              const totalInst = u.totalInstallments ?? 1;
-                              return (
-                                <tr key={`${u.email}-${idx}`} style={{ background: rowBg, borderBottom: `1px solid ${GOLD}15` }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = `${GOLD}0d`)}
-                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-black text-white">{fmtDate(u.dueDate)}</span></td>
-                                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                                    <div className="flex flex-col items-end gap-0.5">
-                                      <span className="font-black text-lg" style={{ color: GOLD }}>{fmtBRL(u.amount)}</span>
-                                      {u.paymentLabel && (
-                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-md" style={{ background: `${GOLD}18`, color: GOLD }}>
-                                          {u.paymentLabel}
-                                        </span>
-                                      )}
-                                      {!isPix && totalInst > 1 && (
-                                        <span className="text-[9px] font-bold" style={{ color: SILVER }}>
-                                          {paidCount}/{totalInst} pagas
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black" style={{ background: `${urgColor}18`, border: `1px solid ${urgColor}40`, color: urgColor }}>{dias}d</span></td>
-                                  <td className="py-3 px-4">
-                                    <div className="flex flex-col">
-                                      <NameBtn name={u.name} email={u.email} router={router} />
-                                      <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{u.email}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <span className="text-[11px] font-black" style={{ color: SILVER }}>
-                                      {isPix ? 'PIX à Vista' : `${u.installmentNum}/${totalInst}`}
-                                    </span>
-                                  </td>
-                                  <td className="py-3 px-4"><span className="text-[11px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{u.product}</span></td>
-                                </tr>
-                              );
-                            })
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          {/* ══════════════════════════════════════════════════════════════════
-              TAB: INADIMPLENTES
-          ══════════════════════════════════════════════════════════════════ */}
-          {activeTab === 'inadimplentes' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-              {/* ─ Hotmart overdue */}
-              <div style={tabStyle('#f87171')}>
-                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: '1px solid #f8717122' }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: '#f8717115', border: '1px solid #f8717135' }}>
-                    <span className="material-symbols-outlined text-xl" style={{ color: '#f87171' }}>warning</span>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
-                      Inadimplentes Hotmart{!loading && data ? ` — ${data.overdue.length}` : ''}
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
-                      assinaturas e parcelamentos com pagamento atrasado · últ. cobrança há +35 dias
-                    </p>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: 120 }} />
-                      <col style={{ width: 155 }} />
-                      <col />
-                      <col />
-                      <col style={{ width: 100 }} />
-                      <col style={{ width: 80 }} />
-                    </colgroup>
-                    <thead><tr style={{ background: '#f8717108' }}>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Últ. Pagamento</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Início</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
-                    </tr></thead>
-                    <tbody>
-                      {loading ? [...Array(6)].map((_, i) => <SkelRow key={i} cols={6} accent="#f87171" />) :
-                        (data?.overdue || []).length === 0
-                          ? <tr><td colSpan={6} className="py-16 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>🎉 Nenhum inadimplente Hotmart.</td></tr>
-                          : data!.overdue.map((o, idx) => {
-                              const dias     = o.daysSinceLast ?? 0;
-                              const severity = dias > 50 ? '#f87171' : dias > 40 ? GOLD : SILVER;
-                              const rowBg    = idx % 2 === 0 ? '#f8717104' : '#f8717108';
-                              return (
-                                <tr key={o.subscriberCode || idx} style={{ background: rowBg, borderBottom: '1px solid #f8717118' }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = '#f8717114')}
-                                  onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                                  <td className="py-3 px-4 whitespace-nowrap">
-                                    <div className="flex flex-col gap-0.5">
-                                      <span className="text-sm font-black text-white">{fmtDate(o.lastPayDate)}</span>
-                                      <span className="text-[9px] font-bold" style={{ color: SILVER }}>{o.lastTransaction.slice(0, 14)}…</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                                    <div className="flex flex-col items-end gap-1">
-                                      <span className="font-black text-lg" style={{ color: '#f87171' }}>{fmtLocalCurrency(o.amount, o.currency)}</span>
-                                      {o.currency !== 'BRL' && o.amountBRL && <span className="text-[9px] font-bold" style={{ color: SILVER }}>≈ {fmtBRL(o.amountBRL)}</span>}
-                                      <div className="mt-1 flex flex-col items-end gap-0.5 border-t pt-1" style={{ borderColor: '#f8717122', width: '100%' }}>
-                                        <span className="text-[9px] font-black" style={{ color: '#4ade80' }}>✓ {o.isSub ? `${o.paidCount}× pagos` : o.isSmartInstall ? `${o.paidCount}/${o.installments} parcelas` : `${o.paidCount}× pago`}</span>
-                                        <span className="text-[9px]" style={{ color: '#4ade8090' }}>{fmtLocalCurrency(o.paidTotal, o.currency)}</span>
-                                        {o.isSmartInstall && o.installments > o.paidCount && <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>◷ {o.installments - o.paidCount} restantes</span>}
-                                        {o.isSub && <span className="text-[9px] font-black" style={{ color: '#fbbf24' }}>◷ {o.daysSinceLast}d sem pagar</span>}
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <div className="flex flex-col">
-                                      <div className="flex items-center gap-2"><Flag currency={o.currency} /><NameBtn name={o.subscriber.name} email={o.subscriber.email} router={router} /></div>
-                                      <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>{o.subscriber.email}</span>
-                                      {o.plan && <span className="text-[10px] font-bold mt-0.5" style={{ color: SILVER }}>Oferta: {o.plan}</span>}
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4"><span className="text-[12px] font-black uppercase tracking-tight leading-4 block" style={{ color: SILVER }}>{o.product.name}</span></td>
-                                  <td className="py-3 px-4 whitespace-nowrap"><span className="text-sm font-bold text-white">{fmtDate(o.accessionDate)}</span></td>
-                                  <td className="py-3 px-4"><span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[12px] font-black" style={{ background: `${severity}18`, border: `1px solid ${severity}40`, color: severity }}>{dias}d</span></td>
-                                </tr>
-                              );
-                            })
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-                            {/* ─ PIX Manual overdue */}
-              <div style={tabStyle(GOLD)}>
-                <div className="px-7 py-5 flex items-center gap-3" style={{ borderBottom: `1px solid ${GOLD}22` }}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${GOLD}15`, border: `1px solid ${GOLD}35` }}>
-                    <span className="material-symbols-outlined text-xl" style={{ color: GOLD }}>edit_note</span>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: '18px', fontWeight: 900, color: '#fff', lineHeight: 1.1 }}>
-                      Inadimplentes PIX Manual{!loading && data ? ` — ${(data.manualOverdue || []).length}` : ''}
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color: SILVER }}>
-                      parcelas vencidas e não pagas · alunos marcados como inadimplente
-                    </p>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left" style={{ borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: 120 }} />
-                      <col style={{ width: 155 }} />
-                      <col />
-                      <col />
-                      <col style={{ width: 220 }} />
-                      <col style={{ width: 80 }} />
-                    </colgroup>
-                    <thead><tr style={{ background: `${GOLD}08` }}>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Vencimento</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest text-right" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Valor</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Nome</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Pagamento</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Produto</th>
-                      <th className="py-4 px-4 text-[11px] font-black uppercase tracking-widest" style={{ color: SILVER, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>Dias</th>
-                    </tr></thead>
-                    <tbody>
-                      {loading ? [...Array(4)].map((_, i) => <SkelRow key={i} cols={6} accent={GOLD} />) :
-                        (data?.manualOverdue || []).length === 0
-                          ? <tr><td colSpan={6} className="py-12 text-center text-[11px] font-bold uppercase tracking-widest" style={{ color: SILVER }}>🎉 Nenhum inadimplente PIX Manual.</td></tr>
-                          : (() => {
-                            // Local state for optimistic pay updates — track paid emails+index
-                            // We use a ref-and-forcerender pattern inside the map via closure
-                            return data!.manualOverdue.map((o, idx) => (
-                              <ManualOverdueRow
-                                key={`${o.email}-${o.installmentNum}-${idx}`}
-                                o={o}
-                                router={router}
-                                onPaid={() => {
-                                  // Remove row optimistically
-                                  setData((prev: any) => prev ? {
-                                    ...prev,
-                                    manualOverdue: prev.manualOverdue.filter((_: any, i: number) => i !== idx)
-                                  } : prev);
-                                  // Silent refetch — updates Vendas + Últimas Entradas without full page reload
-                                  setTimeout(() => silentRefetch(), 800);
-                                }}
-                              />
-                            ));
-                          })()
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
-          )}
-
         </main>
       </div>
     </LoginWrapper>

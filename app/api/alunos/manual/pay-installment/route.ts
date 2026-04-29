@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/app/lib/db';
+import { logActivity, extractActor, extractIp } from '@/app/lib/activityLog';
 
 export const dynamic = 'force-dynamic';
 export const runtime  = 'nodejs';
@@ -95,6 +96,26 @@ export async function PATCH(req: Request) {
     `;
 
 
+
+    // Fetch student name for the log
+    const nameRow = await db`SELECT name, course_name FROM manual_students WHERE id = ${row.id} LIMIT 1` as any[];
+
+    logActivity({
+      ...extractActor(req),
+      action:      'INSTALLMENT_PAID',
+      entity_type: 'manual_student',
+      entity_id:   String(row.id),
+      entity_name: nameRow[0]?.name || emailLower,
+      metadata:    {
+        email:            emailLower,
+        course:           nameRow[0]?.course_name,
+        installmentIndex: installmentIndex + 1,
+        totalInstallments: dates.length,
+        newStatus,
+        allPaid,
+      },
+      ip: extractIp(req),
+    });
 
     return NextResponse.json({
       success: true,

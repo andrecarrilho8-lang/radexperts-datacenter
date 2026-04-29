@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUsers, createUser, hashPassword, parseToken } from '@/app/lib/users';
 import { randomUUID } from 'crypto';
+import { logActivity, extractActor, extractIp } from '@/app/lib/activityLog';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -44,6 +45,17 @@ export async function POST(request: Request) {
     });
 
     const { password: _, ...safe } = newUser;
+
+    logActivity({
+      ...extractActor(request),
+      action:      'USER_CREATED',
+      entity_type: 'dashboard_user',
+      entity_id:   newUser.id,
+      entity_name: newUser.name || newUser.username,
+      metadata:    { username: newUser.username, role: newUser.role },
+      ip:          extractIp(request),
+    });
+
     return NextResponse.json({ user: safe });
   } catch (e: any) {
     if (e.message?.includes('duplicate') || e.message?.includes('unique')) {

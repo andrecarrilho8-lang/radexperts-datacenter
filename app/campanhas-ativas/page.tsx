@@ -1,10 +1,9 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useCallback } from 'react';
 import { useDashboard } from '@/app/lib/context';
 import { useDashboardData } from '@/app/lib/hooks';
 import { R, N, P, D } from '@/app/lib/utils';
-import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import Link from 'next/link';
 
@@ -324,7 +323,6 @@ export default function CampanhasAtivasPage() {
 
         {/* Content above background */}
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <Navbar />
           <div className="h-[146px]" />
 
           <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-8 pb-24">

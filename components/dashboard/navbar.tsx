@@ -24,30 +24,81 @@ const FINANCEIRO_ITEMS = [
   { label: 'Comissões',         href: '/financeiro/comissoes',     icon: 'percent'                },
 ];
 
+const ERP_ITEMS = [
+  { label: 'Dashboard ERP',  href: '/conta-azul',        icon: 'account_balance'    },
+  { label: 'Financeiro',     href: '/conta-azul',        icon: 'payments'           },
+  { label: 'Configurar',     href: '/conta-azul/setup',  icon: 'settings'           },
+];
+
+/* ── Notification badge ─────────────────────────────────────────────────── */
+type NotifCounts = { inadimplentes: number; proximos: number; total: number };
+const EMPTY_COUNTS: NotifCounts = { inadimplentes: 0, proximos: 0, total: 0 };
+
+function NotifBadge({ count, color = '#22c55e' }: { count: number; color?: string }) {
+  if (!count) return null;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      minWidth: count > 9 ? 20 : 18, height: 18,
+      borderRadius: 999, padding: '0 5px',
+      background: color,
+      color: '#fff',
+      fontSize: 10, fontWeight: 900,
+      lineHeight: 1,
+      boxShadow: `0 0 8px ${color}80`,
+      flexShrink: 0,
+      letterSpacing: '-0.02em',
+    }}>
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 export function Navbar() {
-  const { dateFrom, dateTo, setDateRange, activePreset, setActivePreset, presets, userRole, userName, logout } = useDashboard();
+  const { dateFrom, dateTo, setDateRange, activePreset, setActivePreset, presets, userRole, userName, logout, isAuthenticated } = useDashboard();
+
+  // Don't render the navbar on the login screen
+  if (!isAuthenticated) return null;
+
   const [showCustom,     setShowCustom]     = useState(false);
   const [mobileOpen,     setMobileOpen]     = useState(false);
   const [trafegoOpen,    setTrafegoOpen]    = useState(false);
   const [financeiroOpen, setFinanceiroOpen] = useState(false);
+  const [erpOpen,        setErpOpen]        = useState(false);
   const [tmpFrom, setTmpFrom] = useState(dateFrom);
   const [tmpTo,   setTmpTo]   = useState(dateTo);
+  const [notifs,  setNotifs]  = useState<NotifCounts>(EMPTY_COUNTS);
   const pathname      = usePathname();
   const customRef     = useRef<HTMLDivElement>(null);
   const trafegoRef    = useRef<HTMLDivElement>(null);
   const financeiroRef = useRef<HTMLDivElement>(null);
+  const erpRef        = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function clickOutside(e: MouseEvent) {
       if (customRef.current     && !customRef.current.contains(e.target as Node))     setShowCustom(false);
       if (trafegoRef.current    && !trafegoRef.current.contains(e.target as Node))    setTrafegoOpen(false);
       if (financeiroRef.current && !financeiroRef.current.contains(e.target as Node)) setFinanceiroOpen(false);
+      if (erpRef.current        && !erpRef.current.contains(e.target as Node))        setErpOpen(false);
     }
     document.addEventListener('mousedown', clickOutside);
     return () => document.removeEventListener('mousedown', clickOutside);
   }, []);
 
-  useEffect(() => { setMobileOpen(false); setTrafegoOpen(false); setFinanceiroOpen(false); }, [pathname]);
+  // ── Fetch notification counts (only for TOTAL role) ───────────────────────
+  useEffect(() => {
+    if (userRole !== 'TOTAL') return;
+    const load = () =>
+      fetch('/api/notifications/counts')
+        .then(r => r.ok ? r.json() : EMPTY_COUNTS)
+        .then(d => setNotifs(d))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 5 * 60 * 1000); // refresh every 5 min
+    return () => clearInterval(id);
+  }, [userRole]);
+
+  useEffect(() => { setMobileOpen(false); setTrafegoOpen(false); setFinanceiroOpen(false); setErpOpen(false); }, [pathname]);
 
   const applyPreset = (p: Preset) => {
     setDateRange(p.from, p.to);
@@ -65,6 +116,7 @@ export function Navbar() {
 
   const isTrafegoActive    = TRAFEGO_ITEMS.some(i => pathname.startsWith(i.href));
   const isFinanceiroActive = FINANCEIRO_ITEMS.some(i => pathname.startsWith(i.href));
+  const isErpActive        = pathname.startsWith('/conta-azul');
 
   const topNavItems = [
     { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL', 'TRAFEGO'] },
@@ -186,6 +238,17 @@ export function Navbar() {
             )}
           </div>
 
+          {/* Search trigger icon */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('global-search:open'))}
+            title="Busca Global (Ctrl+K)"
+            className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
+            style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', color: SILVER }}
+            onMouseEnter={e => { e.currentTarget.style.color = GOLD; e.currentTarget.style.borderColor = `${GOLD}50`; }}
+            onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}>
+            <span className="material-symbols-outlined text-[15px]">search</span>
+          </button>
+
           <div className="hidden lg:block w-px h-5" style={{ background: 'rgba(255,255,255,0.12)' }} />
 
           {/* User info */}
@@ -198,6 +261,16 @@ export function Navbar() {
               </span>
             </div>
           </div>
+
+          {showAdmin && (
+            <Link href="/atividades" title="Registro de Atividades"
+              className="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
+              style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', color: SILVER }}
+              onMouseEnter={e => { e.currentTarget.style.color = GOLD; e.currentTarget.style.borderColor = `${GOLD}50`; }}
+              onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}>
+              <span className="material-symbols-outlined text-[15px]">history</span>
+            </Link>
+          )}
 
           {showAdmin && (
             <Link href="/admin" title="Gerenciar Usuários"
@@ -216,6 +289,7 @@ export function Navbar() {
             onMouseLeave={e => { e.currentTarget.style.color = SILVER; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}>
             <span className="material-symbols-outlined text-[15px]">logout</span>
           </button>
+
 
           {/* Hamburger — mobile only */}
           <button onClick={() => setMobileOpen(v => !v)}
@@ -330,6 +404,7 @@ export function Navbar() {
                 className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative h-full flex items-center gap-1 px-4"
                 style={{ color: isFinanceiroActive ? '#fff' : financeiroOpen ? '#fff' : NAVY, background: isFinanceiroActive || financeiroOpen ? 'rgba(0,0,0,0.18)' : 'transparent' }}>
                 Financeiro
+                {notifs.total > 0 && <NotifBadge count={notifs.total} color="#1e3a5f" />}
                 <span className={`material-symbols-outlined text-[14px] transition-transform duration-200 ${financeiroOpen ? 'rotate-180' : ''}`}>expand_more</span>
                 {isFinanceiroActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
               </button>
@@ -337,8 +412,48 @@ export function Navbar() {
                 <div className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl" style={dropdownStyle}>
                   {FINANCEIRO_ITEMS.map(item => {
                     const isActive = pathname.startsWith(item.href);
+                    const badge =
+                      item.href.includes('inadimplentes') ? notifs.inadimplentes :
+                      item.href.includes('proximos')      ? notifs.proximos : 0;
                     return (
                       <Link key={item.href} href={item.href}
+                        className="flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-[0.15em] transition-all"
+                        style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.08)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                        onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.06)'; }}}
+                        onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = SILVER; e.currentTarget.style.background = 'transparent'; }}}>
+                        <span className="material-symbols-outlined text-[15px]">{item.icon}</span>
+                        {item.label}
+                        <span className="ml-auto flex items-center gap-1.5">
+                          {badge > 0 && <NotifBadge count={badge} color={item.href.includes('inadimplentes') ? '#ef4444' : '#15803d'} />}
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full" style={{ background: GOLD }} />}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ERP (Conta Azul) dropdown — só TOTAL */}
+          {showAdmin && (
+            <div className="relative h-full flex items-center" ref={erpRef} onMouseLeave={() => setErpOpen(false)}>
+              <button
+                onMouseEnter={() => setErpOpen(true)}
+                onClick={() => setErpOpen(o => !o)}
+                className="text-[11px] font-black uppercase tracking-[0.18em] transition-all relative h-full flex items-center gap-1 px-4"
+                style={{ color: isErpActive ? '#fff' : erpOpen ? '#fff' : NAVY, background: isErpActive || erpOpen ? 'rgba(0,0,0,0.18)' : 'transparent' }}>
+                <span className="material-symbols-outlined text-[14px]">account_balance</span>
+                ERP
+                <span className={`material-symbols-outlined text-[14px] transition-transform duration-200 ${erpOpen ? 'rotate-180' : ''}`}>expand_more</span>
+                {isErpActive && <div className="absolute bottom-0 left-0 w-full h-[2px] rounded-full" style={{ background: 'linear-gradient(90deg, transparent, rgba(0,0,0,0.5), transparent)' }} />}
+              </button>
+              {erpOpen && (
+                <div className="absolute left-0 top-full w-52 rounded-2xl overflow-hidden shadow-2xl" style={dropdownStyle}>
+                  {ERP_ITEMS.map(item => {
+                    const isActive = pathname === item.href || (item.href === '/conta-azul' && pathname === '/conta-azul');
+                    return (
+                      <Link key={`${item.href}-${item.label}`} href={item.href}
                         className="flex items-center gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-[0.15em] transition-all"
                         style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.08)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                         onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = GOLD; e.currentTarget.style.background = 'rgba(232,177,79,0.06)'; }}}
@@ -428,15 +543,26 @@ export function Navbar() {
 
             {showFinanceiro && (
               <div style={{ background: 'rgba(0,0,0,0.15)' }}>
-                <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>Financeiro</p>
+                <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: GOLD }}>
+                  Financeiro
+                  {notifs.total > 0 && <NotifBadge count={notifs.total} color="#1e3a5f" />}
+                </p>
                 {FINANCEIRO_ITEMS.map(item => {
                   const isActive = pathname.startsWith(item.href);
+                  const badge =
+                    item.href.includes('inadimplentes') ? notifs.inadimplentes :
+                    item.href.includes('proximos')      ? notifs.proximos : 0;
                   return (
                     <Link key={item.href} href={item.href}
                       className="px-8 py-3 text-sm font-black uppercase tracking-widest flex items-center gap-3"
                       style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
                       <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
                       {item.label}
+                      {badge > 0 && (
+                        <span className="ml-auto">
+                          <NotifBadge count={badge} color={item.href.includes('inadimplentes') ? '#ef4444' : '#15803d'} />
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

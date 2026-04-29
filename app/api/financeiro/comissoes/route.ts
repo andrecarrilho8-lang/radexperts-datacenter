@@ -35,11 +35,17 @@ export async function GET(request: Request) {
         bp.email,
         COALESCE(bp.name, ms.name, bp.email) AS nome,
         bp.vendedor,
-        bp.bp_valor    AS valor,
-        bp.bp_pagamento AS pagamento,
+        bp.bp_valor       AS valor,
+        bp.bp_pagamento   AS pagamento,
+        ms.course_name,
         bp.bp_primeira_parcela::bigint AS data_ms
       FROM buyer_profiles bp
-      LEFT JOIN manual_students ms ON ms.email = bp.email
+      LEFT JOIN LATERAL (
+        SELECT course_name FROM manual_students
+        WHERE email = bp.email
+        ORDER BY entry_date DESC
+        LIMIT 1
+      ) ms ON TRUE
       WHERE bp.vendedor IS NOT NULL
         AND bp.bp_valor  IS NOT NULL
         AND bp.bp_valor  > 0
@@ -153,7 +159,7 @@ export async function GET(request: Request) {
         fonte:   'manual',
         nome:    row.nome || row.email,
         email:   row.email,
-        produto: row.pagamento || 'Manual',
+        produto: row.course_name || 'Manual',
         valor:   Number(row.valor) || 0,
         bruto:   Number(row.valor) || 0,
         data,

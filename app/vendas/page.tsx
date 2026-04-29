@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -6,7 +6,6 @@ import { useDashboard } from '@/app/lib/context';
 import { useDashboardData } from '@/app/lib/hooks';
 import { R, RF, N, D } from '@/app/lib/utils';
 import { slugify } from '@/app/lib/slug';
-import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { useRouter } from 'next/navigation';
@@ -506,9 +505,82 @@ function AddManualSaleModal({ onClose, onSaved }: { onClose: () => void; onSaved
 
 const PAGE_SIZE_OPTIONS = [50, 100, 150, 200];
 
-
-
-
+// ── Vendedor Quick-Assign Popover ─────────────────────────────────────────────
+function VendedorPopover({
+  position, email, vendedores, saving,
+  onSelect, onClose,
+}: {
+  position: { top: number; left: number };
+  email: string;
+  vendedores: string[];
+  saving: boolean;
+  onSelect: (v: string) => void;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <>
+      {/* Backdrop */}
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+        onClick={onClose}
+      />
+      {/* Popover */}
+      <div
+        style={{
+          position: 'fixed',
+          top: position.top,
+          left: position.left,
+          zIndex: 9999,
+          background: 'linear-gradient(160deg, rgba(0,22,55,0.98) 0%, rgba(0,12,35,0.99) 100%)',
+          border: '1px solid rgba(232,177,79,0.3)',
+          borderRadius: 16,
+          padding: '10px 8px',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.06) inset',
+          minWidth: 170,
+        }}
+      >
+        <p style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.15em',
+          color: SILVER, marginBottom: 8, paddingLeft: 6 }}>Atribuir Vendedor</p>
+        {saving ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0', gap: 8, color: GOLD }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, animation: 'spin 1s linear infinite' }}>progress_activity</span>
+            <span style={{ fontSize: 11, fontWeight: 800 }}>Salvando...</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {vendedores.map(v => (
+              <button
+                key={v}
+                onClick={() => onSelect(v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 10px', borderRadius: 10, width: '100%',
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                  color: 'white', fontSize: 12, fontWeight: 800, cursor: 'pointer',
+                  textAlign: 'left', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(232,177,79,0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(232,177,79,0.35)';
+                  e.currentTarget.style.color = GOLD;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
+                  e.currentTarget.style.color = 'white';
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 14, color: GOLD }}>person</span>
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>,
+    document.body
+  );
+}
 
 export default function VendasPage() {
   const { dateFrom, dateTo } = useDashboard();
@@ -526,6 +598,11 @@ export default function VendasPage() {
   const [editingManual, setEditingManual] = useState<any | null>(null);
   const [deletingManualId, setDeletingManualId] = useState<string | null>(null);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
+
+  // Inline vendedor assignment
+  const [assigningEmail,   setAssigningEmail]   = useState<string | null>(null);
+  const [assigningPos,     setAssigningPos]     = useState<{ top: number; left: number } | null>(null);
+  const [savingVendedor,   setSavingVendedor]   = useState(false);
 
   // Vendedor map: email.toLowerCase() → vendedor name
   const [vendedorMap,   setVendedorMap]   = useState<Record<string, string>>({});
@@ -564,6 +641,29 @@ export default function VendasPage() {
     fetch('/api/alunos/vendedores').then(r => r.json()).then(d => {
       if (d.ok) { setVendedorMap(d.map || {}); setVendedorList(d.vendedores || []); }
     }).catch(() => {});
+  }, []);
+
+  // Assign a vendedor inline — works for both Hotmart and Manual rows
+  const handleAssignVendedor = useCallback(async (email: string, vendedor: string) => {
+    setSavingVendedor(true);
+    try {
+      const res = await fetch(`/api/alunos/bp-patch?email=${encodeURIComponent(email)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vendedor }),
+      });
+      if (!res.ok) return;
+      // Optimistic update: vendedorMap covers hotmart rows
+      setVendedorMap(prev => ({ ...prev, [email.toLowerCase()]: vendedor }));
+      // Also update the manual sales array in-place
+      setManualSales(prev => prev.map(s =>
+        (s.email || '').toLowerCase() === email.toLowerCase() ? { ...s, vendedor } : s
+      ));
+      setAssigningEmail(null);
+      setAssigningPos(null);
+    } finally {
+      setSavingVendedor(false);
+    }
   }, []);
 
   // Hotmart calcs
@@ -704,7 +804,6 @@ export default function VendasPage() {
       <div style={{ position:'fixed', inset:0, zIndex:0, pointerEvents:'none',
         background:'linear-gradient(160deg,rgba(0,12,40,0.58) 0%,rgba(0,22,60,0.48) 100%)' }} />
       <div className="min-h-screen pb-20" style={{ position:'relative', zIndex:1 }}>
-        <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-6 sm:pt-10">
 
@@ -983,9 +1082,32 @@ export default function VendasPage() {
                           </td>
                           <td className="py-3 px-4"><PaymentBadge method={paymentMethod} /></td>
                           <td className="py-3 px-4">
-                            {(() => { const v = vendedorMap[(s.buyer?.email||'').toLowerCase()]; return v
-                              ? <span className="text-[11px] font-black uppercase" style={{ color:GREEN }}>{v}</span>
-                              : <span className="text-[10px]" style={{ color:'rgba(255,255,255,0.2)' }}>—</span>; })()
+                            {(() => {
+                              const email = (s.buyer?.email || '').toLowerCase();
+                              const v = vendedorMap[email];
+                              if (v) return <span className="text-[11px] font-black uppercase" style={{ color: GREEN }}>{v}</span>;
+                              return (
+                                <button
+                                  onClick={e => {
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    setAssigningEmail(email);
+                                    setAssigningPos({ top: rect.bottom + 6, left: rect.left });
+                                  }}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    padding: '3px 8px', borderRadius: 8, cursor: 'pointer',
+                                    background: 'rgba(232,177,79,0.07)', border: '1px dashed rgba(232,177,79,0.3)',
+                                    color: 'rgba(232,177,79,0.6)', fontSize: 10, fontWeight: 800,
+                                    transition: 'all 0.15s',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(232,177,79,0.15)'; e.currentTarget.style.color = GOLD; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(232,177,79,0.07)'; e.currentTarget.style.color = 'rgba(232,177,79,0.6)'; }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 11 }}>add</span>
+                                  Atribuir
+                                </button>
+                              );
+                            })()
                             }
                           </td>
                           <td className="py-3 px-4">
@@ -1061,9 +1183,32 @@ export default function VendasPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            {(() => { const v = s.vendedor || vendedorMap[(s.email||'').toLowerCase()]; return v
-                              ? <span className="text-[11px] font-black uppercase" style={{ color:GREEN }}>{v}</span>
-                              : <span className="text-[10px]" style={{ color:'rgba(255,255,255,0.2)' }}>—</span>; })()
+                            {(() => {
+                              const email = (s.email || '').toLowerCase();
+                              const v = s.vendedor || vendedorMap[email];
+                              if (v) return <span className="text-[11px] font-black uppercase" style={{ color: GREEN }}>{v}</span>;
+                              return (
+                                <button
+                                  onClick={e => {
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    setAssigningEmail(email);
+                                    setAssigningPos({ top: rect.bottom + 6, left: rect.left });
+                                  }}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    padding: '3px 8px', borderRadius: 8, cursor: 'pointer',
+                                    background: 'rgba(167,139,250,0.07)', border: '1px dashed rgba(167,139,250,0.3)',
+                                    color: 'rgba(167,139,250,0.6)', fontSize: 10, fontWeight: 800,
+                                    transition: 'all 0.15s',
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(167,139,250,0.18)'; e.currentTarget.style.color = '#a78bfa'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(167,139,250,0.07)'; e.currentTarget.style.color = 'rgba(167,139,250,0.6)'; }}
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 11 }}>add</span>
+                                  Atribuir
+                                </button>
+                              );
+                            })()
                             }
                           </td>
                           <td className="py-3 px-4">
@@ -1279,6 +1424,18 @@ export default function VendasPage() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Inline Vendedor Assign Popover */}
+      {assigningEmail && assigningPos && typeof window !== 'undefined' && (
+        <VendedorPopover
+          position={assigningPos}
+          email={assigningEmail}
+          vendedores={VENDEDORES_LIST}
+          saving={savingVendedor}
+          onSelect={v => handleAssignVendedor(assigningEmail, v)}
+          onClose={() => { setAssigningEmail(null); setAssigningPos(null); }}
+        />
       )}
     </LoginWrapper>
 

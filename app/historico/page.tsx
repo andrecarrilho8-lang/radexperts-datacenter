@@ -1,10 +1,9 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useCallback } from 'react';
 import { R, D } from '@/app/lib/utils';
 import { TopPageCard, CustomerCard } from '@/components/ui/auth-and-cards';
 import { TopAdCard } from '@/components/dashboard/campaign-details';
-import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
 const GOLD   = '#E8B14F';
@@ -62,7 +61,6 @@ export default function HistoricoPage() {
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
         background: 'linear-gradient(160deg, rgba(0,0,8,0.65) 0%, rgba(5,8,20,0.58) 100%)' }} />
       <div className="min-h-screen pb-20" style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar />
         <div className="h-[146px]" />
         <main className="px-3 sm:px-6 max-w-[1600px] mx-auto pt-4 sm:pt-10">
 

@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDashboard } from '@/app/lib/context';
 import { R, D } from '@/app/lib/utils';
-import { Navbar } from '@/components/dashboard/navbar';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
 const GOLD   = '#E8B14F';
@@ -197,8 +196,9 @@ export default function ComissoesPage() {
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
   const [nota,         setNota]         = useState<any | null>(null);
-  const [origemFilter, setOrigemFilter] = useState<'all' | 'hotmart' | 'manual'>('all');
-  const [cursoFilter,  setCursoFilter]  = useState('');
+  const [origemFilter,   setOrigemFilter]   = useState<'all' | 'hotmart' | 'manual'>('all');
+  const [cursoFilter,    setCursoFilter]    = useState('');
+  const [vendedorFilter, setVendedorFilter] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true); setError('');
@@ -223,9 +223,15 @@ export default function ComissoesPage() {
     return Array.from(set).sort();
   }, [data]);
 
-  // filteredData: recalcula totais por vendedor após aplicar filtros de origem e curso
+  // Lista de vendedores únicos para o select
+  const vendedorList = useMemo<string[]>(() => {
+    return data.map((v: any) => v.nome as string).filter(Boolean).sort();
+  }, [data]);
+
+  // filteredData: recalcula totais por vendedor após aplicar filtros de vendedor, origem e curso
   const filteredData = useMemo(() => {
     return data
+      .filter(v => !vendedorFilter || v.nome === vendedorFilter)
       .map(v => {
         let itens: any[] = v.itens || [];
         if (origemFilter !== 'all') itens = itens.filter((it: any) => it.fonte === origemFilter);
@@ -244,7 +250,7 @@ export default function ComissoesPage() {
         };
       })
       .filter(v => v.totalVendas > 0);
-  }, [data, origemFilter, cursoFilter]);
+  }, [data, vendedorFilter, origemFilter, cursoFilter]);
 
   const totais = useMemo(() => ({
     faturado: filteredData.reduce((s, v) => s + v.totalValor,    0),
@@ -267,7 +273,6 @@ export default function ComissoesPage() {
         background: 'linear-gradient(160deg, rgba(8,8,12,0.72) 0%, rgba(18,18,24,0.65) 100%)' }} />
 
       <div className="min-h-screen pb-24" style={{ position: 'relative', zIndex: 1 }}>
-        <Navbar />
         <div className="h-[146px]" />
 
         <main className="px-3 sm:px-6 max-w-[1400px] mx-auto pt-4 sm:pt-10">
@@ -297,6 +302,25 @@ export default function ComissoesPage() {
           {/* ── Filtros ──────────────────────────────────────────────────────── */}
           {!loading && data.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
+              {/* Vendedor */}
+              <div style={{ position: 'relative' }}>
+                <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 15, color: vendedorFilter ? GOLD : SILVER, pointerEvents: 'none' }}>person</span>
+                <select value={vendedorFilter} onChange={e => setVendedorFilter(e.target.value)}
+                  style={{
+                    padding: '9px 14px 9px 32px', borderRadius: 12, fontSize: 11, fontWeight: 900,
+                    background: vendedorFilter ? 'rgba(232,177,79,0.1)' : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${vendedorFilter ? 'rgba(232,177,79,0.35)' : 'rgba(255,255,255,0.1)'}`,
+                    color: vendedorFilter ? GOLD : SILVER, cursor: 'pointer', outline: 'none',
+                    minWidth: 180,
+                  }}>
+                  <option value="" style={{ background: NAVY }}>Todos os Vendedores</option>
+                  {vendedorList.map(v => <option key={v} value={v} style={{ background: NAVY }}>{v}</option>)}
+                </select>
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.1)' }} />
+
               {/* Origem */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
                 {([['all','Todos'], ['hotmart','Hotmart'], ['manual','Manual']] as const).map(([v, label]) => (
@@ -342,8 +366,8 @@ export default function ComissoesPage() {
               </div>
 
               {/* Reset */}
-              {(origemFilter !== 'all' || cursoFilter) && (
-                <button onClick={() => { setOrigemFilter('all'); setCursoFilter(''); }}
+              {(vendedorFilter || origemFilter !== 'all' || cursoFilter) && (
+                <button onClick={() => { setVendedorFilter(''); setOrigemFilter('all'); setCursoFilter(''); }}
                   style={{ padding: '9px 14px', borderRadius: 12, fontSize: 11, fontWeight: 900, cursor: 'pointer',
                     background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
                     color: '#f87171', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -354,7 +378,7 @@ export default function ComissoesPage() {
 
               <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: SILVER }}>
                 {filteredData.length} vendedor{filteredData.length !== 1 ? 'es' : ''}
-                {(origemFilter !== 'all' || cursoFilter) ? ' (filtrado)' : ''}
+                {(vendedorFilter || origemFilter !== 'all' || cursoFilter) ? ' (filtrado)' : ''}
               </span>
             </div>
           )}
@@ -411,7 +435,7 @@ export default function ComissoesPage() {
                 <div style={{ textAlign: 'center', padding: '60px 24px' }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 48, color: SILVER, display: 'block', marginBottom: 12 }}>filter_list_off</span>
                   <p style={{ color: SILVER, fontWeight: 700, fontSize: 14 }}>Nenhum resultado para os filtros selecionados</p>
-                  <button onClick={() => { setOrigemFilter('all'); setCursoFilter(''); }}
+                  <button onClick={() => { setVendedorFilter(''); setOrigemFilter('all'); setCursoFilter(''); }}
                     style={{ marginTop: 14, padding: '9px 18px', borderRadius: 12, fontSize: 11, fontWeight: 900, cursor: 'pointer',
                       background: 'rgba(232,177,79,0.1)', border: '1px solid rgba(232,177,79,0.3)', color: GOLD }}>
                     Limpar filtros

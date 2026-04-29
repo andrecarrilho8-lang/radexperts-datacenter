@@ -1,8 +1,7 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
-import { Navbar } from '@/components/dashboard/navbar';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const GOLD   = '#E8B14F';
@@ -180,7 +179,6 @@ export default function ExtratoMensalPage() {
   return (
     <LoginWrapper>
       <div className="min-h-screen" style={{ background: NAVY }}>
-        <Navbar />
 
         <main className="pt-[96px] pb-16 px-4 md:px-8 max-w-5xl mx-auto">
 

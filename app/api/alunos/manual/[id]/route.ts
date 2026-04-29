@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/app/lib/db';
+import { logActivity, extractActor, extractIp } from '@/app/lib/activityLog';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -41,6 +42,17 @@ export async function PUT(
       RETURNING *
     `) as any[];
     if (rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    logActivity({
+      ...extractActor(request),
+      action:      'STUDENT_UPDATED',
+      entity_type: 'manual_student',
+      entity_id:   id,
+      entity_name: rows[0].name || id,
+      metadata:    { course: rows[0].course_name, fields_updated: Object.keys(body) },
+      ip:          extractIp(request),
+    });
+
     return NextResponse.json({ student: rows[0] });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
@@ -58,7 +70,20 @@ export async function DELETE(
   const { id } = await params;
   const sql = getDb();
   try {
+    // Fetch name before deletion for the log
+    const existing = await sql`SELECT name, course_name FROM manual_students WHERE id = ${id} LIMIT 1` as any[];
     await sql`DELETE FROM manual_students WHERE id = ${id}`;
+
+    logActivity({
+      ...extractActor(_request),
+      action:      'STUDENT_DELETED',
+      entity_type: 'manual_student',
+      entity_id:   id,
+      entity_name: existing[0]?.name || id,
+      metadata:    { course: existing[0]?.course_name },
+      ip:          extractIp(_request),
+    });
+
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
