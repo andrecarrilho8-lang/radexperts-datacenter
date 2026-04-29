@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -14,7 +16,10 @@ interface Status {
   expiresInMinutes: number | null;
 }
 
-export default function ContaAzulSetupPage() {
+// ── Inner component (needs useSearchParams) ───────────────────────────────────
+function SetupContent() {
+  const searchParams = useSearchParams();
+
   const [status,       setStatus]       = useState<Status | null>(null);
   const [authUrl,      setAuthUrl]      = useState('');
   const [code,         setCode]         = useState('');
@@ -22,6 +27,7 @@ export default function ContaAzulSetupPage() {
   const [loading,      setLoading]      = useState(false);
   const [msg,          setMsg]          = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeTab,    setActiveTab]    = useState<'code' | 'token'>('code');
+  const [autoConnecting, setAutoConnecting] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -39,6 +45,41 @@ export default function ContaAzulSetupPage() {
     const interval = setInterval(loadStatus, 30_000);
     return () => clearInterval(interval);
   }, [loadStatus]);
+
+  // ── Auto-connect se há ?code= na URL (callback OAuth) ─────────────────────
+  useEffect(() => {
+    const codeFromUrl = searchParams.get('code');
+    if (!codeFromUrl) return;
+
+    // Limpar o code da URL sem recarregar a página
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, '', cleanUrl);
+
+    setAutoConnecting(true);
+    setMsg({ type: 'success', text: '🔄 Código de autorização detectado! Conectando automaticamente...' });
+
+    fetch('/api/conta-azul/auth', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ code: codeFromUrl }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setMsg({ type: 'success', text: '✅ ' + (data.message || 'Conta Azul conectado com sucesso!') });
+          loadStatus();
+        } else {
+          setMsg({ type: 'error', text: '❌ ' + (data.error || 'Falha ao conectar') });
+        }
+      })
+      .catch(err => {
+        setMsg({ type: 'error', text: '❌ Erro de rede: ' + err.message });
+      })
+      .finally(() => {
+        setAutoConnecting(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const connect = async (payload: Record<string, string>) => {
     setLoading(true);
@@ -114,6 +155,20 @@ export default function ContaAzulSetupPage() {
         </div>
       </div>
 
+      {/* Auto-connecting spinner */}
+      {autoConnecting && (
+        <div style={{
+          ...cardStyle, marginBottom: 20, padding: '20px 24px',
+          borderColor: 'rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.06)',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <span className="material-symbols-outlined" style={{ color: '#3b82f6', fontSize: 24, animation: 'spin 1s linear infinite' }}>sync</span>
+          <p style={{ margin: 0, color: '#3b82f6', fontWeight: 700, fontSize: 13 }}>
+            Conectando automaticamente via código OAuth...
+          </p>
+        </div>
+      )}
+
       {/* Status Card */}
       <div style={{ ...cardStyle, marginBottom: 20, borderColor: status?.connected ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -155,7 +210,7 @@ export default function ContaAzulSetupPage() {
           background:  msg.type === 'success' ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
         }}>
           <p style={{ margin: 0, color: msg.type === 'success' ? GREEN : RED, fontWeight: 700, fontSize: 13 }}>
-            {msg.type === 'success' ? '✅' : '❌'} {msg.text}
+            {msg.text}
           </p>
         </div>
       )}
@@ -163,15 +218,29 @@ export default function ContaAzulSetupPage() {
       {/* Guia de conexão */}
       <div style={{ ...cardStyle, marginBottom: 20 }}>
         <h2 style={{ color: GOLD, fontSize: 13, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 16px' }}>
-          🔗 Como Conectar
+          🔗 Como Conectar — Fluxo Automático
         </h2>
+
+        {/* Destaque: URL que deve estar no portal */}
+        <div style={{ marginBottom: 16, padding: '12px 16px', borderRadius: 12, background: 'rgba(0,102,204,0.1)', border: '1px solid rgba(0,102,204,0.3)' }}>
+          <p style={{ margin: '0 0 6px', color: '#60a5fa', fontSize: 11, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            📌 URL de Redirecionamento — cadastrar no portal dev da Conta Azul
+          </p>
+          <code style={{ display: 'block', color: '#fff', fontSize: 12, fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 8, wordBreak: 'break-all' }}>
+            https://radexperts-datacenter.vercel.app/conta-azul/setup
+          </code>
+          <p style={{ margin: '8px 0 0', color: SILVER, fontSize: 11 }}>
+            Acesse <a href="https://developers.contaazul.com/apps" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa' }}>developers.contaazul.com/apps</a> → edite a aplicação → cole essa URL no campo "URL de redirecionamento"
+          </p>
+        </div>
+
         <ol style={{ margin: 0, padding: '0 0 0 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
-            'Clique no botão "Abrir tela de autorização" abaixo',
-            'Faça login com as credenciais do ERP Conta Azul de teste',
-            'Após o login, a URL mudará para contaazul.com?code=XXXX',
-            'Copie o valor do parâmetro "code=" da URL e cole no campo abaixo',
-            'Clique em "Conectar" — pronto! O sistema renova o token automaticamente',
+            'Cadastre a URL acima no portal de desenvolvedores da Conta Azul (campo "URL de redirecionamento")',
+            'Clique em "Abrir Tela de Autorização" abaixo',
+            'Faça login com as credenciais do ERP Conta Azul',
+            'Você será redirecionado automaticamente de volta para esta página',
+            'A conexão será estabelecida automaticamente! ✨',
           ].map((step, i) => (
             <li key={i} style={{ color: SILVER, fontSize: 12, lineHeight: 1.6, fontWeight: 600 }}>
               <span style={{ color: GOLD, fontWeight: 900 }}>{i + 1}.</span> {step}
@@ -179,17 +248,9 @@ export default function ContaAzulSetupPage() {
           ))}
         </ol>
 
-        <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 10, background: 'rgba(232,177,79,0.08)', border: '1px solid rgba(232,177,79,0.2)' }}>
-          <p style={{ margin: 0, color: GOLD, fontSize: 11, fontWeight: 700 }}>
-            ⚡ Dica rápida: Use a <a href="https://chromewebstore.google.com/detail/api-conta-azul-extension/pfakdepihdfjipjnpccdhfgepfmlfhkg" target="_blank" rel="noopener noreferrer" style={{ color: GOLD }}>extensão oficial do Chrome</a> para gerar os tokens automaticamente, depois cole o refresh_token na aba "Refresh Token".
-          </p>
-        </div>
-
         {authUrl && (
           <a
             href={authUrl}
-            target="_blank"
-            rel="noopener noreferrer"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               marginTop: 16, padding: '12px 20px', borderRadius: 12,
@@ -204,8 +265,11 @@ export default function ContaAzulSetupPage() {
         )}
       </div>
 
-      {/* Tabs: code ou refresh_token */}
+      {/* Tabs: code manual ou refresh_token */}
       <div style={{ ...cardStyle }}>
+        <p style={{ margin: '0 0 12px', color: SILVER, fontSize: 11, fontWeight: 700 }}>
+          🔧 Conexão manual (alternativa, caso o fluxo automático falhe)
+        </p>
         {/* Tab selector */}
         <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 4 }}>
           {(['code', 'token'] as const).map(tab => (
@@ -227,7 +291,7 @@ export default function ContaAzulSetupPage() {
         {activeTab === 'code' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <label style={{ color: SILVER, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              Cole o "code" da URL de redirecionamento
+              Cole o "code" da URL de redirecionamento manualmente
             </label>
             <input
               type="text"
@@ -297,5 +361,18 @@ export default function ContaAzulSetupPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+// ── Page wrapper com Suspense (necessário para useSearchParams) ───────────────
+export default function ContaAzulSetupPage() {
+  return (
+    <Suspense fallback={
+      <main style={{ paddingTop: 120, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span className="material-symbols-outlined" style={{ color: '#E8B14F', fontSize: 32 }}>sync</span>
+      </main>
+    }>
+      <SetupContent />
+    </Suspense>
   );
 }
