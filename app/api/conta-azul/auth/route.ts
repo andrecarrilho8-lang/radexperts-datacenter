@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // DEVE BATER exatamente com o que está cadastrado no portal dev da Conta Azul
-const REDIRECT_URI = process.env.CONTAAZUL_REDIRECT_URI || 'https://radexperts-datacenter.vercel.app/conta-azul/setup';
+const REDIRECT_URI = process.env.CONTAAZUL_REDIRECT_URI || 'https://datacenter.radexperts.com.br/conta-azul/setup';
 
 // ── GET — retorna URL de autorização + status atual ─────────────────────────
 export async function GET() {

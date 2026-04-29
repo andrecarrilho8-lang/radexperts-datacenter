@@ -227,7 +227,7 @@ function SetupContent() {
             📌 URL de Redirecionamento — cadastrar no portal dev da Conta Azul
           </p>
           <code style={{ display: 'block', color: '#fff', fontSize: 12, fontFamily: 'monospace', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 8, wordBreak: 'break-all' }}>
-            https://radexperts-datacenter.vercel.app/conta-azul/setup
+            https://datacenter.radexperts.com.br/conta-azul/setup
           </code>
           <p style={{ margin: '8px 0 0', color: SILVER, fontSize: 11 }}>
             Acesse <a href="https://developers.contaazul.com/apps" target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa' }}>developers.contaazul.com/apps</a> → edite a aplicação → cole essa URL no campo "URL de redirecionamento"
