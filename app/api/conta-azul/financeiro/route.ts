@@ -82,13 +82,26 @@ export async function GET(request: Request) {
     let despesasData: any[] = [];
 
     if (!tipo || tipo === 'RECEITA') {
-      const res = await fetchCA<any>(`/financeiro/eventos-financeiros?${buildParams('RECEITA')}`, token);
-      receitasData = res?.content || res?.data || res || [];
+      // Endpoint correto: contas-a-receber/buscar
+      const params = new URLSearchParams({ size: '50', page: '0' });
+      if (status)     params.set('status',     status);
+      if (dataInicio) params.set('dataVencimentoInicial', dataInicio);
+      if (dataFim)    params.set('dataVencimentoFinal',   dataFim);
+      const res = await fetchCA<any>(`/financeiro/eventos-financeiros/contas-a-receber/buscar?${params}`, token);
+      receitasData = res?.content || res?.data || (Array.isArray(res) ? res : []);
+      // Adicionar campo tipo para compatibilidade com o frontend
+      receitasData = receitasData.map((r: any) => ({ ...r, evento: { ...r.evento, tipo: 'RECEITA' } }));
     }
 
     if (!tipo || tipo === 'DESPESA') {
-      const res = await fetchCA<any>(`/financeiro/eventos-financeiros?${buildParams('DESPESA')}`, token);
-      despesasData = res?.content || res?.data || res || [];
+      // Endpoint correto: contas-a-pagar/buscar
+      const params = new URLSearchParams({ size: '50', page: '0' });
+      if (status)     params.set('status',     status);
+      if (dataInicio) params.set('dataVencimentoInicial', dataInicio);
+      if (dataFim)    params.set('dataVencimentoFinal',   dataFim);
+      const res = await fetchCA<any>(`/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`, token);
+      despesasData = res?.content || res?.data || (Array.isArray(res) ? res : []);
+      despesasData = despesasData.map((r: any) => ({ ...r, evento: { ...r.evento, tipo: 'DESPESA' } }));
     }
 
     // Agrega totais

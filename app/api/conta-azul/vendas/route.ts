@@ -32,9 +32,9 @@ export async function GET(request: Request) {
     const token = await getContaAzulToken();
 
     const params = new URLSearchParams({ page, size });
-    if (status) params.set('status', status);
+    if (status) params.set('situacao', status);  // CA usa "situacao" não "status"
 
-    const res = await fetch(`${CA_API_BASE}/vendas?${params}`, {
+    const res = await fetch(`${CA_API_BASE}/venda/busca?${params}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type':  'application/json',
