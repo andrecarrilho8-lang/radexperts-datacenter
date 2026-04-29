@@ -31,7 +31,14 @@ async function kvGet(key: string): Promise<string | null> {
   });
   if (!res.ok) return null;
   const data = await res.json();
-  return data?.result ?? null;
+  if (data?.result == null) return null;
+  // Upstash REST retorna strings como JSON strings (com aspas): "eyJ..."
+  // Se o resultado começa com aspas, faz JSON.parse para remover
+  try {
+    return JSON.parse(data.result);
+  } catch {
+    return data.result;
+  }
 }
 
 async function kvDel(...keys: string[]): Promise<void> {
