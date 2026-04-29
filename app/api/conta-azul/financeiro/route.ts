@@ -78,15 +78,22 @@ export async function GET(request: Request) {
       return p.toString();
     };
 
+    // Datas padrão: 12 meses atrás → 6 meses à frente
+    const hoje = new Date();
+    const defaultInicio = dataInicio || new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0];
+    const defaultFim    = dataFim    || new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
+
     let receitasData: any[] = [];
     let despesasData: any[] = [];
 
     if (!tipo || tipo === 'RECEITA') {
-      // Endpoint correto: contas-a-receber/buscar
-      const params = new URLSearchParams({ size: '50', page: '0' });
-      if (status)     params.set('status',     status);
-      if (dataInicio) params.set('dataVencimentoInicial', dataInicio);
-      if (dataFim)    params.set('dataVencimentoFinal',   dataFim);
+      // Endpoint correto: contas-a-receber/buscar — requer data_vencimento_de e data_vencimento_ate
+      const params = new URLSearchParams({
+        size: '50', page: '0',
+        data_vencimento_de:  defaultInicio,
+        data_vencimento_ate: defaultFim,
+      });
+      if (status) params.set('status', status);
       const res = await fetchCA<any>(`/financeiro/eventos-financeiros/contas-a-receber/buscar?${params}`, token);
       receitasData = res?.content || res?.data || (Array.isArray(res) ? res : []);
       // Adicionar campo tipo para compatibilidade com o frontend
@@ -94,11 +101,13 @@ export async function GET(request: Request) {
     }
 
     if (!tipo || tipo === 'DESPESA') {
-      // Endpoint correto: contas-a-pagar/buscar
-      const params = new URLSearchParams({ size: '50', page: '0' });
-      if (status)     params.set('status',     status);
-      if (dataInicio) params.set('dataVencimentoInicial', dataInicio);
-      if (dataFim)    params.set('dataVencimentoFinal',   dataFim);
+      // Endpoint correto: contas-a-pagar/buscar — requer data_vencimento_de e data_vencimento_ate
+      const params = new URLSearchParams({
+        size: '50', page: '0',
+        data_vencimento_de:  defaultInicio,
+        data_vencimento_ate: defaultFim,
+      });
+      if (status) params.set('status', status);
       const res = await fetchCA<any>(`/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`, token);
       despesasData = res?.content || res?.data || (Array.isArray(res) ? res : []);
       despesasData = despesasData.map((r: any) => ({ ...r, evento: { ...r.evento, tipo: 'DESPESA' } }));
