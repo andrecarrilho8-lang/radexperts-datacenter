@@ -21,7 +21,7 @@ async function kvSet(key: string, value: string): Promise<void> {
   await fetch(`${kvBase()}/set/${encodeURIComponent(key)}`, {
     method:  'POST',
     headers: { Authorization: `Bearer ${kvToken()}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify([value]),
+    body:    JSON.stringify(value),  // string simples, não array
   });
 }
 
