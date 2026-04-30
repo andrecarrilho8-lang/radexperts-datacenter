@@ -1,15 +1,16 @@
 /**
  * app/api/conta-azul/financeiro/route.ts
- * Busca eventos financeiros (contas a receber e a pagar) na API Conta Azul.
+ * Busca eventos financeiros (contas a receber e a pagar) na API Conta Azul v2.
  *
- * Endpoint CA: GET https://api-v2.contaazul.com/v1/financeiro/eventos-financeiros
- * Query params suportados:
- *   tipo       RECEITA | DESPESA
- *   status     PENDENTE | PAGO | VENCIDO | CANCELADO
- *   page       número da página (default 0)
- *   size       itens por página (max 50, default 50)
- *   dataInicio data inicial (YYYY-MM-DD)
- *   dataFim    data final   (YYYY-MM-DD)
+ * Estrutura real da resposta da API:
+ *   { itens_totais, itens: [...], totais: { pago: { valor }, vencido: { valor }, ... } }
+ *
+ * Campos de cada item:
+ *   id, status ("ACQUITTED"|"PENDING"|"OVERDUE"|"CANCELLED"),
+ *   status_traduzido, total, pago, nao_pago, descricao,
+ *   data_vencimento, data_competencia, data_criacao,
+ *   categorias[{ id, nome }], centros_de_custo[{ id, nome }],
+ *   cliente { id, nome }  (receita) | fornecedor { id, nome } (despesa)
  */
 
 import { NextResponse } from 'next/server';
@@ -18,47 +19,65 @@ import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const CA_BASE = CA_API_BASE;
-
 // Cache em memória (10 minutos) — respeitando rate limit de 600 req/min
 const cache = new Map<string, { data: any; ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
-
 function getCache(key: string) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
   return null;
 }
-function setCache(key: string, data: any) {
-  cache.set(key, { data, ts: Date.now() });
-}
+function setCache(key: string, data: any) { cache.set(key, { data, ts: Date.now() }); }
 
 async function fetchCA<T>(path: string, token: string): Promise<T> {
-  const url = `${CA_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type':  'application/json',
-    },
+  const res = await fetch(`${CA_API_BASE}${path}`, {
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(15_000),
   });
-
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Conta Azul API ${res.status}: ${body}`);
   }
-
   return res.json();
+}
+
+/** Normaliza um item da API para o formato esperado pelo frontend */
+function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA') {
+  return {
+    id:               item.id,
+    tipo,
+    // Campos financeiros
+    valor:            item.total      ?? 0,  // valor total do lançamento
+    pago:             item.pago       ?? 0,
+    nao_pago:         item.nao_pago   ?? 0,
+    // Status
+    status:           item.status          ?? '',  // ACQUITTED, PENDING, OVERDUE, CANCELLED
+    status_traduzido: item.status_traduzido ?? '',  // RECEBIDO, PENDENTE, VENCIDO, etc.
+    // Descrição e datas
+    descricao:        item.descricao        ?? '',
+    data_vencimento:  item.data_vencimento  ?? '',
+    data_competencia: item.data_competencia ?? '',
+    data_criacao:     item.data_criacao     ?? '',
+    // Categorias e centros
+    categoria:        item.categorias?.[0]?.nome       ?? '',
+    centro_de_custo:  item.centros_de_custo?.[0]?.nome ?? '',
+    // Pessoa
+    cliente:    item.cliente?.nome    ?? item.fornecedor?.nome ?? '',
+    cliente_id: item.cliente?.id      ?? item.fornecedor?.id   ?? '',
+  };
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const tipo      = searchParams.get('tipo')      || '';     // RECEITA | DESPESA | '' (ambos)
-  const status    = searchParams.get('status')    || '';     // PENDENTE | PAGO | VENCIDO
+  const tipo       = searchParams.get('tipo')       || '';  // RECEITA | DESPESA | '' (ambos)
+  const status     = searchParams.get('status')     || '';  // PENDENTE | PAGO | VENCIDO
   const dataInicio = searchParams.get('dataInicio') || '';
   const dataFim    = searchParams.get('dataFim')    || '';
   const force      = searchParams.get('force') === '1';
+  const page       = searchParams.get('page') || '0';
+  const size       = searchParams.get('size') || '50';
 
-  const cacheKey = `financeiro|${tipo}|${status}|${dataInicio}|${dataFim}`;
+  const cacheKey = `financeiro|${tipo}|${status}|${dataInicio}|${dataFim}|${page}`;
 
   if (!force) {
     const cached = getCache(cacheKey);
@@ -68,74 +87,78 @@ export async function GET(request: Request) {
   try {
     const token = await getContaAzulToken();
 
-    // Busca receitas e despesas (ou só uma delas se tipo for especificado)
-    const buildParams = (t: string) => {
-      const p = new URLSearchParams({ size: '50', page: '0' });
-      if (t)         p.set('tipo', t);
-      if (status)    p.set('status', status);
-      if (dataInicio) p.set('dataInicio', dataInicio);
-      if (dataFim)    p.set('dataFim', dataFim);
-      return p.toString();
-    };
-
     // Datas padrão: 12 meses atrás → 6 meses à frente
     const hoje = new Date();
     const defaultInicio = dataInicio || new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0];
     const defaultFim    = dataFim    || new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
 
-    let receitasData: any[] = [];
-    let despesasData: any[] = [];
+    let receitasRaw: any = null;
+    let despesasRaw: any = null;
 
     if (!tipo || tipo === 'RECEITA') {
-      // Endpoint correto: contas-a-receber/buscar — requer data_vencimento_de e data_vencimento_ate
       const params = new URLSearchParams({
-        size: '50', page: '0',
+        size, page,
         data_vencimento_de:  defaultInicio,
         data_vencimento_ate: defaultFim,
       });
-      if (status) params.set('status', status);
-      const res = await fetchCA<any>(`/financeiro/eventos-financeiros/contas-a-receber/buscar?${params}`, token);
-      receitasData = res?.content || res?.data || (Array.isArray(res) ? res : []);
-      // Adicionar campo tipo para compatibilidade com o frontend
-      receitasData = receitasData.map((r: any) => ({ ...r, evento: { ...r.evento, tipo: 'RECEITA' } }));
+      // Mapear status do frontend para o formato da CA API
+      if (status === 'PAGO')     params.set('status', 'ACQUITTED');
+      if (status === 'PENDENTE') params.set('status', 'PENDING');
+      if (status === 'VENCIDO')  params.set('status', 'OVERDUE');
+      receitasRaw = await fetchCA<any>(
+        `/financeiro/eventos-financeiros/contas-a-receber/buscar?${params}`, token
+      );
     }
 
     if (!tipo || tipo === 'DESPESA') {
-      // Endpoint correto: contas-a-pagar/buscar — requer data_vencimento_de e data_vencimento_ate
       const params = new URLSearchParams({
-        size: '50', page: '0',
+        size, page,
         data_vencimento_de:  defaultInicio,
         data_vencimento_ate: defaultFim,
       });
-      if (status) params.set('status', status);
-      const res = await fetchCA<any>(`/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`, token);
-      despesasData = res?.content || res?.data || (Array.isArray(res) ? res : []);
-      despesasData = despesasData.map((r: any) => ({ ...r, evento: { ...r.evento, tipo: 'DESPESA' } }));
+      if (status === 'PAGO')     params.set('status', 'ACQUITTED');
+      if (status === 'PENDENTE') params.set('status', 'PENDING');
+      if (status === 'VENCIDO')  params.set('status', 'OVERDUE');
+      despesasRaw = await fetchCA<any>(
+        `/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`, token
+      );
     }
 
-    // Agrega totais
-    const sumByStatus = (items: any[], statusFilter?: string) =>
-      items
-        .filter(i => !statusFilter || i.status === statusFilter)
-        .reduce((acc, i) => acc + (i.valor_total ?? i.valor ?? 0), 0);
+    // ── Extrair itens — campo real é "itens" não "content" ─────────────────
+    const receitasItens: any[] = (receitasRaw?.itens ?? []).map((i: any) => normalizeItem(i, 'RECEITA'));
+    const despesasItens: any[] = (despesasRaw?.itens ?? []).map((i: any) => normalizeItem(i, 'DESPESA'));
 
-    const totalReceitas      = sumByStatus(receitasData);
-    const totalDespesas      = sumByStatus(despesasData);
-    const receitasPendentes  = sumByStatus(receitasData, 'PENDENTE');
-    const despesasPendentes  = sumByStatus(despesasData, 'PENDENTE');
-    const receitasVencidas   = sumByStatus(receitasData, 'VENCIDO');
-    const despesasVencidas   = sumByStatus(despesasData, 'VENCIDO');
-    const saldoProjetado     = receitasPendentes - despesasPendentes;
+    // ── Totais vindos diretamente da API (muito mais precisos que calcular) ─
+    const rTotais = receitasRaw?.totais ?? {};
+    const dTotais = despesasRaw?.totais ?? {};
+
+    const totalReceitas     = rTotais.todos           ?? 0;
+    const totalDespesas     = dTotais.todos            ?? 0;
+    const receitasPagas     = rTotais.pago?.valor      ?? 0;
+    const receitasPendentes = rTotais.pendente?.valor  ?? 0;
+    const receitasVencidas  = rTotais.vencido?.valor   ?? 0;
+    const receitasHoje      = rTotais.vence_hoje?.valor ?? 0;
+    const despesasPagas     = dTotais.pago?.valor      ?? 0;
+    const despesasPendentes = dTotais.pendente?.valor  ?? 0;
+    const despesasVencidas  = dTotais.vencido?.valor   ?? 0;
+    const saldoProjetado    = receitasPendentes - despesasPendentes;
 
     const result = {
-      receitas:          receitasData,
-      despesas:          despesasData,
+      receitas: receitasItens,
+      despesas: despesasItens,
+      paginacao: {
+        receitas: { total: receitasRaw?.itens_totais ?? 0 },
+        despesas: { total: despesasRaw?.itens_totais ?? 0 },
+      },
       totais: {
         totalReceitas,
         totalDespesas,
+        receitasPagas,
         receitasPendentes,
-        despesasPendentes,
         receitasVencidas,
+        receitasHoje,
+        despesasPagas,
+        despesasPendentes,
         despesasVencidas,
         saldoProjetado,
       },
@@ -146,12 +169,9 @@ export async function GET(request: Request) {
 
   } catch (error: any) {
     console.error('[conta-azul/financeiro] Error:', error.message);
-
-    // Se não há conexão, retornar status especial (não 500)
     if (error.message?.includes('não conectado') || error.message?.includes('reconectar')) {
       return NextResponse.json({ error: 'not_connected', message: error.message }, { status: 401 });
     }
-
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

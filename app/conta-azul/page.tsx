@@ -24,16 +24,24 @@ function fmtDate(d: string | null | undefined) {
 }
 
 function statusColor(s: string) {
-  if (s === 'PAGO')      return '#22c55e';
-  if (s === 'PENDENTE')  return '#f59e0b';
-  if (s === 'VENCIDO')   return '#ef4444';
-  if (s === 'CANCELADO') return '#6b7280';
+  // API CA v2 usa: ACQUITTED, PENDING, OVERDUE, CANCELLED
+  // Frontend normaliza para: PAGO, PENDENTE, VENCIDO, CANCELADO (via status_traduzido)
+  const upper = (s || '').toUpperCase();
+  if (upper === 'ACQUITTED' || upper === 'RECEBIDO' || upper === 'PAGO')     return '#22c55e';
+  if (upper === 'PENDING'   || upper === 'PENDENTE')                          return '#f59e0b';
+  if (upper === 'OVERDUE'   || upper === 'VENCIDO')                           return '#ef4444';
+  if (upper === 'CANCELLED' || upper === 'CANCELADO')                         return '#6b7280';
   return SILVER;
 }
 
 function statusLabel(s: string) {
-  const map: Record<string, string> = { PAGO: 'Pago', PENDENTE: 'Pendente', VENCIDO: 'Vencido', CANCELADO: 'Cancelado' };
-  return map[s] || s;
+  const upper = (s || '').toUpperCase();
+  if (upper === 'ACQUITTED') return 'Recebido';
+  if (upper === 'PENDING')   return 'Pendente';
+  if (upper === 'OVERDUE')   return 'Vencido';
+  if (upper === 'CANCELLED') return 'Cancelado';
+  // Já vem traduzido (status_traduzido)
+  return s || '—';
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,16 +56,20 @@ interface Totais {
 }
 
 interface Evento {
-  id:              string;
-  status:          string;
-  valor_total?:    number;
-  valor?:          number;
-  data_vencimento?: string;
-  descricao?:      string;
-  evento?: {
-    tipo:    string;
-    rateio?: { nome_categoria: string; valor: number }[];
-  };
+  id:               string;
+  tipo:             string;    // 'RECEITA' | 'DESPESA'
+  status:           string;    // API: ACQUITTED, PENDING, OVERDUE, CANCELLED
+  status_traduzido: string;    // PT: RECEBIDO, PENDENTE, VENCIDO
+  valor:            number;
+  pago:             number;
+  nao_pago:         number;
+  descricao:        string;
+  data_vencimento:  string;
+  data_competencia: string;
+  categoria:        string;
+  centro_de_custo:  string;
+  cliente:          string;
+  cliente_id:       string;
 }
 
 interface Venda {
@@ -255,8 +267,13 @@ export default function ContaAzulPage() {
 
   const allEventos = [...receitas, ...despesas];
   const eventosFiltrados = allEventos.filter(e => {
-    if (tipoFiltro && e.evento?.tipo !== tipoFiltro) return false;
-    if (statusFiltro && e.status !== statusFiltro)   return false;
+    if (tipoFiltro && e.tipo !== tipoFiltro) return false;
+    // Status: o frontend envia PAGO/PENDENTE/VENCIDO, API retorna ACQUITTED/PENDING/OVERDUE
+    if (statusFiltro) {
+      const statusMap: Record<string, string> = { PAGO: 'ACQUITTED', PENDENTE: 'PENDING', VENCIDO: 'OVERDUE' };
+      const apiStatus = statusMap[statusFiltro] || statusFiltro;
+      if (e.status !== apiStatus) return false;
+    }
     return true;
   });
 
@@ -416,12 +433,13 @@ export default function ContaAzulPage() {
           ) : (
             <DataTable
               columns={[
-                { key: 'tipo',          label: 'Tipo',        render: r => <span style={{ color: r.evento?.tipo === 'RECEITA' ? GREEN : RED, fontWeight: 900, fontSize: 10, letterSpacing: '0.1em' }}>{r.evento?.tipo || '—'}</span> },
-                { key: 'descricao',     label: 'Descrição',   render: r => <span style={{ color: '#fff' }}>{r.descricao || '—'}</span> },
-                { key: 'status',        label: 'Status',      render: r => <span style={{ color: statusColor(r.status), fontWeight: 900, fontSize: 10 }}>{statusLabel(r.status)}</span> },
-                { key: 'valor',         label: 'Valor',        render: r => <span style={{ color: '#fff', fontWeight: 700 }}>{fmtBRL(r.valor_total ?? r.valor ?? 0)}</span> },
-                { key: 'vencimento',    label: 'Vencimento',  render: r => <span style={{ color: SILVER }}>{fmtDate(r.data_vencimento)}</span> },
-                { key: 'categoria',     label: 'Categoria',   render: r => <span style={{ color: SILVER, fontSize: 11 }}>{r.evento?.rateio?.[0]?.nome_categoria || '—'}</span> },
+                { key: 'tipo',      label: 'Tipo',       render: r => <span style={{ color: r.tipo === 'RECEITA' ? GREEN : RED, fontWeight: 900, fontSize: 10, letterSpacing: '0.1em' }}>{r.tipo || '—'}</span> },
+                { key: 'descricao', label: 'Descrição',  render: r => <span style={{ color: '#fff', fontSize: 11 }}>{r.descricao || '—'}</span> },
+                { key: 'cliente',   label: 'Cliente',    render: r => <span style={{ color: SILVER, fontSize: 11 }}>{r.cliente || '—'}</span> },
+                { key: 'status',    label: 'Status',     render: r => <span style={{ color: statusColor(r.status), fontWeight: 900, fontSize: 10 }}>{statusLabel(r.status)}</span> },
+                { key: 'valor',     label: 'Valor',      render: r => <span style={{ color: r.tipo === 'RECEITA' ? GREEN : RED, fontWeight: 700 }}>{fmtBRL(r.valor ?? 0)}</span> },
+                { key: 'vencimento',label: 'Vencimento', render: r => <span style={{ color: SILVER }}>{fmtDate(r.data_vencimento)}</span> },
+                { key: 'categoria', label: 'Categoria',  render: r => <span style={{ color: SILVER, fontSize: 11 }}>{r.categoria || r.centro_de_custo || '—'}</span> },
               ]}
               rows={eventosFiltrados}
               emptyMsg={loading ? 'Carregando...' : 'Nenhum evento financeiro encontrado'}
