@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useDashboard } from '@/app/lib/context';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -170,6 +172,16 @@ function DataTable({ columns, rows, emptyMsg }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ContaAzulPage() {
+  const { userRole } = useDashboard();
+  const router = useRouter();
+
+  // ── Role guard: apenas TOTAL ─────────────────────────────────────────────
+  useEffect(() => {
+    if (userRole && userRole !== 'TOTAL') {
+      router.replace('/resumo');
+    }
+  }, [userRole, router]);
+
   const [activeTab,  setActiveTab]  = useState<'financeiro' | 'vendas' | 'pessoas' | 'contratos'>('financeiro');
   const [connected,  setConnected]  = useState<boolean | null>(null);
   const [loading,    setLoading]    = useState(false);

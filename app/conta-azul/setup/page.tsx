@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
+import { useDashboard } from '@/app/lib/context';
 
 const GOLD   = '#E8B14F';
 const NAVY   = '#001a35';
@@ -18,7 +19,16 @@ interface Status {
 
 // ── Inner component (needs useSearchParams) ───────────────────────────────────
 function SetupContent() {
+  const { userRole } = useDashboard();
+  const router = useRouter();
   const searchParams = useSearchParams();
+
+  // ── Role guard: apenas TOTAL ─────────────────────────────────────────────
+  useEffect(() => {
+    if (userRole && userRole !== 'TOTAL') {
+      router.replace('/resumo');
+    }
+  }, [userRole, router]);
 
   const [status,       setStatus]       = useState<Status | null>(null);
   const [authUrl,      setAuthUrl]      = useState('');
