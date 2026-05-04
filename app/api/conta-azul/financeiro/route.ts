@@ -15,6 +15,7 @@
 
 import { NextResponse } from 'next/server';
 import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
+import { getDb, ensureSchema } from '@/app/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -69,26 +70,50 @@ function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA', emailMap: Map<str
   };
 }
 
-/** Fetch emails for all unique cliente IDs in parallel (max 15 concurrent) */
-async function enrichClienteEmails(
-  ids: string[],
-  token: string
-): Promise<Map<string, string>> {
+/** Build name → email map from our own DB (buyer_profiles + manual_students).
+ *  Matches by normalized uppercase name, which is reliable because both CA and
+ *  our system receive the student's real name from the same source.
+ */
+async function enrichEmailsFromDB(names: string[]): Promise<Map<string, string>> {
   const emailMap = new Map<string, string>();
-  const CONCURRENCY = 15;
-  const unique = [...new Set(ids.filter(Boolean))];
+  if (!names.length) return emailMap;
 
-  for (let i = 0; i < unique.length; i += CONCURRENCY) {
-    const batch = unique.slice(i, i + CONCURRENCY);
-    await Promise.all(batch.map(async (id) => {
-      try {
-        const r = await fetchCA<any>(`/pessoa/${id}`, token);
-        // CA API may use 'email' directly or nested in arrays
-        const email = r?.email || r?.emails?.[0]?.email || '';
-        if (email) emailMap.set(id, email.toLowerCase());
-      } catch { /* skip — email is non-critical */ }
-    }));
+  try {
+    await ensureSchema();
+    const db = getDb();
+    // Normalize names to uppercase for matching
+    const upperNames = [...new Set(names.map(n => n.toUpperCase().trim()).filter(Boolean))];
+
+    // Query buyer_profiles first (Hotmart students — always have email)
+    const bpRows = await db`
+      SELECT UPPER(TRIM(name)) AS uname, LOWER(email) AS email
+      FROM buyer_profiles
+      WHERE UPPER(TRIM(name)) = ANY(${upperNames})
+        AND email IS NOT NULL AND email != ''
+    ` as any[];
+    for (const r of bpRows) {
+      if (r.uname && r.email) emailMap.set(r.uname, r.email);
+    }
+
+    // Also check manual_students for any not found above
+    const missing = upperNames.filter(n => !emailMap.has(n));
+    if (missing.length > 0) {
+      const msRows = await db`
+        SELECT UPPER(TRIM(name)) AS uname, LOWER(email) AS email
+        FROM manual_students
+        WHERE UPPER(TRIM(name)) = ANY(${missing})
+          AND email IS NOT NULL AND email != ''
+      ` as any[];
+      for (const r of msRows) {
+        if (r.uname && r.email && !emailMap.has(r.uname)) {
+          emailMap.set(r.uname, r.email);
+        }
+      }
+    }
+  } catch (e: any) {
+    console.warn('[conta-azul/financeiro] DB email enrichment failed:', e.message);
   }
+
   return emailMap;
 }
 
@@ -153,13 +178,23 @@ export async function GET(request: Request) {
     const rawReceitas: any[] = receitasRaw?.itens ?? [];
     const rawDespesas: any[] = despesasRaw?.itens ?? [];
 
-    // ── Enrich receitas with cliente emails (server-side, parallel) ──────
-    const clienteIds = rawReceitas.map((i: any) => i.cliente?.id ?? '').filter(Boolean);
-    const emailMap   = clienteIds.length > 0
-      ? await enrichClienteEmails(clienteIds, token)
-      : new Map<string, string>();
+    // ── Enrich with email by matching client name against our DB ───────────
+    // CA often has no email field, but we have student records with emails.
+    // Match is: UPPER(ca.cliente.nome) == UPPER(buyer_profiles.name)
+    const clienteNames = rawReceitas
+      .map((i: any) => (i.cliente?.nome ?? '').trim())
+      .filter(Boolean);
+    const emailMap = await enrichEmailsFromDB(clienteNames);
 
-    const receitasItens: any[] = rawReceitas.map((i: any) => normalizeItem(i, 'RECEITA', emailMap));
+    // normalizeItem now uses name as key (not cliente_id)
+    const receitasItens: any[] = rawReceitas.map((i: any) => {
+      const nome = (i.cliente?.nome ?? i.fornecedor?.nome ?? '').trim();
+      return {
+        ...normalizeItem(i, 'RECEITA', emailMap),
+        // override: use name-based email lookup
+        cliente_email: emailMap.get(nome.toUpperCase()) ?? '',
+      };
+    });
     const despesasItens: any[] = rawDespesas.map((i: any) => normalizeItem(i, 'DESPESA'));
 
     // ── Totais vindos diretamente da API (muito mais precisos que calcular) ─
