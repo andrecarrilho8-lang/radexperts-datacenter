@@ -560,10 +560,21 @@ export default function AlunoPage() {
                       }
                     } else if (bp.em_dia) {
                       // No manual records at all: fall back to bp_em_dia
+                      // Apply the same 15-day grace period check as the course page
+                      // so that Hotmart students show the same status in both views.
                       const up = (bp.em_dia || '').toUpperCase().trim();
                       if (up === 'QUITADO') effectiveStatus = 'QUITADO';
                       else if (up === 'NÃO' || up === 'NAO' || up === 'INADIMPLENTE') effectiveStatus = 'INADIMPLENTE';
-                      else if (up === 'SIM' || up === 'ADIMPLENTE') effectiveStatus = 'ADIMPLENTE';
+                      else if (up === 'SIM' || up === 'ADIMPLENTE') {
+                        // Check if bp_proximo_pagamento is past the 15-day grace period
+                        const proxMs = bp.proximo_pagamento ? new Date(bp.proximo_pagamento).getTime() : null;
+                        const GRACE_15_MS = 15 * 24 * 60 * 60 * 1000;
+                        if (proxMs != null && !isNaN(proxMs) && proxMs + GRACE_15_MS < Date.now()) {
+                          effectiveStatus = 'INADIMPLENTE'; // past due + grace → matches course page
+                        } else {
+                          effectiveStatus = 'ADIMPLENTE';
+                        }
+                      }
                     }
 
                     const isOk   = effectiveStatus === 'ADIMPLENTE';
