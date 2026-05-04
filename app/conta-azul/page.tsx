@@ -50,6 +50,7 @@ function statusLabel(s: string) {
 interface Totais {
   totalReceitas:     number;
   totalDespesas:     number;
+  receitasPagas:     number;
   receitasPendentes: number;
   despesasPendentes: number;
   receitasVencidas:  number;
@@ -187,11 +188,10 @@ export default function ContaAzulPage() {
   const [loading,    setLoading]    = useState(false);
   const [totais,     setTotais]     = useState<Totais | null>(null);
   const [receitas,   setReceitas]   = useState<Evento[]>([]);
-  const [despesas,   setDespesas]   = useState<Evento[]>([]);
   const [vendas,     setVendas]     = useState<Venda[]>([]);
   const [pessoas,    setPessoas]    = useState<Pessoa[]>([]);
   const [contratos,  setContratos]  = useState<Contrato[]>([]);
-  const [tipoFiltro, setTipoFiltro] = useState<'' | 'RECEITA' | 'DESPESA'>('');
+  // Always show only RECEITA — despesas not shown in this view
   const [statusFiltro, setStatusFiltro] = useState('');
   const [searchPessoa, setSearchPessoa] = useState('');
 
@@ -208,19 +208,18 @@ export default function ContaAzulPage() {
   const loadFinanceiro = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (tipoFiltro)    params.set('tipo',   tipoFiltro);
-      if (statusFiltro)  params.set('status', statusFiltro);
+      // Always fetch only RECEITA — despesas not shown in this view
+      const params = new URLSearchParams({ tipo: 'RECEITA', size: '200' });
+      if (statusFiltro) params.set('status', statusFiltro);
       const res  = await fetch(`/api/conta-azul/financeiro?${params}`);
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
       setReceitas(data.receitas || []);
-      setDespesas(data.despesas || []);
       setTotais(data.totais || null);
     } finally {
       setLoading(false);
     }
-  }, [tipoFiltro, statusFiltro]);
+  }, [statusFiltro]);
 
   const loadVendas = useCallback(async () => {
     setLoading(true);
@@ -268,7 +267,7 @@ export default function ContaAzulPage() {
     if (activeTab === 'pessoas')    loadPessoas();
     if (activeTab === 'contratos')  loadContratos();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, connected, tipoFiltro, statusFiltro]);
+  }, [activeTab, connected, statusFiltro]);
 
   const cardStyle: React.CSSProperties = {
     background:   'rgba(255,255,255,0.03)',
@@ -277,10 +276,8 @@ export default function ContaAzulPage() {
     backdropFilter: 'blur(12px)',
   };
 
-  const allEventos = [...receitas, ...despesas];
-  const eventosFiltrados = allEventos.filter(e => {
-    if (tipoFiltro && e.tipo !== tipoFiltro) return false;
-    // Status: o frontend envia PAGO/PENDENTE/VENCIDO, API retorna ACQUITTED/PENDING/OVERDUE
+  // Always shows only receitas — filter by status if selected
+  const eventosFiltrados = receitas.filter(e => {
     if (statusFiltro) {
       const statusMap: Record<string, string> = { PAGO: 'ACQUITTED', PENDENTE: 'PENDING', VENCIDO: 'OVERDUE' };
       const apiStatus = statusMap[statusFiltro] || statusFiltro;
@@ -367,16 +364,11 @@ export default function ContaAzulPage() {
 
       {/* KPI Cards (só no financeiro) */}
       {activeTab === 'financeiro' && totais && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 28 }}>
-          <KPICard label="Total Receitas"   value={fmtBRL(totais.totalReceitas)}      color={GREEN}  icon="trending_up"          />
-          <KPICard label="Total Despesas"   value={fmtBRL(totais.totalDespesas)}      color={RED}    icon="trending_down"        />
-          <KPICard label="A Receber"        value={fmtBRL(totais.receitasPendentes)}  color={BLUE}   icon="account_balance_wallet" sub="Pendente" />
-          <KPICard label="A Pagar"          value={fmtBRL(totais.despesasPendentes)}  color="#f59e0b" icon="payments"             sub="Pendente" />
-          <KPICard label="Em Atraso"        value={fmtBRL(totais.receitasVencidas)}   color={RED}    icon="warning"              sub="Receitas vencidas" />
-          <KPICard label="Saldo Projetado"  value={fmtBRL(totais.saldoProjetado)}
-            color={totais.saldoProjetado >= 0 ? GREEN : RED}
-            icon={totais.saldoProjetado >= 0 ? 'arrow_upward' : 'arrow_downward'}
-            sub="Receber − Pagar" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 28 }}>
+          <KPICard label="Total a Receber"  value={fmtBRL(totais.totalReceitas)}     color={GREEN}  icon="trending_up"            />
+          <KPICard label="Já Recebido"      value={fmtBRL(totais.receitasPagas)}     color={GREEN}  icon="check_circle"           sub="Pago" />
+          <KPICard label="Pendente"         value={fmtBRL(totais.receitasPendentes)} color={BLUE}   icon="account_balance_wallet" sub="Aguardando" />
+          <KPICard label="Em Atraso"        value={fmtBRL(totais.receitasVencidas)}  color={RED}    icon="warning"               sub="Vencido" />
         </div>
       )}
 
@@ -408,34 +400,36 @@ export default function ContaAzulPage() {
       {/* ── FINANCEIRO ─────────────────────────────────────────────────────── */}
       {activeTab === 'financeiro' && (
         <div style={cardStyle}>
-          {/* Filtros */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Todos', value: '' },
-              { label: 'Receitas', value: 'RECEITA' },
-              { label: 'Despesas', value: 'DESPESA' },
-            ].map(f => (
-              <button key={f.value} onClick={() => setTipoFiltro(f.value as any)} style={{
-                padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                fontSize: 10, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase',
-                background: tipoFiltro === f.value ? GOLD : 'rgba(255,255,255,0.06)',
-                color:      tipoFiltro === f.value ? NAVY : SILVER,
-              }}>{f.label}</button>
-            ))}
-            <div style={{ width: 1, background: 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
-            {[
-              { label: 'Todos', value: '' },
-              { label: 'Pendente', value: 'PENDENTE' },
-              { label: 'Pago', value: 'PAGO' },
-              { label: 'Vencido', value: 'VENCIDO' },
-            ].map(f => (
-              <button key={f.value} onClick={() => setStatusFiltro(f.value)} style={{
-                padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                fontSize: 10, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase',
-                background: statusFiltro === f.value ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
-                color:      SILVER,
-              }}>{f.label}</button>
-            ))}
+          {/* Cabeçalho da seção */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <p style={{ margin: 0, color: '#fff', fontWeight: 900, fontSize: 14 }}>Contas a Receber</p>
+              <p style={{ margin: 0, color: SILVER, fontSize: 11, marginTop: 2 }}>
+                {eventosFiltrados.length} lançamento{eventosFiltrados.length !== 1 ? 's' : ''}
+                {statusFiltro ? ` · filtro: ${statusFiltro.toLowerCase()}` : ''}
+              </p>
+            </div>
+            {/* Filtros de status */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Todos',    value: '',         color: SILVER },
+                { label: 'Pendente', value: 'PENDENTE', color: '#f59e0b' },
+                { label: 'Recebido', value: 'PAGO',     color: GREEN },
+                { label: 'Vencido',  value: 'VENCIDO',  color: RED },
+              ].map(f => {
+                const isActive = statusFiltro === f.value;
+                return (
+                  <button key={f.value} onClick={() => setStatusFiltro(f.value)} style={{
+                    padding: '6px 14px', borderRadius: 8, border: `1px solid ${isActive ? f.color + '60' : 'rgba(255,255,255,0.08)'}`,
+                    cursor: 'pointer', fontSize: 10, fontWeight: 900,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    background: isActive ? f.color + '18' : 'rgba(255,255,255,0.03)',
+                    color: isActive ? f.color : SILVER,
+                    transition: 'all 0.18s',
+                  }}>{f.label}</button>
+                );
+              })}
+            </div>
           </div>
 
           {loading ? (
@@ -445,16 +439,24 @@ export default function ContaAzulPage() {
           ) : (
             <DataTable
               columns={[
-                { key: 'tipo',      label: 'Tipo',       render: r => <span style={{ color: r.tipo === 'RECEITA' ? GREEN : RED, fontWeight: 900, fontSize: 10, letterSpacing: '0.1em' }}>{r.tipo || '—'}</span> },
-                { key: 'descricao', label: 'Descrição',  render: r => <span style={{ color: '#fff', fontSize: 11 }}>{r.descricao || '—'}</span> },
+                { key: 'descricao', label: 'Descrição',  render: r => <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{r.descricao || '—'}</span> },
                 { key: 'cliente',   label: 'Cliente',    render: r => <span style={{ color: SILVER, fontSize: 11 }}>{r.cliente || '—'}</span> },
-                { key: 'status',    label: 'Status',     render: r => <span style={{ color: statusColor(r.status), fontWeight: 900, fontSize: 10 }}>{statusLabel(r.status)}</span> },
-                { key: 'valor',     label: 'Valor',      render: r => <span style={{ color: r.tipo === 'RECEITA' ? GREEN : RED, fontWeight: 700 }}>{fmtBRL(r.valor ?? 0)}</span> },
-                { key: 'vencimento',label: 'Vencimento', render: r => <span style={{ color: SILVER }}>{fmtDate(r.data_vencimento)}</span> },
-                { key: 'categoria', label: 'Categoria',  render: r => <span style={{ color: SILVER, fontSize: 11 }}>{r.categoria || r.centro_de_custo || '—'}</span> },
+                { key: 'categoria', label: 'Categoria',  render: r => <span style={{ color: 'rgba(168,178,192,0.6)', fontSize: 10 }}>{r.categoria || r.centro_de_custo || '—'}</span> },
+                { key: 'vencimento',label: 'Vencimento', render: r => <span style={{ color: SILVER, fontFamily: 'monospace', fontSize: 11 }}>{fmtDate(r.data_vencimento)}</span> },
+                { key: 'valor',     label: 'Valor',      render: r => <span style={{ color: GREEN, fontWeight: 900, fontSize: 13 }}>{fmtBRL(r.valor ?? 0)}</span> },
+                { key: 'pago',      label: 'Recebido',   render: r => <span style={{ color: r.pago > 0 ? GREEN : 'rgba(168,178,192,0.4)', fontWeight: 700 }}>{fmtBRL(r.pago ?? 0)}</span> },
+                { key: 'status',    label: 'Status',     render: r => (
+                  <span style={{
+                    color: statusColor(r.status), fontWeight: 900, fontSize: 9,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    background: statusColor(r.status) + '15',
+                    border: `1px solid ${statusColor(r.status)}40`,
+                    padding: '2px 8px', borderRadius: 99,
+                  }}>{statusLabel(r.status)}</span>
+                )},
               ]}
               rows={eventosFiltrados}
-              emptyMsg={loading ? 'Carregando...' : 'Nenhum evento financeiro encontrado'}
+              emptyMsg={loading ? 'Carregando...' : 'Nenhuma receita encontrada'}
             />
           )}
         </div>
