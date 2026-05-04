@@ -28,6 +28,12 @@ function R(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 }
 
+/** Encode email to the same base64 id used by /alunos/[id] route */
+function emailToId(email: string): string {
+  return Buffer.from(email).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 /* ── main ────────────────────────────────────────────────────────────────── */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -65,7 +71,7 @@ export async function GET(request: Request) {
       title:   r.name || r.email,
       subtitle: r.email,
       badge:   r.course_name,
-      href:    `/alunos?search=${encodeURIComponent(r.email)}`,
+      href:    `/alunos/${emailToId(r.email)}`,
       icon:    'person',
       color:   '#38bdf8',
     }))).catch(() => []);
@@ -106,7 +112,7 @@ export async function GET(request: Request) {
             title:   s.buyer_name  || s.buyer_email,
             subtitle: s.product_name,
             badge:   s.gross_value ? R(Number(s.gross_value)) : null,
-            href:    `/alunos?search=${encodeURIComponent(s.buyer_email || '')}`,
+            href:    `/alunos/${emailToId(s.buyer_email || '')}`,
             icon:    'shopping_cart',
             color:   '#4ade80',
           });
