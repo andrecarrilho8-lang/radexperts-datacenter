@@ -42,17 +42,18 @@ async function fetchCA<T>(path: string, token: string): Promise<T> {
 }
 
 /** Normaliza um item da API para o formato esperado pelo frontend */
-function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA') {
+function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA', emailMap: Map<string, string> = new Map()) {
+  const clienteId = item.cliente?.id ?? item.fornecedor?.id ?? '';
   return {
     id:               item.id,
     tipo,
     // Campos financeiros
-    valor:            item.total      ?? 0,  // valor total do lançamento
+    valor:            item.total      ?? 0,
     pago:             item.pago       ?? 0,
     nao_pago:         item.nao_pago   ?? 0,
     // Status
-    status:           item.status          ?? '',  // ACQUITTED, PENDING, OVERDUE, CANCELLED
-    status_traduzido: item.status_traduzido ?? '',  // RECEBIDO, PENDENTE, VENCIDO, etc.
+    status:           item.status          ?? '',
+    status_traduzido: item.status_traduzido ?? '',
     // Descrição e datas
     descricao:        item.descricao        ?? '',
     data_vencimento:  item.data_vencimento  ?? '',
@@ -62,9 +63,33 @@ function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA') {
     categoria:        item.categorias?.[0]?.nome       ?? '',
     centro_de_custo:  item.centros_de_custo?.[0]?.nome ?? '',
     // Pessoa
-    cliente:    item.cliente?.nome    ?? item.fornecedor?.nome ?? '',
-    cliente_id: item.cliente?.id      ?? item.fornecedor?.id   ?? '',
+    cliente:          item.cliente?.nome    ?? item.fornecedor?.nome ?? '',
+    cliente_id:       clienteId,
+    cliente_email:    emailMap.get(clienteId) ?? '',
   };
+}
+
+/** Fetch emails for all unique cliente IDs in parallel (max 15 concurrent) */
+async function enrichClienteEmails(
+  ids: string[],
+  token: string
+): Promise<Map<string, string>> {
+  const emailMap = new Map<string, string>();
+  const CONCURRENCY = 15;
+  const unique = [...new Set(ids.filter(Boolean))];
+
+  for (let i = 0; i < unique.length; i += CONCURRENCY) {
+    const batch = unique.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(async (id) => {
+      try {
+        const r = await fetchCA<any>(`/pessoa/${id}`, token);
+        // CA API may use 'email' directly or nested in arrays
+        const email = r?.email || r?.emails?.[0]?.email || '';
+        if (email) emailMap.set(id, email.toLowerCase());
+      } catch { /* skip — email is non-critical */ }
+    }));
+  }
+  return emailMap;
 }
 
 export async function GET(request: Request) {
@@ -125,8 +150,17 @@ export async function GET(request: Request) {
     }
 
     // ── Extrair itens — campo real é "itens" não "content" ─────────────────
-    const receitasItens: any[] = (receitasRaw?.itens ?? []).map((i: any) => normalizeItem(i, 'RECEITA'));
-    const despesasItens: any[] = (despesasRaw?.itens ?? []).map((i: any) => normalizeItem(i, 'DESPESA'));
+    const rawReceitas: any[] = receitasRaw?.itens ?? [];
+    const rawDespesas: any[] = despesasRaw?.itens ?? [];
+
+    // ── Enrich receitas with cliente emails (server-side, parallel) ──────
+    const clienteIds = rawReceitas.map((i: any) => i.cliente?.id ?? '').filter(Boolean);
+    const emailMap   = clienteIds.length > 0
+      ? await enrichClienteEmails(clienteIds, token)
+      : new Map<string, string>();
+
+    const receitasItens: any[] = rawReceitas.map((i: any) => normalizeItem(i, 'RECEITA', emailMap));
+    const despesasItens: any[] = rawDespesas.map((i: any) => normalizeItem(i, 'DESPESA'));
 
     // ── Totais vindos diretamente da API (muito mais precisos que calcular) ─
     const rTotais = receitasRaw?.totais ?? {};

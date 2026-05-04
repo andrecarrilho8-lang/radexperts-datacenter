@@ -73,6 +73,7 @@ interface Evento {
   centro_de_custo:  string;
   cliente:          string;
   cliente_id:       string;
+  cliente_email:    string;   // enriched server-side from /pessoa/{id}
 }
 
 interface Venda {
@@ -190,8 +191,6 @@ export default function ContaAzulPage() {
   const [loading,    setLoading]    = useState(false);
   const [totais,     setTotais]     = useState<Totais | null>(null);
   const [receitas,   setReceitas]   = useState<Evento[]>([]);
-  // Map cliente_id → email (fetched from CA Pessoas API together with receitas)
-  const [pessoaEmailMap, setPessoaEmailMap] = useState<Map<string, string>>(new Map());
   const [vendas,     setVendas]     = useState<Venda[]>([]);
   const [pessoas,    setPessoas]    = useState<Pessoa[]>([]);
   const [contratos,  setContratos]  = useState<Contrato[]>([]);
@@ -212,33 +211,20 @@ export default function ContaAzulPage() {
   const loadFinanceiro = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch receitas + pessoas in parallel for email enrichment
       const params = new URLSearchParams({ tipo: 'RECEITA', size: '200' });
       if (statusFiltro) params.set('status', statusFiltro);
-      const [finRes, pesRes] = await Promise.all([
-        fetch(`/api/conta-azul/financeiro?${params}`),
-        fetch('/api/conta-azul/pessoas?size=500'),
-      ]);
-      const finData = await finRes.json();
-      const pesData = await pesRes.json();
-      if (finData.error === 'not_connected') { setConnected(false); return; }
-
-      // Build Map<cliente_id, email> from Pessoas API
-      const emailMap = new Map<string, string>();
-      const pesItems: any[] = pesData.pessoas || [];
-      for (const p of pesItems) {
-        if (p.id && p.email) emailMap.set(p.id, p.email);
-      }
-      setPessoaEmailMap(emailMap);
+      const res  = await fetch(`/api/conta-azul/financeiro?${params}`);
+      const data = await res.json();
+      if (data.error === 'not_connected') { setConnected(false); return; }
 
       // Sort by data_vencimento descending (most recent first)
-      const sorted = (finData.receitas || []).slice().sort((a: Evento, b: Evento) => {
+      const sorted = (data.receitas || []).slice().sort((a: Evento, b: Evento) => {
         const da = a.data_vencimento || a.data_criacao || '';
         const db = b.data_vencimento || b.data_criacao || '';
         return db.localeCompare(da);
       });
       setReceitas(sorted);
-      setTotais(finData.totais || null);
+      setTotais(data.totais || null);
     } finally {
       setLoading(false);
     }
@@ -470,9 +456,9 @@ export default function ContaAzulPage() {
                 { key: 'cliente',   label: 'Cliente',   render: r => (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{r.cliente || '—'}</span>
-                    {pessoaEmailMap.get(r.cliente_id) && (
+                    {r.cliente_email && (
                       <span style={{ color: 'rgba(168,178,192,0.7)', fontSize: 10, fontFamily: 'monospace' }}>
-                        {pessoaEmailMap.get(r.cliente_id)}
+                        {r.cliente_email}
                       </span>
                     )}
                   </div>
