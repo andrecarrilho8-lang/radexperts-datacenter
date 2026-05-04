@@ -188,6 +188,8 @@ export default function ContaAzulPage() {
   const [loading,    setLoading]    = useState(false);
   const [totais,     setTotais]     = useState<Totais | null>(null);
   const [receitas,   setReceitas]   = useState<Evento[]>([]);
+  // Map cliente_id → email (fetched from CA Pessoas API together with receitas)
+  const [pessoaEmailMap, setPessoaEmailMap] = useState<Map<string, string>>(new Map());
   const [vendas,     setVendas]     = useState<Venda[]>([]);
   const [pessoas,    setPessoas]    = useState<Pessoa[]>([]);
   const [contratos,  setContratos]  = useState<Contrato[]>([]);
@@ -208,14 +210,33 @@ export default function ContaAzulPage() {
   const loadFinanceiro = useCallback(async () => {
     setLoading(true);
     try {
-      // Always fetch only RECEITA — despesas not shown in this view
+      // Fetch receitas + pessoas in parallel for email enrichment
       const params = new URLSearchParams({ tipo: 'RECEITA', size: '200' });
       if (statusFiltro) params.set('status', statusFiltro);
-      const res  = await fetch(`/api/conta-azul/financeiro?${params}`);
-      const data = await res.json();
-      if (data.error === 'not_connected') { setConnected(false); return; }
-      setReceitas(data.receitas || []);
-      setTotais(data.totais || null);
+      const [finRes, pesRes] = await Promise.all([
+        fetch(`/api/conta-azul/financeiro?${params}`),
+        fetch('/api/conta-azul/pessoas?size=500'),
+      ]);
+      const finData = await finRes.json();
+      const pesData = await pesRes.json();
+      if (finData.error === 'not_connected') { setConnected(false); return; }
+
+      // Build Map<cliente_id, email> from Pessoas API
+      const emailMap = new Map<string, string>();
+      const pesItems: any[] = pesData.pessoas || [];
+      for (const p of pesItems) {
+        if (p.id && p.email) emailMap.set(p.id, p.email);
+      }
+      setPessoaEmailMap(emailMap);
+
+      // Sort by data_vencimento descending (most recent first)
+      const sorted = (finData.receitas || []).slice().sort((a: Evento, b: Evento) => {
+        const da = a.data_vencimento || a.data_criacao || '';
+        const db = b.data_vencimento || b.data_criacao || '';
+        return db.localeCompare(da);
+      });
+      setReceitas(sorted);
+      setTotais(finData.totais || null);
     } finally {
       setLoading(false);
     }
@@ -276,7 +297,7 @@ export default function ContaAzulPage() {
     backdropFilter: 'blur(12px)',
   };
 
-  // Always shows only receitas — filter by status if selected
+  // Shows only receitas — filtered by status, already sorted by date (desc)
   const eventosFiltrados = receitas.filter(e => {
     if (statusFiltro) {
       const statusMap: Record<string, string> = { PAGO: 'ACQUITTED', PENDENTE: 'PENDING', VENCIDO: 'OVERDUE' };
@@ -285,6 +306,9 @@ export default function ContaAzulPage() {
     }
     return true;
   });
+
+  // A Receber = pending + overdue (what hasn't been paid yet)
+  const totalAReceber = totais ? (totais.receitasPendentes + totais.receitasVencidas) : 0;
 
   // ── Not connected ─────────────────────────────────────────────────────────
   if (connected === false) {
@@ -364,11 +388,12 @@ export default function ContaAzulPage() {
 
       {/* KPI Cards (só no financeiro) */}
       {activeTab === 'financeiro' && totais && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 28 }}>
-          <KPICard label="Total a Receber"  value={fmtBRL(totais.totalReceitas)}     color={GREEN}  icon="trending_up"            />
-          <KPICard label="Já Recebido"      value={fmtBRL(totais.receitasPagas)}     color={GREEN}  icon="check_circle"           sub="Pago" />
-          <KPICard label="Pendente"         value={fmtBRL(totais.receitasPendentes)} color={BLUE}   icon="account_balance_wallet" sub="Aguardando" />
-          <KPICard label="Em Atraso"        value={fmtBRL(totais.receitasVencidas)}  color={RED}    icon="warning"               sub="Vencido" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16, marginBottom: 28 }}>
+          <KPICard label="Total a Receber"  value={fmtBRL(totais.totalReceitas)}     color={GREEN}          icon="trending_up"            />
+          <KPICard label="Já Recebido"      value={fmtBRL(totais.receitasPagas)}     color={GREEN}          icon="check_circle"           sub="Pago" />
+          <KPICard label="A Receber"        value={fmtBRL(totalAReceber)}            color={BLUE}           icon="account_balance_wallet" sub="Pendente + Vencido" />
+          <KPICard label="Pendente"         value={fmtBRL(totais.receitasPendentes)} color={'#f59e0b'}       icon="schedule"              sub="Aguardando" />
+          <KPICard label="Em Atraso"        value={fmtBRL(totais.receitasVencidas)}  color={RED}            icon="warning"               sub="Vencido" />
         </div>
       )}
 
@@ -439,9 +464,18 @@ export default function ContaAzulPage() {
           ) : (
             <DataTable
               columns={[
-                { key: 'descricao', label: 'Descrição',  render: r => <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{r.descricao || '—'}</span> },
-                { key: 'cliente',   label: 'Cliente',    render: r => <span style={{ color: SILVER, fontSize: 11 }}>{r.cliente || '—'}</span> },
-                { key: 'categoria', label: 'Categoria',  render: r => <span style={{ color: 'rgba(168,178,192,0.6)', fontSize: 10 }}>{r.categoria || r.centro_de_custo || '—'}</span> },
+                { key: 'descricao', label: 'Descrição', render: r => <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{r.descricao || '—'}</span> },
+                { key: 'cliente',   label: 'Cliente',   render: r => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{r.cliente || '—'}</span>
+                    {pessoaEmailMap.get(r.cliente_id) && (
+                      <span style={{ color: 'rgba(168,178,192,0.7)', fontSize: 10, fontFamily: 'monospace' }}>
+                        {pessoaEmailMap.get(r.cliente_id)}
+                      </span>
+                    )}
+                  </div>
+                )},
+                { key: 'categoria', label: 'Categoria', render: r => <span style={{ color: 'rgba(168,178,192,0.6)', fontSize: 10 }}>{r.categoria || r.centro_de_custo || '—'}</span> },
                 { key: 'vencimento',label: 'Vencimento', render: r => <span style={{ color: SILVER, fontFamily: 'monospace', fontSize: 11 }}>{fmtDate(r.data_vencimento)}</span> },
                 { key: 'valor',     label: 'Valor',      render: r => <span style={{ color: GREEN, fontWeight: 900, fontSize: 13 }}>{fmtBRL(r.valor ?? 0)}</span> },
                 { key: 'pago',      label: 'Recebido',   render: r => <span style={{ color: r.pago > 0 ? GREEN : 'rgba(168,178,192,0.4)', fontWeight: 700 }}>{fmtBRL(r.pago ?? 0)}</span> },
