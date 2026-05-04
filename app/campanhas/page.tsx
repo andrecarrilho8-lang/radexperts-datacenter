@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import { useDashboard } from '@/app/lib/context';
@@ -36,6 +36,7 @@ export default function CampanhasPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [feedbackCamp, setFeedbackCamp] = useState<any | null>(null);
   const [niceAlert, setNiceAlert] = useState<{ title: string; message: string } | null>(null);
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
 
   const OBJ_TABS_DEF = [
     { tab: 'GERAL' as const },
@@ -51,7 +52,11 @@ export default function CampanhasPage() {
   const PAGE_SIZE = 30;
   const paginated = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
-  const viewCampaignDetail = (camp: any) => router.push(`/campanhas/${camp.id}`);
+  const viewCampaignDetail = (camp: any) => {
+    if (navigatingId) return;
+    setNavigatingId(camp.id);
+    router.push(`/campanhas/${camp.id}`);
+  };
 
   const objAccent: Record<string, string> = {
     VENDAS: '#22c55e',
@@ -255,22 +260,25 @@ export default function CampanhasPage() {
                 });
               };
 
+              const isNavigating = navigatingId === camp.id;
+
               return (
                 <div key={camp.id} onClick={() => viewCampaignDetail(camp)}
                   style={{
                     ...glossy,
-                    border: isSelected ? `1px solid ${GOLD}` : '1px solid rgba(255,255,255,0.10)',
-                    boxShadow: isSelected ? `0 0 0 2px rgba(232,177,79,0.2), 0 20px 40px -8px rgba(0,0,0,0.5)` : glossy.boxShadow,
-                    cursor: 'pointer',
+                    border: isNavigating ? `1px solid ${GOLD}` : isSelected ? `1px solid ${GOLD}` : '1px solid rgba(255,255,255,0.10)',
+                    boxShadow: isNavigating ? `0 0 0 2px rgba(232,177,79,0.35), 0 20px 40px -8px rgba(0,0,0,0.5)` : isSelected ? `0 0 0 2px rgba(232,177,79,0.2), 0 20px 40px -8px rgba(0,0,0,0.5)` : glossy.boxShadow,
+                    cursor: navigatingId ? (isNavigating ? 'wait' : 'default') : 'pointer',
                     transition: 'transform 0.2s, box-shadow 0.2s',
                     padding: '24px',
                     minHeight: 180,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'space-between',
+                    opacity: navigatingId && !isNavigating ? 0.5 : 1,
                   }}
                   className="group"
-                  onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.01)')}
+                  onMouseEnter={e => { if (!navigatingId) e.currentTarget.style.transform = 'scale(1.01)'; }}
                   onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
                 >
                   <div style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 40%)', position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: 28 }} />
@@ -280,17 +288,28 @@ export default function CampanhasPage() {
                   <div className="relative z-10">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
-                        {/* Checkbox */}
-                        <div onClick={toggleItem}
-                          style={{
-                            width: 24, height: 24, borderRadius: 8,
-                            border: isSelected ? `2px solid ${GOLD}` : '2px solid rgba(255,255,255,0.2)',
-                            background: isSelected ? GOLD : 'rgba(255,255,255,0.05)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            transition: 'all 0.2s',
-                          }}>
-                          {isSelected && <span className="material-symbols-outlined text-[14px] font-black" style={{ color: NAVY }}>check</span>}
-                        </div>
+                        {/* Checkbox / Loading spinner */}
+                        {isNavigating ? (
+                          <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <div style={{
+                              width: 18, height: 18, borderRadius: '50%',
+                              border: `2px solid ${GOLD}`,
+                              borderTopColor: 'transparent',
+                              animation: 'spin 0.7s linear infinite',
+                            }} />
+                          </div>
+                        ) : (
+                          <div onClick={toggleItem}
+                            style={{
+                              width: 24, height: 24, borderRadius: 8,
+                              border: isSelected ? `2px solid ${GOLD}` : '2px solid rgba(255,255,255,0.2)',
+                              background: isSelected ? GOLD : 'rgba(255,255,255,0.05)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              transition: 'all 0.2s',
+                            }}>
+                            {isSelected && <span className="material-symbols-outlined text-[14px] font-black" style={{ color: NAVY }}>check</span>}
+                          </div>
+                        )}
                         <StatusBadge status={camp.status} />
                       </div>
                       <span className="text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg"
