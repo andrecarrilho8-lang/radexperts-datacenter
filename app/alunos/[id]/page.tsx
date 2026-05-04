@@ -559,20 +559,39 @@ export default function AlunoPage() {
                         effectiveStatus = 'ADIMPLENTE';
                       }
                     } else if (bp.em_dia) {
-                      // No manual records at all: fall back to bp_em_dia
-                      // Apply the same 15-day grace period check as the course page
-                      // so that Hotmart students show the same status in both views.
+                      // No manual records: fall back to bp_em_dia with 15-day grace check
                       const up = (bp.em_dia || '').toUpperCase().trim();
                       if (up === 'QUITADO') effectiveStatus = 'QUITADO';
                       else if (up === 'NÃO' || up === 'NAO' || up === 'INADIMPLENTE') effectiveStatus = 'INADIMPLENTE';
                       else if (up === 'SIM' || up === 'ADIMPLENTE') {
-                        // Check if bp_proximo_pagamento is past the 15-day grace period
                         const proxMs = bp.proximo_pagamento ? new Date(bp.proximo_pagamento).getTime() : null;
                         const GRACE_15_MS = 15 * 24 * 60 * 60 * 1000;
                         if (proxMs != null && !isNaN(proxMs) && proxMs + GRACE_15_MS < Date.now()) {
-                          effectiveStatus = 'INADIMPLENTE'; // past due + grace → matches course page
+                          effectiveStatus = 'INADIMPLENTE';
                         } else {
                           effectiveStatus = 'ADIMPLENTE';
+                        }
+                      }
+                    } else {
+                      // No manual records AND no bp.em_dia → Hotmart-only student.
+                      // Use same 35/65-day threshold as /api/cursos/[courseName]/route.ts:
+                      //   daysSince > 65 → CANCELLED (QUITADO)
+                      //   daysSince > 35 → OVERDUE  (INADIMPLENTE)
+                      const APPROVED_SET = new Set(['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED']);
+                      const approvedPurchases: any[] = (data.purchases || []).filter(
+                        (p: any) => APPROVED_SET.has((p.status || '').toUpperCase())
+                      );
+                      const hasSub = approvedPurchases.some((p: any) => p.isSubscription);
+                      if (hasSub) {
+                        const lastApprovedMs = approvedPurchases.reduce((best: number, p: any) => {
+                          const t = p.date ? new Date(p.date).getTime() : 0;
+                          return t > best ? t : best;
+                        }, 0);
+                        if (lastApprovedMs > 0) {
+                          const daysSince = Math.floor((Date.now() - lastApprovedMs) / 86_400_000);
+                          if (daysSince > 65)      effectiveStatus = 'QUITADO';      // subscription cancelled
+                          else if (daysSince > 35) effectiveStatus = 'INADIMPLENTE'; // overdue
+                          else                     effectiveStatus = 'ADIMPLENTE';
                         }
                       }
                     }
@@ -744,6 +763,55 @@ export default function AlunoPage() {
                       })}
                     </div>
                   )}
+
+                  {/* ── Assinatura Hotmart (ciclos) ── */}
+                  {(() => {
+                    const APPROVED_SET = new Set(['APPROVED','COMPLETE','PRODUCER_CONFIRMED','CONFIRMED']);
+                    const subPurchases = (data.purchases || []).filter(
+                      (p: any) => p.isSubscription && APPROVED_SET.has((p.status||'').toUpperCase())
+                    ).sort((a: any, b: any) => new Date(a.date||0).getTime() - new Date(b.date||0).getTime());
+                    if (subPurchases.length === 0) return null;
+                    const lastMs = subPurchases.reduce((best: number, p: any) => {
+                      const t = p.date ? new Date(p.date).getTime() : 0;
+                      return t > best ? t : best;
+                    }, 0);
+                    const daysSinceLast = lastMs > 0 ? Math.floor((Date.now() - lastMs) / 86_400_000) : 9999;
+                    const isOverdue = daysSinceLast > 35;
+                    return (
+                      <div style={{ ...card, border: '1px solid rgba(168,139,250,0.18)' }} className="p-5">
+                        <p className="text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2" style={{ color: '#a78bfa' }}>
+                          <span className="material-symbols-outlined text-sm">autorenew</span>
+                          Assinatura Hotmart · {subPurchases.length} ciclo{subPurchases.length !== 1 ? 's' : ''} pago{subPurchases.length !== 1 ? 's' : ''}
+                        </p>
+                        <div className="space-y-1.5">
+                          {subPurchases.map((p: any, i: number) => (
+                            <div key={i} className="flex items-center gap-2 rounded-xl px-2.5 py-1.5"
+                              style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.18)' }}>
+                              <span className="material-symbols-outlined text-[13px] flex-shrink-0" style={{ color: '#4ade80' }}>check_circle</span>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-[9px] font-black" style={{ color: '#4ade80' }}>Ciclo {p.recurrencyNum ?? i + 1}</span>
+                                <span className="text-[9px] ml-1.5" style={{ color: SILVER }}>
+                                  {p.date ? new Date(p.date).toLocaleDateString('pt-BR') : '—'}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-black text-white">{RF(p.grossValue, p.currency || 'BRL')}</span>
+                            </div>
+                          ))}
+                          {/* Overdue chip if no payment in >35 days */}
+                          {isOverdue && (
+                            <div className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 animate-pulse"
+                              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                              <span className="material-symbols-outlined text-[13px] flex-shrink-0" style={{ color: '#f87171' }}>warning</span>
+                              <div className="flex-1">
+                                <span className="text-[9px] font-black" style={{ color: '#f87171' }}>Em atraso</span>
+                                <span className="text-[9px] ml-1.5" style={{ color: SILVER }}>{daysSinceLast} dias sem pagamento</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* AC personal data */}
                   {ac && (
