@@ -173,15 +173,17 @@ function DataTable({ columns, rows, emptyMsg }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ContaAzulPage() {
-  const { userRole } = useDashboard();
+  const { userRole, checkingAuth } = useDashboard();
   const router = useRouter();
 
   // ── Role guard: apenas TOTAL ─────────────────────────────────────────────
   useEffect(() => {
-    if (userRole && userRole !== 'TOTAL') {
+    // Wait until auth has been fully loaded from localStorage before checking
+    if (checkingAuth) return;
+    if (userRole !== 'TOTAL') {
       router.replace('/resumo');
     }
-  }, [userRole, router]);
+  }, [checkingAuth, userRole, router]);
 
   const [activeTab,  setActiveTab]  = useState<'financeiro' | 'vendas' | 'pessoas' | 'contratos'>('financeiro');
   const [connected,  setConnected]  = useState<boolean | null>(null);
