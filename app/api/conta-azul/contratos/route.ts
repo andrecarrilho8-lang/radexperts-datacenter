@@ -1,7 +1,7 @@
 /**
  * app/api/conta-azul/contratos/route.ts
- * Lista contratos (cobranças recorrentes) do ERP Conta Azul.
- * GET https://api-v2.contaazul.com/v1/contratos
+ * Lista contratos (cob. recorrentes) do ERP Conta Azul.
+ * Tenta múltiplos endpoints pois a CA API v2 pode usar caminhos diferentes.
  */
 
 import { NextResponse } from 'next/server';
@@ -12,6 +12,21 @@ export const runtime = 'nodejs';
 
 const cache = new Map<string, { data: any; ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
+
+async function tryFetch(url: string, token: string): Promise<{ ok: boolean; data: any; status: number }> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const text = await res.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    return { ok: res.ok, data, status: res.status };
+  } catch (e: any) {
+    return { ok: false, data: { error: e.message }, status: 0 };
+  }
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -29,23 +44,36 @@ export async function GET(request: Request) {
 
   try {
     const token = await getContaAzulToken();
-    const params = new URLSearchParams({ page, size });
+    const qs = new URLSearchParams({ page, size });
 
-    const res = await fetch(`${CA_API_BASE}/contratos?${params}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type':  'application/json',
-      },
-    });
+    const candidates = [
+      `${CA_API_BASE}/contrato/busca?${qs}`,
+      `${CA_API_BASE}/contratos?${qs}`,
+      `${CA_API_BASE}/recorrencia/busca?${qs}`,
+    ];
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Conta Azul API ${res.status}: ${body}`);
+    let raw: any = null;
+    let usedEndpoint = '';
+    for (const url of candidates) {
+      const attempt = await tryFetch(url, token);
+      if (attempt.ok) { raw = attempt.data; usedEndpoint = url; break; }
+      if (attempt.status !== 404 && attempt.status !== 0) {
+        throw new Error(`Conta Azul API ${attempt.status}: ${JSON.stringify(attempt.data)}`);
+      }
     }
 
-    const raw    = await res.json();
-    const items  = raw?.content || raw?.data || raw || [];
-    const result = { contratos: items, total: raw?.totalElements || items.length, page: raw?.number || 0 };
+    if (!raw) throw new Error('Nenhum endpoint de contratos respondeu com sucesso');
+
+    const items: any[] = Array.isArray(raw)
+      ? raw
+      : (raw?.content ?? raw?.itens ?? raw?.data ?? []);
+
+    const result = {
+      contratos: items,
+      total: raw?.totalElements ?? raw?.itens_totais ?? items.length,
+      page: raw?.number ?? 0,
+      _endpoint: usedEndpoint,
+    };
 
     cache.set(cacheKey, { data: result, ts: Date.now() });
     return NextResponse.json(result);

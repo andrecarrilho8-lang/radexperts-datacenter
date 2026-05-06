@@ -189,6 +189,7 @@ export default function ContaAzulPage() {
   const [activeTab,  setActiveTab]  = useState<'financeiro' | 'vendas' | 'pessoas' | 'contratos'>('financeiro');
   const [connected,  setConnected]  = useState<boolean | null>(null);
   const [loading,    setLoading]    = useState(false);
+  const [tabError,   setTabError]   = useState<string | null>(null);
   const [totais,     setTotais]     = useState<Totais | null>(null);
   const [receitas,   setReceitas]   = useState<Evento[]>([]);
   const [vendas,     setVendas]     = useState<Venda[]>([]);
@@ -232,11 +233,15 @@ export default function ContaAzulPage() {
 
   const loadVendas = useCallback(async () => {
     setLoading(true);
+    setTabError(null);
     try {
       const res  = await fetch('/api/conta-azul/vendas');
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
+      if (data.error) throw new Error(data.error);
       setVendas(data.vendas || []);
+    } catch (e: any) {
+      setTabError(e.message || 'Erro ao carregar vendas');
     } finally {
       setLoading(false);
     }
@@ -244,12 +249,16 @@ export default function ContaAzulPage() {
 
   const loadPessoas = useCallback(async () => {
     setLoading(true);
+    setTabError(null);
     try {
       const params = searchPessoa ? `?busca=${encodeURIComponent(searchPessoa)}` : '';
       const res  = await fetch(`/api/conta-azul/pessoas${params}`);
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
+      if (data.error) throw new Error(data.error);
       setPessoas(data.pessoas || []);
+    } catch (e: any) {
+      setTabError(e.message || 'Erro ao carregar clientes');
     } finally {
       setLoading(false);
     }
@@ -257,11 +266,15 @@ export default function ContaAzulPage() {
 
   const loadContratos = useCallback(async () => {
     setLoading(true);
+    setTabError(null);
     try {
       const res  = await fetch('/api/conta-azul/contratos');
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
+      if (data.error) throw new Error(data.error);
       setContratos(data.contratos || []);
+    } catch (e: any) {
+      setTabError(e.message || 'Erro ao carregar contratos');
     } finally {
       setLoading(false);
     }
@@ -271,6 +284,7 @@ export default function ContaAzulPage() {
 
   useEffect(() => {
     if (connected === false) return;
+    setTabError(null);
     if (activeTab === 'financeiro') loadFinanceiro();
     if (activeTab === 'vendas')     loadVendas();
     if (activeTab === 'pessoas')    loadPessoas();
@@ -487,9 +501,21 @@ export default function ContaAzulPage() {
       {/* ── VENDAS ─────────────────────────────────────────────────────────── */}
       {activeTab === 'vendas' && (
         <div style={cardStyle}>
+          <p style={{ margin: '0 0 16px', color: '#fff', fontWeight: 900, fontSize: 14 }}>Vendas</p>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 48, color: SILVER }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32 }}>sync</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}>sync</span>
+            </div>
+          ) : tabError ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 36, color: RED, marginBottom: 12, display: 'block' }}>error_outline</span>
+              <p style={{ color: RED, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Erro ao carregar vendas</p>
+              <p style={{ color: 'rgba(168,178,192,0.6)', fontSize: 11, marginBottom: 20, maxWidth: 480, margin: '0 auto 20px', lineHeight: 1.6 }}>{tabError}</p>
+              <button onClick={loadVendas} style={{
+                padding: '8px 20px', borderRadius: 10, border: `1px solid ${GOLD}40`,
+                background: `${GOLD}15`, color: GOLD, cursor: 'pointer',
+                fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}>Tentar novamente</button>
             </div>
           ) : (
             <DataTable
@@ -510,6 +536,7 @@ export default function ContaAzulPage() {
       {/* ── PESSOAS ─────────────────────────────────────────────────────────── */}
       {activeTab === 'pessoas' && (
         <div style={cardStyle}>
+          <p style={{ margin: '0 0 16px', color: '#fff', fontWeight: 900, fontSize: 14 }}>Clientes</p>
           <div style={{ marginBottom: 16 }}>
             <input
               type="text"
@@ -526,7 +553,18 @@ export default function ContaAzulPage() {
           </div>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 48, color: SILVER }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32 }}>sync</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}>sync</span>
+            </div>
+          ) : tabError ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 36, color: RED, marginBottom: 12, display: 'block' }}>error_outline</span>
+              <p style={{ color: RED, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Erro ao carregar clientes</p>
+              <p style={{ color: 'rgba(168,178,192,0.6)', fontSize: 11, marginBottom: 20, maxWidth: 480, margin: '0 auto 20px', lineHeight: 1.6 }}>{tabError}</p>
+              <button onClick={loadPessoas} style={{
+                padding: '8px 20px', borderRadius: 10, border: `1px solid ${GOLD}40`,
+                background: `${GOLD}15`, color: GOLD, cursor: 'pointer',
+                fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}>Tentar novamente</button>
             </div>
           ) : (
             <DataTable
@@ -546,9 +584,21 @@ export default function ContaAzulPage() {
       {/* ── CONTRATOS ──────────────────────────────────────────────────────── */}
       {activeTab === 'contratos' && (
         <div style={cardStyle}>
+          <p style={{ margin: '0 0 16px', color: '#fff', fontWeight: 900, fontSize: 14 }}>Contratos</p>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 48, color: SILVER }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 32 }}>sync</span>
+              <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}>sync</span>
+            </div>
+          ) : tabError ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 36, color: RED, marginBottom: 12, display: 'block' }}>error_outline</span>
+              <p style={{ color: RED, fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Erro ao carregar contratos</p>
+              <p style={{ color: 'rgba(168,178,192,0.6)', fontSize: 11, marginBottom: 20, maxWidth: 480, margin: '0 auto 20px', lineHeight: 1.6 }}>{tabError}</p>
+              <button onClick={loadContratos} style={{
+                padding: '8px 20px', borderRadius: 10, border: `1px solid ${GOLD}40`,
+                background: `${GOLD}15`, color: GOLD, cursor: 'pointer',
+                fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}>Tentar novamente</button>
             </div>
           ) : (
             <DataTable
