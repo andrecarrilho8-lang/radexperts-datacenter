@@ -190,6 +190,7 @@ export default function ContaAzulPage() {
   const [connected,  setConnected]  = useState<boolean | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [tabError,   setTabError]   = useState<string | null>(null);
+  const [tabWarning, setTabWarning] = useState<string | null>(null);
   const [totais,     setTotais]     = useState<Totais | null>(null);
   const [receitas,   setReceitas]   = useState<Evento[]>([]);
   const [vendas,     setVendas]     = useState<Venda[]>([]);
@@ -234,11 +235,13 @@ export default function ContaAzulPage() {
   const loadVendas = useCallback(async () => {
     setLoading(true);
     setTabError(null);
+    setTabWarning(null);
     try {
       const res  = await fetch('/api/conta-azul/vendas');
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
       if (data.error) throw new Error(data.error);
+      if (data._warning) setTabWarning(data._warning);
       setVendas(data.vendas || []);
     } catch (e: any) {
       setTabError(e.message || 'Erro ao carregar vendas');
@@ -250,12 +253,14 @@ export default function ContaAzulPage() {
   const loadPessoas = useCallback(async () => {
     setLoading(true);
     setTabError(null);
+    setTabWarning(null);
     try {
       const params = searchPessoa ? `?busca=${encodeURIComponent(searchPessoa)}` : '';
       const res  = await fetch(`/api/conta-azul/pessoas${params}`);
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
       if (data.error) throw new Error(data.error);
+      if (data._warning) setTabWarning(data._warning);
       setPessoas(data.pessoas || []);
     } catch (e: any) {
       setTabError(e.message || 'Erro ao carregar clientes');
@@ -267,11 +272,13 @@ export default function ContaAzulPage() {
   const loadContratos = useCallback(async () => {
     setLoading(true);
     setTabError(null);
+    setTabWarning(null);
     try {
       const res  = await fetch('/api/conta-azul/contratos');
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
       if (data.error) throw new Error(data.error);
+      if (data._warning) setTabWarning(data._warning);
       setContratos(data.contratos || []);
     } catch (e: any) {
       setTabError(e.message || 'Erro ao carregar contratos');
