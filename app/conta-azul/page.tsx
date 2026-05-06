@@ -211,10 +211,21 @@ export default function ContaAzulPage() {
   );
 
   // ── Client-side filter + pagination ─────────────────────────────────────
+  // CA API pode retornar status em inglês (ACQUITTED/PENDING/OVERDUE)
+  // OU em português via status_traduzido (RECEBIDO/PENDENTE/VENCIDO).
+  // O filtro aceita ambos.
+  const STATUS_ACCEPT: Record<string, string[]> = {
+    PAGO:     ['ACQUITTED', 'RECEBIDO', 'PAGO'],
+    PENDENTE: ['PENDING',   'PENDENTE'],
+    VENCIDO:  ['OVERDUE',   'VENCIDO',  'ATRASADO'],
+  };
+
   const receitasFiltradas = allReceitas.filter(e => {
     if (statusFiltro) {
-      const map: Record<string, string> = { PAGO: 'ACQUITTED', PENDENTE: 'PENDING', VENCIDO: 'OVERDUE' };
-      if (e.status !== (map[statusFiltro] || statusFiltro)) return false;
+      const valid = STATUS_ACCEPT[statusFiltro] || [statusFiltro];
+      const s     = (e.status           || '').toUpperCase();
+      const st    = (e.status_traduzido  || '').toUpperCase();
+      if (!valid.includes(s) && !valid.includes(st)) return false;
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -227,7 +238,7 @@ export default function ContaAzulPage() {
     return true;
   });
   const totalFiltrado  = receitasFiltradas.length;
-  const totalPaginas   = Math.ceil(totalFiltrado / PAGE_SIZE);
+  const totalPaginas   = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
   const receitasPagina = receitasFiltradas.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
 
@@ -243,28 +254,34 @@ export default function ContaAzulPage() {
 
   const loadFinanceiro = useCallback(async () => {
     setLoading(true);
+    setTabError(null);
     try {
-      const params = new URLSearchParams({
-        tipo: 'RECEITA',
-        size: '500',   // fetch all — pagination done client-side
-        page: '0',
-        dataInicio,
-        dataFim,
-      });
+      const params = new URLSearchParams({ tipo: 'RECEITA', dataInicio, dataFim });
       const res  = await fetch(`/api/conta-azul/financeiro?${params}`);
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
+      if (data.error) throw new Error(data.error);
+
+      const items: Evento[] = data.receitas || [];
+      // Debug: log unique status values to diagnose filter issues
+      if (typeof window !== 'undefined' && items.length > 0) {
+        const statuses = [...new Set(items.map((i: Evento) => `${i.status}/${i.status_traduzido}`))];
+        console.log(`[CA financeiro] ${items.length} receitas. Status values:`, statuses);
+      }
 
       // Sort all records DESC by vencimento
-      const sorted = (data.receitas || []).slice().sort((a: Evento, b: Evento) =>
+      const sorted = items.slice().sort((a: Evento, b: Evento) =>
         (b.data_vencimento || '').localeCompare(a.data_vencimento || '')
       );
       setAllReceitas(sorted);
       setTotais(data.totais || null);
+    } catch (e: any) {
+      setTabError(e.message || 'Erro ao carregar financeiro');
     } finally {
       setLoading(false);
     }
   }, [dataInicio, dataFim]);
+
 
 
   const loadVendas = useCallback(async () => {
@@ -554,9 +571,27 @@ export default function ContaAzulPage() {
           {loading ? (
             <div style={{ textAlign: 'center', padding: 48, color: SILVER }}>
               <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}>sync</span>
+              <p style={{ fontSize: 11, marginTop: 12 }}>Buscando todos os registros...</p>
+            </div>
+          ) : tabError ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 36, color: RED, display: 'block', marginBottom: 10 }}>error_outline</span>
+              <p style={{ color: RED, fontWeight: 700, fontSize: 12, marginBottom: 8 }}>Erro ao carregar financeiro</p>
+              <p style={{ color: 'rgba(168,178,192,0.6)', fontSize: 11, marginBottom: 16 }}>{tabError}</p>
+              <button onClick={loadFinanceiro} style={{
+                padding: '8px 20px', borderRadius: 10, border: `1px solid ${GOLD}40`,
+                background: `${GOLD}15`, color: GOLD, cursor: 'pointer',
+                fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}>Tentar novamente</button>
             </div>
           ) : (
             <>
+              {/* Debug: total carregado */}
+              {allReceitas.length > 0 && (
+                <p style={{ margin: '0 0 12px', color: 'rgba(168,178,192,0.4)', fontSize: 10, fontFamily: 'monospace' }}>
+                  {allReceitas.length} registros carregados · {totalFiltrado} após filtros
+                </p>
+              )}
               <DataTable
                 columns={[
                   { key: 'descricao', label: 'Descrição', render: r => <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{r.descricao || '—'}</span> },
