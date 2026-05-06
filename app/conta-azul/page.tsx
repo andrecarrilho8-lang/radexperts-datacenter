@@ -186,19 +186,29 @@ export default function ContaAzulPage() {
     }
   }, [checkingAuth, userRole, router]);
 
-  const [activeTab,  setActiveTab]  = useState<'financeiro' | 'vendas' | 'pessoas' | 'contratos'>('financeiro');
-  const [connected,  setConnected]  = useState<boolean | null>(null);
-  const [loading,    setLoading]    = useState(false);
-  const [tabError,   setTabError]   = useState<string | null>(null);
-  const [tabWarning, setTabWarning] = useState<string | null>(null);
-  const [totais,     setTotais]     = useState<Totais | null>(null);
-  const [receitas,   setReceitas]   = useState<Evento[]>([]);
-  const [vendas,     setVendas]     = useState<Venda[]>([]);
-  const [pessoas,    setPessoas]    = useState<Pessoa[]>([]);
-  const [contratos,  setContratos]  = useState<Contrato[]>([]);
-  // Always show only RECEITA — despesas not shown in this view
-  const [statusFiltro, setStatusFiltro] = useState('');
-  const [searchPessoa, setSearchPessoa] = useState('');
+  const PAGE_SIZE = 50;
+  const [activeTab,     setActiveTab]     = useState<'financeiro' | 'vendas' | 'pessoas' | 'contratos'>('financeiro');
+  const [connected,     setConnected]     = useState<boolean | null>(null);
+  const [loading,       setLoading]       = useState(false);
+  const [tabError,      setTabError]      = useState<string | null>(null);
+  const [tabWarning,    setTabWarning]    = useState<string | null>(null);
+  const [totais,        setTotais]        = useState<Totais | null>(null);
+  const [receitas,      setReceitas]      = useState<Evento[]>([]);
+  const [totalReceitas, setTotalReceitas] = useState(0);
+  const [currentPage,   setCurrentPage]   = useState(0);
+  const [vendas,        setVendas]        = useState<Venda[]>([]);
+  const [pessoas,       setPessoas]       = useState<Pessoa[]>([]);
+  const [contratos,     setContratos]     = useState<Contrato[]>([]);
+  const [statusFiltro,  setStatusFiltro]  = useState('');
+  const [searchPessoa,  setSearchPessoa]  = useState('');
+  // Date range — default: 12 months back → 6 months forward
+  const hoje = new Date();
+  const [dataInicio, setDataInicio] = useState(
+    new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0]
+  );
+  const [dataFim, setDataFim] = useState(
+    new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0]
+  );
 
   const checkConnection = useCallback(async () => {
     try {
@@ -210,27 +220,35 @@ export default function ContaAzulPage() {
     }
   }, []);
 
-  const loadFinanceiro = useCallback(async () => {
+  const loadFinanceiro = useCallback(async (page = 0) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ tipo: 'RECEITA', size: '200' });
+      const params = new URLSearchParams({
+        tipo: 'RECEITA',
+        size: String(PAGE_SIZE),
+        page: String(page),
+        dataInicio,
+        dataFim,
+      });
       if (statusFiltro) params.set('status', statusFiltro);
       const res  = await fetch(`/api/conta-azul/financeiro?${params}`);
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
 
-      // Sort by data_vencimento descending (most recent first)
+      // Sort DESC by vencimento within the page returned
       const sorted = (data.receitas || []).slice().sort((a: Evento, b: Evento) => {
-        const da = a.data_vencimento || a.data_criacao || '';
-        const db = b.data_vencimento || b.data_criacao || '';
+        const da = a.data_vencimento || '';
+        const db = b.data_vencimento || '';
         return db.localeCompare(da);
       });
       setReceitas(sorted);
+      setTotalReceitas(data.paginacao?.receitas?.total ?? sorted.length);
+      setCurrentPage(page);
       setTotais(data.totais || null);
     } finally {
       setLoading(false);
     }
-  }, [statusFiltro]);
+  }, [statusFiltro, dataInicio, dataFim, PAGE_SIZE]);
 
   const loadVendas = useCallback(async () => {
     setLoading(true);
@@ -292,12 +310,13 @@ export default function ContaAzulPage() {
   useEffect(() => {
     if (connected === false) return;
     setTabError(null);
-    if (activeTab === 'financeiro') loadFinanceiro();
+    setCurrentPage(0);
+    if (activeTab === 'financeiro') loadFinanceiro(0);
     if (activeTab === 'vendas')     loadVendas();
     if (activeTab === 'pessoas')    loadPessoas();
     if (activeTab === 'contratos')  loadContratos();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, connected, statusFiltro]);
+  }, [activeTab, connected, statusFiltro, dataInicio, dataFim]);
 
   const cardStyle: React.CSSProperties = {
     background:   'rgba(255,255,255,0.03)',
@@ -305,16 +324,6 @@ export default function ContaAzulPage() {
     borderRadius: 20, padding: 24,
     backdropFilter: 'blur(12px)',
   };
-
-  // Shows only receitas — filtered by status, already sorted by date (desc)
-  const eventosFiltrados = receitas.filter(e => {
-    if (statusFiltro) {
-      const statusMap: Record<string, string> = { PAGO: 'ACQUITTED', PENDENTE: 'PENDING', VENCIDO: 'OVERDUE' };
-      const apiStatus = statusMap[statusFiltro] || statusFiltro;
-      if (e.status !== apiStatus) return false;
-    }
-    return true;
-  });
 
   // A Receber = pending + overdue (what hasn't been paid yet)
   const totalAReceber = totais ? (totais.receitasPendentes + totais.receitasVencidas) : 0;
@@ -434,13 +443,15 @@ export default function ContaAzulPage() {
       {/* ── FINANCEIRO ─────────────────────────────────────────────────────── */}
       {activeTab === 'financeiro' && (
         <div style={cardStyle}>
-          {/* Cabeçalho da seção */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+          {/* Cabeçalho */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
             <div>
               <p style={{ margin: 0, color: '#fff', fontWeight: 900, fontSize: 14 }}>Contas a Receber</p>
               <p style={{ margin: 0, color: SILVER, fontSize: 11, marginTop: 2 }}>
-                {eventosFiltrados.length} lançamento{eventosFiltrados.length !== 1 ? 's' : ''}
-                {statusFiltro ? ` · filtro: ${statusFiltro.toLowerCase()}` : ''}
+                {totalReceitas > 0
+                  ? `${currentPage * PAGE_SIZE + 1}–${Math.min((currentPage + 1) * PAGE_SIZE, totalReceitas)} de ${totalReceitas} lançamentos`
+                  : `${receitas.length} lançamento${receitas.length !== 1 ? 's' : ''}`}
+                {statusFiltro ? ` · ${statusFiltro.toLowerCase()}` : ''}
               </p>
             </div>
             {/* Filtros de status */}
@@ -458,12 +469,52 @@ export default function ContaAzulPage() {
                     cursor: 'pointer', fontSize: 10, fontWeight: 900,
                     letterSpacing: '0.1em', textTransform: 'uppercase',
                     background: isActive ? f.color + '18' : 'rgba(255,255,255,0.03)',
-                    color: isActive ? f.color : SILVER,
-                    transition: 'all 0.18s',
+                    color: isActive ? f.color : SILVER, transition: 'all 0.18s',
                   }}>{f.label}</button>
                 );
               })}
             </div>
+          </div>
+
+          {/* Filtros de data */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ color: SILVER, fontSize: 10, fontWeight: 900, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Período</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <label style={{ color: SILVER, fontSize: 10 }}>De</label>
+              <input
+                type="date"
+                value={dataInicio}
+                onChange={e => setDataInicio(e.target.value)}
+                style={{
+                  padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)',
+                  background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11,
+                  outline: 'none', colorScheme: 'dark',
+                }}
+              />
+              <label style={{ color: SILVER, fontSize: 10 }}>Até</label>
+              <input
+                type="date"
+                value={dataFim}
+                onChange={e => setDataFim(e.target.value)}
+                style={{
+                  padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)',
+                  background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11,
+                  outline: 'none', colorScheme: 'dark',
+                }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                const h = new Date();
+                setDataInicio(new Date(h.getFullYear(), h.getMonth() - 12, 1).toISOString().split('T')[0]);
+                setDataFim(new Date(h.getFullYear(), h.getMonth() + 6, 0).toISOString().split('T')[0]);
+              }}
+              style={{
+                padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.03)', color: SILVER, cursor: 'pointer',
+                fontSize: 10, fontWeight: 700,
+              }}
+            >Resetar</button>
           </div>
 
           {loading ? (
@@ -471,39 +522,80 @@ export default function ContaAzulPage() {
               <span className="material-symbols-outlined" style={{ fontSize: 32, animation: 'spin 1s linear infinite' }}>sync</span>
             </div>
           ) : (
-            <DataTable
-              columns={[
-                { key: 'descricao', label: 'Descrição', render: r => <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{r.descricao || '—'}</span> },
-                { key: 'cliente',   label: 'Cliente',   render: r => (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{r.cliente || '—'}</span>
-                    {r.cliente_email && (
-                      <span style={{ color: 'rgba(168,178,192,0.7)', fontSize: 10, fontFamily: 'monospace' }}>
-                        {r.cliente_email}
-                      </span>
-                    )}
+            <>
+              <DataTable
+                columns={[
+                  { key: 'descricao', label: 'Descrição', render: r => <span style={{ color: '#fff', fontSize: 12, fontWeight: 700 }}>{r.descricao || '—'}</span> },
+                  { key: 'cliente',   label: 'Cliente',   render: r => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{r.cliente || '—'}</span>
+                      {r.cliente_email && (
+                        <span style={{ color: 'rgba(168,178,192,0.7)', fontSize: 10, fontFamily: 'monospace' }}>
+                          {r.cliente_email}
+                        </span>
+                      )}
+                    </div>
+                  )},
+                  { key: 'vencimento', label: 'Vencimento', render: r => <span style={{ color: SILVER, fontFamily: 'monospace', fontSize: 11 }}>{fmtDate(r.data_vencimento)}</span> },
+                  { key: 'valor',      label: 'Valor',      render: r => <span style={{ color: GREEN, fontWeight: 900, fontSize: 13 }}>{fmtBRL(r.valor ?? 0)}</span> },
+                  { key: 'pago',       label: 'Recebido',   render: r => <span style={{ color: r.pago > 0 ? GREEN : 'rgba(168,178,192,0.4)', fontWeight: 700 }}>{fmtBRL(r.pago ?? 0)}</span> },
+                  { key: 'status',     label: 'Status',     render: r => (
+                    <span style={{
+                      color: statusColor(r.status), fontWeight: 900, fontSize: 9,
+                      letterSpacing: '0.1em', textTransform: 'uppercase',
+                      background: statusColor(r.status) + '15',
+                      border: `1px solid ${statusColor(r.status)}40`,
+                      padding: '2px 8px', borderRadius: 99,
+                    }}>{statusLabel(r.status)}</span>
+                  )},
+                ]}
+                rows={receitas}
+                emptyMsg="Nenhuma receita encontrada"
+              />
+
+              {/* Paginação */}
+              {totalReceitas > PAGE_SIZE && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ color: SILVER, fontSize: 11 }}>
+                    Página {currentPage + 1} de {Math.ceil(totalReceitas / PAGE_SIZE)}
+                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      disabled={currentPage === 0 || loading}
+                      onClick={() => loadFinanceiro(currentPage - 1)}
+                      style={{
+                        padding: '7px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
+                        background: currentPage === 0 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.06)',
+                        color: currentPage === 0 ? 'rgba(168,178,192,0.3)' : SILVER,
+                        cursor: currentPage === 0 ? 'default' : 'pointer',
+                        fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_left</span>
+                      Anterior
+                    </button>
+                    <button
+                      disabled={(currentPage + 1) * PAGE_SIZE >= totalReceitas || loading}
+                      onClick={() => loadFinanceiro(currentPage + 1)}
+                      style={{
+                        padding: '7px 16px', borderRadius: 8, border: `1px solid ${GOLD}40`,
+                        background: (currentPage + 1) * PAGE_SIZE >= totalReceitas ? 'rgba(255,255,255,0.02)' : `${GOLD}15`,
+                        color: (currentPage + 1) * PAGE_SIZE >= totalReceitas ? 'rgba(168,178,192,0.3)' : GOLD,
+                        cursor: (currentPage + 1) * PAGE_SIZE >= totalReceitas ? 'default' : 'pointer',
+                        fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                    >
+                      Próxima
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>chevron_right</span>
+                    </button>
                   </div>
-                )},
-                { key: 'categoria', label: 'Categoria', render: r => <span style={{ color: 'rgba(168,178,192,0.6)', fontSize: 10 }}>{r.categoria || r.centro_de_custo || '—'}</span> },
-                { key: 'vencimento',label: 'Vencimento', render: r => <span style={{ color: SILVER, fontFamily: 'monospace', fontSize: 11 }}>{fmtDate(r.data_vencimento)}</span> },
-                { key: 'valor',     label: 'Valor',      render: r => <span style={{ color: GREEN, fontWeight: 900, fontSize: 13 }}>{fmtBRL(r.valor ?? 0)}</span> },
-                { key: 'pago',      label: 'Recebido',   render: r => <span style={{ color: r.pago > 0 ? GREEN : 'rgba(168,178,192,0.4)', fontWeight: 700 }}>{fmtBRL(r.pago ?? 0)}</span> },
-                { key: 'status',    label: 'Status',     render: r => (
-                  <span style={{
-                    color: statusColor(r.status), fontWeight: 900, fontSize: 9,
-                    letterSpacing: '0.1em', textTransform: 'uppercase',
-                    background: statusColor(r.status) + '15',
-                    border: `1px solid ${statusColor(r.status)}40`,
-                    padding: '2px 8px', borderRadius: 99,
-                  }}>{statusLabel(r.status)}</span>
-                )},
-              ]}
-              rows={eventosFiltrados}
-              emptyMsg={loading ? 'Carregando...' : 'Nenhuma receita encontrada'}
-            />
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
+
 
       {/* ── VENDAS ─────────────────────────────────────────────────────────── */}
       {activeTab === 'vendas' && (
