@@ -2,15 +2,11 @@
  * app/api/conta-azul/financeiro/route.ts
  * Busca eventos financeiros (contas a receber e a pagar) na API Conta Azul v2.
  *
+ * A CA API limita 50 itens por página. Este route itera TODAS as páginas
+ * automaticamente para garantir que retornamos todos os registros.
+ *
  * Estrutura real da resposta da API:
  *   { itens_totais, itens: [...], totais: { pago: { valor }, vencido: { valor }, ... } }
- *
- * Campos de cada item:
- *   id, status ("ACQUITTED"|"PENDING"|"OVERDUE"|"CANCELLED"),
- *   status_traduzido, total, pago, nao_pago, descricao,
- *   data_vencimento, data_competencia, data_criacao,
- *   categorias[{ id, nome }], centros_de_custo[{ id, nome }],
- *   cliente { id, nome }  (receita) | fornecedor { id, nome } (despesa)
  */
 
 import { NextResponse } from 'next/server';
@@ -20,9 +16,9 @@ import { getDb, ensureSchema } from '@/app/lib/db';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Cache em memória (10 minutos) — respeitando rate limit de 600 req/min
+// Cache em memória (15 minutos) — fetch completo é mais pesado
 const cache = new Map<string, { data: any; ts: number }>();
-const CACHE_TTL = 10 * 60 * 1000;
+const CACHE_TTL = 15 * 60 * 1000;
 function getCache(key: string) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
@@ -42,38 +38,65 @@ async function fetchCA<T>(path: string, token: string): Promise<T> {
   return res.json();
 }
 
+/**
+ * Busca TODAS as páginas de um endpoint paginado da CA API.
+ * A CA retorna no máximo 50 itens por página. Itera até esgotar ou atingir maxPages.
+ * Retorna objeto com itens concatenados + totais da última resposta.
+ */
+async function fetchAllPages(
+  endpoint: string,
+  baseParams: URLSearchParams,
+  token: string,
+  maxPages = 30, // safety cap: 30 × 50 = 1500 itens
+): Promise<any> {
+  const PAGE_SIZE = 50;
+  let allItems: any[] = [];
+  let lastRaw: any = null;
+
+  for (let pg = 0; pg < maxPages; pg++) {
+    const params = new URLSearchParams(baseParams);
+    params.set('page', String(pg));
+    params.set('size', String(PAGE_SIZE));
+
+    const raw = await fetchCA<any>(`${endpoint}?${params}`, token);
+    const itens: any[] = raw?.itens ?? [];
+    allItems = allItems.concat(itens);
+    lastRaw = raw;
+
+    const total: number = raw?.itens_totais ?? 0;
+    console.log(`[CA financeiro] page ${pg}: ${itens.length} itens, total=${total}, fetched=${allItems.length}`);
+
+    // Para quando buscamos todos os registros
+    if (itens.length < PAGE_SIZE || allItems.length >= total) break;
+  }
+
+  return { ...lastRaw, itens: allItems };
+}
+
 /** Normaliza um item da API para o formato esperado pelo frontend */
 function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA', emailMap: Map<string, string> = new Map()) {
   const clienteId = item.cliente?.id ?? item.fornecedor?.id ?? '';
   return {
     id:               item.id,
     tipo,
-    // Campos financeiros
     valor:            item.total      ?? 0,
     pago:             item.pago       ?? 0,
     nao_pago:         item.nao_pago   ?? 0,
-    // Status
     status:           item.status          ?? '',
     status_traduzido: item.status_traduzido ?? '',
-    // Descrição e datas
     descricao:        item.descricao        ?? '',
     data_vencimento:  item.data_vencimento  ?? '',
     data_competencia: item.data_competencia ?? '',
     data_criacao:     item.data_criacao     ?? '',
-    // Categorias e centros
     categoria:        item.categorias?.[0]?.nome       ?? '',
     centro_de_custo:  item.centros_de_custo?.[0]?.nome ?? '',
-    // Pessoa
     cliente:          item.cliente?.nome    ?? item.fornecedor?.nome ?? '',
     cliente_id:       clienteId,
     cliente_email:    emailMap.get(clienteId) ?? '',
   };
 }
 
-/** Build name → email map from our own DB (buyer_profiles + manual_students).
- *  Matches by normalized uppercase name, which is reliable because both CA and
- *  our system receive the student's real name from the same source.
- */
+/** Build name → email map from our own DB */
 async function enrichEmailsFromDB(names: string[]): Promise<Map<string, string>> {
   const emailMap = new Map<string, string>();
   if (!names.length) return emailMap;
@@ -81,10 +104,8 @@ async function enrichEmailsFromDB(names: string[]): Promise<Map<string, string>>
   try {
     await ensureSchema();
     const db = getDb();
-    // Normalize names to uppercase for matching
     const upperNames = [...new Set(names.map(n => n.toUpperCase().trim()).filter(Boolean))];
 
-    // Query buyer_profiles first (Hotmart students — always have email)
     const bpRows = await db`
       SELECT UPPER(TRIM(name)) AS uname, LOWER(email) AS email
       FROM buyer_profiles
@@ -95,7 +116,6 @@ async function enrichEmailsFromDB(names: string[]): Promise<Map<string, string>>
       if (r.uname && r.email) emailMap.set(r.uname, r.email);
     }
 
-    // Also check manual_students for any not found above
     const missing = upperNames.filter(n => !emailMap.has(n));
     if (missing.length > 0) {
       const msRows = await db`
@@ -119,15 +139,13 @@ async function enrichEmailsFromDB(names: string[]): Promise<Map<string, string>>
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const tipo       = searchParams.get('tipo')       || '';  // RECEITA | DESPESA | '' (ambos)
-  const status     = searchParams.get('status')     || '';  // PENDENTE | PAGO | VENCIDO
+  const tipo       = searchParams.get('tipo')       || '';
   const dataInicio = searchParams.get('dataInicio') || '';
   const dataFim    = searchParams.get('dataFim')    || '';
   const force      = searchParams.get('force') === '1';
-  const page       = searchParams.get('page') || '0';
-  const size       = searchParams.get('size') || '50';
 
-  const cacheKey = `financeiro|${tipo}|${status}|${dataInicio}|${dataFim}|${page}`;
+  // Cache key does NOT include status/page/size — we always fetch everything
+  const cacheKey = `financeiro|${tipo}|${dataInicio}|${dataFim}`;
 
   if (!force) {
     const cached = getCache(cacheKey);
@@ -137,7 +155,6 @@ export async function GET(request: Request) {
   try {
     const token = await getContaAzulToken();
 
-    // Datas padrão: 12 meses atrás → 6 meses à frente
     const hoje = new Date();
     const defaultInicio = dataInicio || new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0];
     const defaultFim    = dataFim    || new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
@@ -147,57 +164,44 @@ export async function GET(request: Request) {
 
     if (!tipo || tipo === 'RECEITA') {
       const params = new URLSearchParams({
-        size, page,
         data_vencimento_de:  defaultInicio,
         data_vencimento_ate: defaultFim,
       });
-      // Mapear status do frontend para o formato da CA API
-      if (status === 'PAGO')     params.set('status', 'ACQUITTED');
-      if (status === 'PENDENTE') params.set('status', 'PENDING');
-      if (status === 'VENCIDO')  params.set('status', 'OVERDUE');
-      receitasRaw = await fetchCA<any>(
-        `/financeiro/eventos-financeiros/contas-a-receber/buscar?${params}`, token
+      receitasRaw = await fetchAllPages(
+        '/financeiro/eventos-financeiros/contas-a-receber/buscar', params, token
       );
     }
 
     if (!tipo || tipo === 'DESPESA') {
       const params = new URLSearchParams({
-        size, page,
         data_vencimento_de:  defaultInicio,
         data_vencimento_ate: defaultFim,
       });
-      if (status === 'PAGO')     params.set('status', 'ACQUITTED');
-      if (status === 'PENDENTE') params.set('status', 'PENDING');
-      if (status === 'VENCIDO')  params.set('status', 'OVERDUE');
-      despesasRaw = await fetchCA<any>(
-        `/financeiro/eventos-financeiros/contas-a-pagar/buscar?${params}`, token
+      despesasRaw = await fetchAllPages(
+        '/financeiro/eventos-financeiros/contas-a-pagar/buscar', params, token
       );
     }
 
-    // ── Extrair itens — campo real é "itens" não "content" ─────────────────
+    // ── Extrair itens ──────────────────────────────────────────────────────
     const rawReceitas: any[] = receitasRaw?.itens ?? [];
     const rawDespesas: any[] = despesasRaw?.itens ?? [];
 
-    // ── Enrich with email by matching client name against our DB ───────────
-    // CA often has no email field, but we have student records with emails.
-    // Match is: UPPER(ca.cliente.nome) == UPPER(buyer_profiles.name)
+    // ── Enrich with email ──────────────────────────────────────────────────
     const clienteNames = rawReceitas
       .map((i: any) => (i.cliente?.nome ?? '').trim())
       .filter(Boolean);
     const emailMap = await enrichEmailsFromDB(clienteNames);
 
-    // normalizeItem now uses name as key (not cliente_id)
     const receitasItens: any[] = rawReceitas.map((i: any) => {
       const nome = (i.cliente?.nome ?? i.fornecedor?.nome ?? '').trim();
       return {
         ...normalizeItem(i, 'RECEITA', emailMap),
-        // override: use name-based email lookup
         cliente_email: emailMap.get(nome.toUpperCase()) ?? '',
       };
     });
     const despesasItens: any[] = rawDespesas.map((i: any) => normalizeItem(i, 'DESPESA'));
 
-    // ── Totais vindos diretamente da API (muito mais precisos que calcular) ─
+    // ── Totais da API ──────────────────────────────────────────────────────
     const rTotais = receitasRaw?.totais ?? {};
     const dTotais = despesasRaw?.totais ?? {};
 
@@ -215,9 +219,9 @@ export async function GET(request: Request) {
     const result = {
       receitas: receitasItens,
       despesas: despesasItens,
-      paginacao: {
-        receitas: { total: receitasRaw?.itens_totais ?? 0 },
-        despesas: { total: despesasRaw?.itens_totais ?? 0 },
+      totalItens: {
+        receitas: receitasItens.length,
+        despesas: despesasItens.length,
       },
       totais: {
         totalReceitas,
