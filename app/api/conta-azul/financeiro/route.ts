@@ -1,18 +1,27 @@
 /**
  * app/api/conta-azul/financeiro/route.ts
- * Busca eventos financeiros na API Conta Azul v2.
- * Usa busca em PARALELO para evitar timeout no Vercel.
+ *
+ * A CA API retorna fixo 10 itens/página (ignora size).
+ * Total pode chegar a ~1521 registros = 153 páginas.
+ *
+ * Estratégia:
+ *   1) Busca página 0 → descobre itens_totais
+ *   2) Busca as últimas LAST_PAGES páginas em paralelo (mais recentes)
+ *   3) Ordena tudo DESC por data_vencimento no backend antes de retornar
+ *
+ * Com LAST_PAGES=30 buscamos os 300 registros mais recentes (10/pg × 30pg)
+ * em paralelo, muito mais rápido que busca sequencial.
  */
 
 import { NextResponse } from 'next/server';
 import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
 import { getDb, ensureSchema } from '@/app/lib/db';
 
-export const dynamic    = 'force-dynamic';
-export const runtime    = 'nodejs';
-export const maxDuration = 60; // Vercel Pro: 60s timeout
+export const dynamic     = 'force-dynamic';
+export const runtime     = 'nodejs';
+export const maxDuration = 60;
 
-const cache    = new Map<string, { data: any; ts: number }>();
+const cache     = new Map<string, { data: any; ts: number }>();
 const CACHE_TTL = 15 * 60 * 1000;
 
 function getCache(key: string) {
@@ -29,45 +38,46 @@ async function fetchCA<T>(path: string, token: string): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`Conta Azul API ${res.status}: ${body}`);
+    throw new Error(`CA API ${res.status}: ${body}`);
   }
   return res.json();
 }
 
 /**
- * Busca TODAS as páginas de um endpoint em PARALELO.
- * Passo 1: busca página 0 → descobre itens_totais.
- * Passo 2: dispara páginas restantes com Promise.all (simultâneas).
+ * A CA API ignora o parâmetro `size` e retorna sempre 10 itens/página.
+ * Para capturar os registros MAIS RECENTES buscamos as últimas N páginas.
+ * O total é descoberto na primeira chamada (itens_totais).
  */
-async function fetchAllPages(
+async function fetchRecentPages(
   endpoint: string,
   baseParams: URLSearchParams,
   token: string,
-  maxPages = 20,
+  maxFetchPages = 30, // busca até 30 páginas × 10 = 300 registros mais recentes
 ): Promise<any> {
-  const PG_SIZE = 50;
-
   // Página 0 — descobre total
   const p0 = new URLSearchParams(baseParams);
   p0.set('page', '0');
-  p0.set('size', String(PG_SIZE));
-  const first   = await fetchCA<any>(`${endpoint}?${p0}`, token);
-  const itens0  = first?.itens ?? [] as any[];
-  const total   = first?.itens_totais ?? 0;
+  const first  = await fetchCA<any>(`${endpoint}?${p0}`, token);
+  const itens0 = first?.itens ?? [] as any[];
+  const total  = first?.itens_totais ?? 0;
+  const PG_SIZE = itens0.length || 10; // real page size returned by CA
 
-  console.log(`[CA financeiro] p0: ${itens0.length}/${total}`);
+  console.log(`[CA fin] p0: ${itens0.length}/${total}, real pgSize=${PG_SIZE}`);
 
-  if (total <= PG_SIZE || itens0.length < PG_SIZE) {
-    return { ...first, itens: itens0 };
+  const totalPages = Math.ceil(total / PG_SIZE);
+
+  if (totalPages <= 1) {
+    return { ...first, itens: itens0, _fetchedPages: 1, _totalPages: totalPages };
   }
 
-  // Páginas restantes em paralelo
-  const numPages = Math.min(Math.ceil(total / PG_SIZE), maxPages);
+  // Determina o range de páginas: queremos as mais recentes = últimas páginas
+  const lastPage  = totalPages - 1;
+  const firstPage = Math.max(1, lastPage - maxFetchPages + 1); // +1 pq já temos p0
+
   const promises: Promise<any>[] = [];
-  for (let pg = 1; pg < numPages; pg++) {
+  for (let pg = firstPage; pg <= lastPage; pg++) {
     const p = new URLSearchParams(baseParams);
     p.set('page', String(pg));
-    p.set('size', String(PG_SIZE));
     promises.push(
       fetchCA<any>(`${endpoint}?${p}`, token)
         .catch(err => { console.warn(`[CA p${pg}]:`, err.message); return { itens: [] }; })
@@ -75,13 +85,18 @@ async function fetchAllPages(
   }
 
   const rest = await Promise.all(promises);
-  const all  = [...itens0, ...rest.flatMap((r: any) => r?.itens ?? [])];
-  console.log(`[CA financeiro] total fetched: ${all.length}/${total}`);
-  return { ...first, itens: all };
+  const recent = rest.flatMap((r: any) => r?.itens ?? []);
+
+  // Se as páginas mais recentes são as últimas, incluir página 0 apenas
+  // se ela também está no range (ou seja, quando o total é pequeno)
+  const allItems = [...itens0, ...recent];
+  console.log(`[CA fin] fetched ${allItems.length} itens (pg0 + pg${firstPage}–${lastPage}) de ${total} totais`);
+
+  return { ...first, itens: allItems, _fetchedPages: promises.length + 1, _totalPages: totalPages };
 }
 
 function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA', emailMap: Map<string, string> = new Map()) {
-  const clienteId = item.cliente?.id ?? item.fornecedor?.id ?? '';
+  const nome = (item.cliente?.nome ?? item.fornecedor?.nome ?? '').trim();
   return {
     id:               item.id,
     tipo,
@@ -96,9 +111,9 @@ function normalizeItem(item: any, tipo: 'RECEITA' | 'DESPESA', emailMap: Map<str
     data_criacao:     item.data_criacao     ?? '',
     categoria:        item.categorias?.[0]?.nome       ?? '',
     centro_de_custo:  item.centros_de_custo?.[0]?.nome ?? '',
-    cliente:          item.cliente?.nome    ?? item.fornecedor?.nome ?? '',
-    cliente_id:       clienteId,
-    cliente_email:    emailMap.get(clienteId) ?? '',
+    cliente:          nome,
+    cliente_id:       item.cliente?.id ?? item.fornecedor?.id ?? '',
+    cliente_email:    emailMap.get(nome.toUpperCase()) ?? '',
   };
 }
 
@@ -107,7 +122,7 @@ async function enrichEmailsFromDB(names: string[]): Promise<Map<string, string>>
   if (!names.length) return emailMap;
   try {
     await ensureSchema();
-    const db = getDb();
+    const db    = getDb();
     const upper = [...new Set(names.map(n => n.toUpperCase().trim()).filter(Boolean))];
 
     const bp = await db`
@@ -127,7 +142,7 @@ async function enrichEmailsFromDB(names: string[]): Promise<Map<string, string>>
       for (const r of ms) if (r.uname && r.email && !emailMap.has(r.uname)) emailMap.set(r.uname, r.email);
     }
   } catch (e: any) {
-    console.warn('[CA financeiro] DB enrichment failed:', e.message);
+    console.warn('[CA fin] DB enrichment failed:', e.message);
   }
   return emailMap;
 }
@@ -147,39 +162,41 @@ export async function GET(request: Request) {
 
   try {
     const token = await getContaAzulToken();
+    const hoje  = new Date();
+    const dI    = dataInicio || new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0];
+    const dF    = dataFim    || new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
 
-    const hoje    = new Date();
-    const dInicio = dataInicio || new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0];
-    const dFim    = dataFim    || new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
+    const rParams = new URLSearchParams({ data_vencimento_de: dI, data_vencimento_ate: dF });
+    const dParams = new URLSearchParams({ data_vencimento_de: dI, data_vencimento_ate: dF });
 
     let receitasRaw: any = null;
     let despesasRaw: any = null;
 
-    const receitaParams = new URLSearchParams({ data_vencimento_de: dInicio, data_vencimento_ate: dFim });
-    const despesaParams = new URLSearchParams({ data_vencimento_de: dInicio, data_vencimento_ate: dFim });
-
     if (!tipo || tipo === 'RECEITA') {
-      receitasRaw = await fetchAllPages(
-        '/financeiro/eventos-financeiros/contas-a-receber/buscar', receitaParams, token
+      receitasRaw = await fetchRecentPages(
+        '/financeiro/eventos-financeiros/contas-a-receber/buscar', rParams, token
       );
     }
     if (!tipo || tipo === 'DESPESA') {
-      despesasRaw = await fetchAllPages(
-        '/financeiro/eventos-financeiros/contas-a-pagar/buscar', despesaParams, token
+      despesasRaw = await fetchRecentPages(
+        '/financeiro/eventos-financeiros/contas-a-pagar/buscar', dParams, token
       );
     }
 
-    const rawReceitas: any[] = receitasRaw?.itens ?? [];
-    const rawDespesas: any[] = despesasRaw?.itens ?? [];
+    const rawR: any[] = receitasRaw?.itens ?? [];
+    const rawD: any[] = despesasRaw?.itens ?? [];
 
-    const clienteNames = rawReceitas.map((i: any) => (i.cliente?.nome ?? '').trim()).filter(Boolean);
-    const emailMap     = await enrichEmailsFromDB(clienteNames);
+    const names    = rawR.map((i: any) => (i.cliente?.nome ?? '').trim()).filter(Boolean);
+    const emailMap = await enrichEmailsFromDB(names);
 
-    const receitasItens: any[] = rawReceitas.map((i: any) => ({
-      ...normalizeItem(i, 'RECEITA', emailMap),
-      cliente_email: emailMap.get((i.cliente?.nome ?? '').trim().toUpperCase()) ?? '',
-    }));
-    const despesasItens: any[] = rawDespesas.map((i: any) => normalizeItem(i, 'DESPESA'));
+    // Sort DESC by vencimento in the backend (CA API doesn't support ordering)
+    const receitasItens = rawR
+      .map((i: any) => normalizeItem(i, 'RECEITA', emailMap))
+      .sort((a: any, b: any) => (b.data_vencimento || '').localeCompare(a.data_vencimento || ''));
+
+    const despesasItens = rawD
+      .map((i: any) => normalizeItem(i, 'DESPESA'))
+      .sort((a: any, b: any) => (b.data_vencimento || '').localeCompare(a.data_vencimento || ''));
 
     const rT = receitasRaw?.totais ?? {};
     const dT = despesasRaw?.totais ?? {};
@@ -187,7 +204,11 @@ export async function GET(request: Request) {
     const result = {
       receitas: receitasItens,
       despesas: despesasItens,
-      totalItens: { receitas: receitasItens.length, despesas: despesasItens.length },
+      meta: {
+        totalItensCA:    receitasRaw?._totalPages != null ? receitasRaw._totalPages * 10 : rawR.length,
+        fetchedReceitas: receitasItens.length,
+        fetchedDespesas: despesasItens.length,
+      },
       totais: {
         totalReceitas:     rT.todos           ?? 0,
         totalDespesas:     dT.todos            ?? 0,
@@ -206,7 +227,7 @@ export async function GET(request: Request) {
     return NextResponse.json(result);
 
   } catch (error: any) {
-    console.error('[CA financeiro] Error:', error.message);
+    console.error('[CA fin] Error:', error.message);
     if (error.message?.includes('não conectado') || error.message?.includes('reconectar')) {
       return NextResponse.json({ error: 'not_connected', message: error.message }, { status: 401 });
     }

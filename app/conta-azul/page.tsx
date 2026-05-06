@@ -252,28 +252,26 @@ export default function ContaAzulPage() {
     }
   }, []);
 
-  const loadFinanceiro = useCallback(async () => {
+  const loadFinanceiro = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setTabError(null);
     try {
       const params = new URLSearchParams({ tipo: 'RECEITA', dataInicio, dataFim });
+      if (forceRefresh) params.set('force', '1');
       const res  = await fetch(`/api/conta-azul/financeiro?${params}`);
       const data = await res.json();
       if (data.error === 'not_connected') { setConnected(false); return; }
       if (data.error) throw new Error(data.error);
 
       const items: Evento[] = data.receitas || [];
-      // Debug: log unique status values to diagnose filter issues
-      if (typeof window !== 'undefined' && items.length > 0) {
+      if (typeof window !== 'undefined') {
         const statuses = [...new Set(items.map((i: Evento) => `${i.status}/${i.status_traduzido}`))];
-        console.log(`[CA financeiro] ${items.length} receitas. Status values:`, statuses);
+        console.log(`[CA fin] ${items.length} receitas (fromCache=${data.fromCache}). Statuses:`, statuses);
+        if (data.meta) console.log('[CA fin] meta:', data.meta);
       }
 
-      // Sort all records DESC by vencimento
-      const sorted = items.slice().sort((a: Evento, b: Evento) =>
-        (b.data_vencimento || '').localeCompare(a.data_vencimento || '')
-      );
-      setAllReceitas(sorted);
+      // Backend já ordena DESC; manter ordem
+      setAllReceitas(items);
       setTotais(data.totais || null);
     } catch (e: any) {
       setTabError(e.message || 'Erro ao carregar financeiro');
@@ -281,6 +279,7 @@ export default function ContaAzulPage() {
       setLoading(false);
     }
   }, [dataInicio, dataFim]);
+
 
 
 
@@ -430,7 +429,12 @@ export default function ContaAzulPage() {
             <span className="material-symbols-outlined" style={{ fontSize: 14 }}>settings</span>
             Setup
           </Link>
-          <button onClick={() => { if (activeTab === 'financeiro') loadFinanceiro(); if (activeTab === 'vendas') loadVendas(); if (activeTab === 'pessoas') loadPessoas(); if (activeTab === 'contratos') loadContratos(); }} style={{
+          <button onClick={() => {
+            if (activeTab === 'financeiro') loadFinanceiro(true);
+            if (activeTab === 'vendas')     loadVendas();
+            if (activeTab === 'pessoas')    loadPessoas();
+            if (activeTab === 'contratos')  loadContratos();
+          }} style={{
             padding: '8px 14px', borderRadius: 10, border: `1px solid ${GOLD}40`,
             background: `${GOLD}15`, color: GOLD, cursor: 'pointer',
             fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase',
