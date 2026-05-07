@@ -204,10 +204,10 @@ export default function ContaAzulPage() {
   // Date range — default: 12 months back → 6 months forward
   const hoje = new Date();
   const [dataInicio, setDataInicio] = useState(
-    new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0]
+    new Date(hoje.getFullYear(), hoje.getMonth() - 6, 1).toISOString().split('T')[0]
   );
   const [dataFim, setDataFim] = useState(
-    new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0]
+    new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0]
   );
 
   // ── Client-side filter + pagination ─────────────────────────────────────
@@ -269,13 +269,15 @@ export default function ContaAzulPage() {
       if (data.error) throw new Error(data.error);
 
       const items: Evento[] = data.receitas || [];
+      const meta = data.meta ?? {};
       if (typeof window !== 'undefined') {
-        const statuses = [...new Set(items.map((i: Evento) => `${i.status}/${i.status_traduzido}`))];
-        console.log(`[CA fin] ${items.length} receitas (fromCache=${data.fromCache}). Statuses:`, statuses);
-        if (data.meta) console.log('[CA fin] meta:', data.meta);
+        console.log(`[CA fin] ${items.length} receitas fetched=${meta.fetchedReceitas} totalCA=${meta.totalCAReceitas} capped=${meta.cappedReceitas}`);
       }
-
-      // Backend já ordena DESC; manter ordem
+      if (meta.cappedReceitas) {
+        setTabWarning(`Exibindo os ${items.length} lançamentos mais recentes de ${meta.totalCAReceitas} totais. Ajuste o período para ver mais.`);
+      } else {
+        setTabWarning(null);
+      }
       setAllReceitas(items);
       setTotais(data.totais || null);
     } catch (e: any) {
