@@ -120,14 +120,15 @@ export async function GET(req: Request) {
   const dF    = sp.get('dataFim')    || '';
   const force = sp.get('force') === '1';
 
-  const key = `fin5|${tipo}|${dI}|${dF}`;
+  const key = `fin6|${tipo}|${dI}|${dF}`;
   if (!force) { const c = getCache(key); if (c) return NextResponse.json({ ...c, fromCache: true }); }
 
   try {
     const token = await getContaAzulToken();
     const hoje  = new Date();
-    const ini   = dI || new Date(hoje.getFullYear(), hoje.getMonth() - 6,  1).toISOString().split('T')[0];
-    const fim   = dF || new Date(hoje.getFullYear(), hoje.getMonth() + 1,  0).toISOString().split('T')[0];
+    // Default: 2 anos atrás → 6 meses à frente (cobre histórico completo)
+    const ini   = dI || new Date(hoje.getFullYear() - 2, hoje.getMonth(), 1).toISOString().split('T')[0];
+    const fim   = dF || new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
 
     const epR = '/financeiro/eventos-financeiros/contas-a-receber/buscar';
     const epD = '/financeiro/eventos-financeiros/contas-a-pagar/buscar';
