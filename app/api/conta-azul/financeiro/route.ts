@@ -1,8 +1,3 @@
-/**
- * Busca as páginas MAIS RECENTES da CA API (que retorna exatamente 10/página).
- * Com 1521 registros = 153 páginas. Buscamos as últimas 50 páginas (500 registros)
- * em 2 lotes paralelos de 30 = ~2s total. Dentro do timeout do Vercel Hobby (10s).
- */
 import { NextResponse } from 'next/server';
 import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
 import { getDb, ensureSchema } from '@/app/lib/db';
@@ -16,72 +11,71 @@ const CACHE_TTL = 15 * 60 * 1000;
 function getCache(k: string) { const h = cache.get(k); return h && Date.now() - h.ts < CACHE_TTL ? h.data : null; }
 function setCache(k: string, d: any) { cache.set(k, { data: d, ts: Date.now() }); }
 
-async function caGet<T>(path: string, token: string): Promise<T> {
+async function caGet(path: string, token: string) {
   const r = await fetch(`${CA_API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(12_000),
   });
-  if (!r.ok) throw new Error(`CA ${r.status}: ${await r.text()}`);
+  if (!r.ok) throw new Error(`CA ${r.status}`);
   return r.json();
 }
 
-async function fetchRecentPages(
+/**
+ * Busca todas as páginas com parada automática.
+ * CA API retorna sempre 10 itens/página (ignora size).
+ * Lotes de BATCH_SIZE páginas em paralelo.
+ * Para quando um lote retornar MENOS items que o esperado (fim real dos dados).
+ */
+async function fetchAll(
   endpoint: string,
   qs: URLSearchParams,
   token: string,
-  maxFetch = 50,   // últimas N páginas  (50×10 = 500 registros mais recentes)
-  batch    = 30,   // paralelos por lote
-): Promise<{ items: any[]; totais: any; total: number; capped: boolean }> {
+  maxPages  = 100,   // cap: 100×10 = 1000 registros máximo
+  batchSize = 20,    // páginas simultâneas por lote
+) {
+  const EXPECTED_PER_PAGE = 10;
+  const allItems: any[] = [];
+  let firstTotais: any  = {};
+  let done              = false;
 
-  // Pg 0 → descobre total e totais KPI
-  const q0 = new URLSearchParams(qs); q0.set('page', '0');
-  let first: any;
-  try   { first = await caGet<any>(`${endpoint}?${q0}`, token); }
-  catch (e: any) { console.error('[CA] p0:', e.message); return { items: [], totais: {}, total: 0, capped: false }; }
+  for (let start = 0; start < maxPages && !done; start += batchSize) {
+    const end   = Math.min(start + batchSize, maxPages);
+    const pages = Array.from({ length: end - start }, (_, i) => start + i);
 
-  const items0 = (first?.itens ?? []) as any[];
-  const total  = (first?.itens_totais ?? 0) as number;
-  const pgSize = items0.length || 10;
-  const nPages = Math.ceil(total / pgSize);  // ex: ceil(1521/10) = 153
-  const capped = nPages > maxFetch;
-
-  // Se tudo cabe em 1 pg, retorna direto
-  if (nPages <= 1) return { items: items0, totais: first?.totais ?? {}, total, capped: false };
-
-  // Buscar as páginas MAIS RECENTES (as últimas no índice)
-  const startPg = capped ? Math.max(0, nPages - maxFetch) : 0;
-
-  // Monta lista de páginas a buscar (excluindo pg 0 se já buscamos)
-  const pagesToFetch: number[] = [];
-  for (let pg = (startPg === 0 ? 1 : startPg); pg < nPages; pg++) pagesToFetch.push(pg);
-
-  const allItems: any[] = startPg === 0 ? [...items0] : [];
-
-  // Lotes paralelos
-  for (let i = 0; i < pagesToFetch.length; i += batch) {
-    const slice = pagesToFetch.slice(i, i + batch);
-    const res   = await Promise.all(slice.map(pg => {
-      const q = new URLSearchParams(qs); q.set('page', String(pg));
-      return caGet<any>(`${endpoint}?${q}`, token)
-        .then((r: any) => r?.itens ?? [] as any[])
-        .catch((e: any) => { console.warn(`[CA] p${pg}: ${e.message}`); return [] as any[]; });
+    const results = await Promise.all(pages.map(pg => {
+      const q = new URLSearchParams(qs);
+      q.set('page', String(pg));
+      return caGet(`${endpoint}?${q}`, token)
+        .then((r: any) => ({ items: r?.itens ?? [], totais: r?.totais }))
+        .catch(() => ({ items: [], totais: null }));
     }));
-    for (const arr of res) allItems.push(...(arr as any[]));
+
+    // Totais do page 0 para KPIs
+    if (start === 0 && results[0]?.totais) firstTotais = results[0].totais;
+
+    let batchCount = 0;
+    for (const r of results) {
+      allItems.push(...r.items);
+      batchCount += r.items.length;
+    }
+
+    // Se lote retornou menos do esperado → chegamos no fim
+    if (batchCount < pages.length * EXPECTED_PER_PAGE) done = true;
   }
 
   // Deduplica por id
   const seen = new Set<string>();
-  const deduped = allItems.filter((i: any) => {
+  const items = allItems.filter((i: any) => {
     const k = String(i?.id ?? '');
     if (!k || seen.has(k)) return false;
     seen.add(k); return true;
   });
 
-  console.log(`[CA] ${endpoint.split('/').pop()}: total=${total} fetched=${deduped.length} capped=${capped}`);
-  return { items: deduped, totais: first?.totais ?? {}, total, capped };
+  console.log(`[CA] ${endpoint.split('/').pop()}: ${items.length} itens (raw=${allItems.length})`);
+  return { items, totais: firstTotais };
 }
 
-function normalize(item: any, tipo: 'RECEITA' | 'DESPESA', emailMap: Map<string, string> = new Map()) {
+function norm(item: any, tipo: 'RECEITA' | 'DESPESA', em: Map<string, string> = new Map()) {
   const nome = (item.cliente?.nome ?? item.fornecedor?.nome ?? '').trim();
   return {
     id: item.id, tipo,
@@ -91,18 +85,18 @@ function normalize(item: any, tipo: 'RECEITA' | 'DESPESA', emailMap: Map<string,
     data_competencia: item.data_competencia ?? '', data_criacao: item.data_criacao ?? '',
     categoria: item.categorias?.[0]?.nome ?? '', centro_de_custo: item.centros_de_custo?.[0]?.nome ?? '',
     cliente: nome, cliente_id: item.cliente?.id ?? item.fornecedor?.id ?? '',
-    cliente_email: emailMap.get(nome.toUpperCase()) ?? '',
+    cliente_email: em.get(nome.toUpperCase()) ?? '',
   };
 }
 
-async function enrichEmails(names: string[]): Promise<Map<string, string>> {
+async function enrichEmails(names: string[]) {
   const map = new Map<string, string>();
   if (!names.length) return map;
   try {
     await ensureSchema();
     const db = getDb();
     const up = [...new Set(names.map(n => n.toUpperCase().trim()).filter(Boolean))];
-    const bp = await db`SELECT UPPER(TRIM(name)) u,LOWER(email) e FROM buyer_profiles WHERE UPPER(TRIM(name))=ANY(${up}) AND email!=''` as any[];
+    const bp = await db`SELECT UPPER(TRIM(name)) u,LOWER(email) e FROM buyer_profiles  WHERE UPPER(TRIM(name))=ANY(${up}) AND email!=''` as any[];
     for (const r of bp) if (r.u && r.e) map.set(r.u, r.e);
     const mis = up.filter(n => !map.has(n));
     if (mis.length) {
@@ -120,15 +114,14 @@ export async function GET(req: Request) {
   const dF    = sp.get('dataFim')    || '';
   const force = sp.get('force') === '1';
 
-  const key = `fin6|${tipo}|${dI}|${dF}`;
+  const key = `fin7|${tipo}|${dI}|${dF}`;
   if (!force) { const c = getCache(key); if (c) return NextResponse.json({ ...c, fromCache: true }); }
 
   try {
     const token = await getContaAzulToken();
     const hoje  = new Date();
-    // Default: 2 anos atrás → 6 meses à frente (cobre histórico completo)
-    const ini   = dI || new Date(hoje.getFullYear() - 2, hoje.getMonth(), 1).toISOString().split('T')[0];
-    const fim   = dF || new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
+    const ini   = dI || new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0];
+    const fim   = dF || new Date(hoje.getFullYear(),     hoje.getMonth() + 6, 0).toISOString().split('T')[0];
 
     const epR = '/financeiro/eventos-financeiros/contas-a-receber/buscar';
     const epD = '/financeiro/eventos-financeiros/contas-a-pagar/buscar';
@@ -136,19 +129,19 @@ export async function GET(req: Request) {
     const qD  = new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim });
 
     const [rRes, dRes] = await Promise.all([
-      (!tipo || tipo === 'RECEITA') ? fetchRecentPages(epR, qR, token) : Promise.resolve({ items: [], totais: {}, total: 0, capped: false }),
-      (!tipo || tipo === 'DESPESA') ? fetchRecentPages(epD, qD, token) : Promise.resolve({ items: [], totais: {}, total: 0, capped: false }),
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, qR, token) : Promise.resolve({ items: [], totais: {} }),
+      (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token) : Promise.resolve({ items: [], totais: {} }),
     ]);
 
-    const names    = rRes.items.map((i: any) => (i.cliente?.nome ?? '').trim()).filter(Boolean);
-    const emailMap = await enrichEmails(names);
+    const names = rRes.items.map((i: any) => (i.cliente?.nome ?? '').trim()).filter(Boolean);
+    const em    = await enrichEmails(names);
 
     const receitas = rRes.items
-      .map((i: any) => normalize(i, 'RECEITA', emailMap))
+      .map((i: any) => norm(i, 'RECEITA', em))
       .sort((a: any, b: any) => (b.data_vencimento || '').localeCompare(a.data_vencimento || ''));
 
     const despesas = dRes.items
-      .map((i: any) => normalize(i, 'DESPESA'))
+      .map((i: any) => norm(i, 'DESPESA'))
       .sort((a: any, b: any) => (b.data_vencimento || '').localeCompare(a.data_vencimento || ''));
 
     const rT = rRes.totais ?? {};
@@ -156,14 +149,7 @@ export async function GET(req: Request) {
 
     const result = {
       receitas, despesas,
-      meta: {
-        fetchedReceitas:  receitas.length,
-        totalCAReceitas:  rRes.total,
-        cappedReceitas:   rRes.capped,
-        fetchedDespesas:  despesas.length,
-        totalCADespesas:  dRes.total,
-        periodo: { ini, fim },
-      },
+      meta: { fetchedReceitas: receitas.length, fetchedDespesas: despesas.length, periodo: { ini, fim } },
       totais: {
         totalReceitas:     rT.todos            ?? 0,
         totalDespesas:     dT.todos             ?? 0,

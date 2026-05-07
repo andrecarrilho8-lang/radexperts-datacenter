@@ -204,7 +204,7 @@ export default function ContaAzulPage() {
   // Date range — default: 12 months back → 6 months forward
   const hoje = new Date();
   const [dataInicio, setDataInicio] = useState(
-    new Date(hoje.getFullYear() - 2, hoje.getMonth(), 1).toISOString().split('T')[0]
+    new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0]
   );
   const [dataFim, setDataFim] = useState(
     new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0]
