@@ -1,3 +1,8 @@
+/**
+ * CA API usa `pagina` (1-indexed) para paginar, não `page`.
+ * Sempre retorna 10 itens/página. Batchs de 20 em paralelo.
+ * Com 1521 registros: 153 páginas → cap em 100 páginas = 1000 registros.
+ */
 import { NextResponse } from 'next/server';
 import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
 import { getDb, ensureSchema } from '@/app/lib/db';
@@ -21,46 +26,54 @@ async function caGet(path: string, token: string) {
 }
 
 /**
- * Busca todas as páginas com parada automática.
- * CA API retorna sempre 10 itens/página (ignora size).
- * Lotes de BATCH_SIZE páginas em paralelo.
- * Para quando um lote retornar MENOS items que o esperado (fim real dos dados).
+ * Busca todas as páginas usando `pagina` (1-indexed).
+ * Para automaticamente quando um lote retorna menos do que o esperado.
  */
 async function fetchAll(
   endpoint: string,
   qs: URLSearchParams,
   token: string,
-  maxPages  = 100,   // cap: 100×10 = 1000 registros máximo
-  batchSize = 20,    // páginas simultâneas por lote
-) {
-  const EXPECTED_PER_PAGE = 10;
-  const allItems: any[] = [];
-  let firstTotais: any  = {};
-  let done              = false;
+  maxPaginas = 100,  // cap: 100×10 = 1000 registros
+  batchSize  = 20,   // páginas paralelas por lote
+): Promise<{ items: any[]; totais: any }> {
+  const PER_PAGE = 10;
 
-  for (let start = 0; start < maxPages && !done; start += batchSize) {
-    const end   = Math.min(start + batchSize, maxPages);
-    const pages = Array.from({ length: end - start }, (_, i) => start + i);
+  // pagina=1 (primeira página, 1-indexed)
+  const q1 = new URLSearchParams(qs);
+  q1.set('pagina', '1');
+  let first: any;
+  try   { first = await caGet(`${endpoint}?${q1}`, token); }
+  catch (e: any) { console.error('[CA] pagina=1:', e.message); return { items: [], totais: {} }; }
+
+  const items1  = (first?.itens ?? []) as any[];
+  const total   = (first?.itens_totais ?? 0) as number;
+  const nPaginas = Math.min(Math.ceil(total / PER_PAGE), maxPaginas); // ex: min(153,100)=100
+
+  console.log(`[CA] ${endpoint.split('/').pop()}: total=${total} pages=${nPaginas}`);
+
+  if (nPaginas <= 1) return { items: items1, totais: first?.totais ?? {} };
+
+  // Busca paginas=2..nPaginas em lotes paralelos
+  const allItems: any[] = [...items1];
+  let done = false;
+
+  for (let start = 2; start <= nPaginas && !done; start += batchSize) {
+    const end   = Math.min(start + batchSize - 1, nPaginas);
+    const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
 
     const results = await Promise.all(pages.map(pg => {
       const q = new URLSearchParams(qs);
-      q.set('page', String(pg));
+      q.set('pagina', String(pg));
       return caGet(`${endpoint}?${q}`, token)
-        .then((r: any) => ({ items: r?.itens ?? [], totais: r?.totais }))
-        .catch(() => ({ items: [], totais: null }));
+        .then((r: any) => r?.itens ?? [] as any[])
+        .catch((e: any) => { console.warn(`[CA] pagina=${pg}: ${e.message}`); return [] as any[]; });
     }));
 
-    // Totais do page 0 para KPIs
-    if (start === 0 && results[0]?.totais) firstTotais = results[0].totais;
-
     let batchCount = 0;
-    for (const r of results) {
-      allItems.push(...r.items);
-      batchCount += r.items.length;
-    }
+    for (const arr of results) { allItems.push(...(arr as any[])); batchCount += (arr as any[]).length; }
 
-    // Se lote retornou menos do esperado → chegamos no fim
-    if (batchCount < pages.length * EXPECTED_PER_PAGE) done = true;
+    // Parada automática: lote incompleto = fim real dos dados
+    if (batchCount < pages.length * PER_PAGE) done = true;
   }
 
   // Deduplica por id
@@ -71,8 +84,8 @@ async function fetchAll(
     seen.add(k); return true;
   });
 
-  console.log(`[CA] ${endpoint.split('/').pop()}: ${items.length} itens (raw=${allItems.length})`);
-  return { items, totais: firstTotais };
+  console.log(`[CA] fetched ${items.length}/${total} (deduped from ${allItems.length})`);
+  return { items, totais: first?.totais ?? {} };
 }
 
 function norm(item: any, tipo: 'RECEITA' | 'DESPESA', em: Map<string, string> = new Map()) {
@@ -114,14 +127,14 @@ export async function GET(req: Request) {
   const dF    = sp.get('dataFim')    || '';
   const force = sp.get('force') === '1';
 
-  const key = `fin7|${tipo}|${dI}|${dF}`;
+  const key = `fin8|${tipo}|${dI}|${dF}`;
   if (!force) { const c = getCache(key); if (c) return NextResponse.json({ ...c, fromCache: true }); }
 
   try {
     const token = await getContaAzulToken();
     const hoje  = new Date();
     const ini   = dI || new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0];
-    const fim   = dF || new Date(hoje.getFullYear(),     hoje.getMonth() + 6, 0).toISOString().split('T')[0];
+    const fim   = dF || new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0];
 
     const epR = '/financeiro/eventos-financeiros/contas-a-receber/buscar';
     const epD = '/financeiro/eventos-financeiros/contas-a-pagar/buscar';
