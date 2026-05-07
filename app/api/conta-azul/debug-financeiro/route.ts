@@ -1,6 +1,5 @@
 /**
- * app/api/conta-azul/debug-financeiro/route.ts
- * Debug: retorna a resposta RAW da CA API para diagnóstico.
+ * Debug endpoint - testa paginação real da CA API
  */
 import { NextResponse } from 'next/server';
 import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
@@ -8,55 +7,66 @@ import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const page = searchParams.get('page') || '0';
-  const size = searchParams.get('size') || '50';
-
+export async function GET() {
   try {
     const token = await getContaAzulToken();
-    const hoje  = new Date();
-    const dInicio = new Date(hoje.getFullYear(), hoje.getMonth() - 12, 1).toISOString().split('T')[0];
-    const dFim    = new Date(hoje.getFullYear(), hoje.getMonth() + 6,  0).toISOString().split('T')[0];
+    const ep    = `${CA_API_BASE}/financeiro/eventos-financeiros/contas-a-receber/buscar`;
 
-    // Try multiple param variations to find what CA API accepts
-    const variants: Record<string, string> = {
-      'size+page (QueryString)':         `size=${size}&page=${page}&data_vencimento_de=${dInicio}&data_vencimento_ate=${dFim}`,
-      'limit+offset':                    `limit=${size}&offset=${+page * +size}&data_vencimento_de=${dInicio}&data_vencimento_ate=${dFim}`,
-      'pagina+itensPorPagina':           `pagina=${page}&itensPorPagina=${size}&data_vencimento_de=${dInicio}&data_vencimento_ate=${dFim}`,
-      'no pagination params':            `data_vencimento_de=${dInicio}&data_vencimento_ate=${dFim}`,
-    };
+    // Testa páginas 0, 1 e 2 SEM filtro de data - para ver se paginação funciona
+    const tests: Record<string, any> = {};
 
-    const results: Record<string, any> = {};
-
-    for (const [label, qs] of Object.entries(variants)) {
+    for (const pg of [0, 1, 2]) {
       try {
-        const url = `${CA_API_BASE}/financeiro/eventos-financeiros/contas-a-receber/buscar?${qs}`;
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        const r = await fetch(`${ep}?page=${pg}`, {
+          headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(10_000),
         });
-        const raw = await res.text();
-        let parsed: any;
-        try { parsed = JSON.parse(raw); } catch { parsed = raw.slice(0, 500); }
-
-        results[label] = {
-          status: res.status,
-          itens_totais: parsed?.itens_totais,
-          itens_count: parsed?.itens?.length ?? 0,
-          keys: typeof parsed === 'object' ? Object.keys(parsed) : [],
-          sample_item_keys: parsed?.itens?.[0] ? Object.keys(parsed.itens[0]) : [],
-          sample_status: parsed?.itens?.slice(0, 3).map((i: any) => ({ status: i.status, status_traduzido: i.status_traduzido })),
-          url,
+        const j = await r.json();
+        tests[`page=${pg}_nodate`] = {
+          status: r.status,
+          itens_count: j?.itens?.length ?? 0,
+          itens_totais: j?.itens_totais,
+          sample: j?.itens?.slice(0, 2).map((i: any) => ({ id: i.id, vencimento: i.data_vencimento, status: i.status })),
         };
-      } catch (e: any) {
-        results[label] = { error: e.message };
-      }
+      } catch (e: any) { tests[`page=${pg}_nodate`] = { error: e.message }; }
     }
 
-    return NextResponse.json(results, {
-      headers: { 'Cache-Control': 'no-store' },
-    });
+    // Testa WITH data filter (1 year)
+    const hoje = new Date();
+    const ini  = new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0];
+    const fim  = new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0];
+
+    for (const pg of [0, 1]) {
+      try {
+        const r = await fetch(`${ep}?page=${pg}&data_vencimento_de=${ini}&data_vencimento_ate=${fim}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        const j = await r.json();
+        tests[`page=${pg}_withdate(${ini}→${fim})`] = {
+          status: r.status,
+          itens_count: j?.itens?.length ?? 0,
+          itens_totais: j?.itens_totais,
+          sample: j?.itens?.slice(0, 2).map((i: any) => ({ id: i.id, vencimento: i.data_vencimento, status: i.status })),
+        };
+      } catch (e: any) { tests[`page=${pg}_withdate`] = { error: e.message }; }
+    }
+
+    // Testa com data_emissao em vez de data_vencimento
+    try {
+      const r = await fetch(`${ep}?page=0&data_emissao_de=${ini}&data_emissao_ate=${fim}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const j = await r.json();
+      tests['page=0_data_emissao'] = {
+        status: r.status,
+        itens_count: j?.itens?.length ?? 0,
+        itens_totais: j?.itens_totais,
+      };
+    } catch (e: any) { tests['page=0_data_emissao'] = { error: e.message }; }
+
+    return NextResponse.json(tests, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
