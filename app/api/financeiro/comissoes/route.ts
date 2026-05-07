@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     const manualRows = await sql`
       SELECT
         bp.email,
-        COALESCE(bp.name, ms.name, bp.email) AS nome,
+        COALESCE(bp.name, ms.student_name, bp.email) AS nome,
         bp.vendedor,
         bp.bp_valor       AS valor,
         bp.bp_pagamento   AS pagamento,
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
         bp.bp_primeira_parcela::bigint AS data_ms
       FROM buyer_profiles bp
       LEFT JOIN LATERAL (
-        SELECT course_name FROM manual_students
+        SELECT course_name, name AS student_name FROM manual_students
         WHERE email = bp.email
         ORDER BY entry_date DESC
         LIMIT 1
