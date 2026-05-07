@@ -211,9 +211,12 @@ export default function ContaAzulPage() {
   );
 
   // ── Client-side filter + pagination ─────────────────────────────────────
+  // Wrappers that reset page to 0 on every filter/search change
+  const applyStatusFiltro = (v: string) => { setStatusFiltro(v); setCurrentPage(0); };
+  const applySearchQuery  = (v: string) => { setSearchQuery(v);  setCurrentPage(0); };
+
   // CA API pode retornar status em inglês (ACQUITTED/PENDING/OVERDUE)
   // OU em português via status_traduzido (RECEBIDO/PENDENTE/VENCIDO).
-  // O filtro aceita ambos.
   const STATUS_ACCEPT: Record<string, string[]> = {
     PAGO:     ['ACQUITTED', 'RECEBIDO', 'PAGO'],
     PENDENTE: ['PENDING',   'PENDENTE'],
@@ -223,8 +226,8 @@ export default function ContaAzulPage() {
   const receitasFiltradas = allReceitas.filter(e => {
     if (statusFiltro) {
       const valid = STATUS_ACCEPT[statusFiltro] || [statusFiltro];
-      const s     = (e.status           || '').toUpperCase();
-      const st    = (e.status_traduzido  || '').toUpperCase();
+      const s  = (e.status          || '').toUpperCase();
+      const st = (e.status_traduzido || '').toUpperCase();
       if (!valid.includes(s) && !valid.includes(st)) return false;
     }
     if (searchQuery) {
@@ -238,9 +241,11 @@ export default function ContaAzulPage() {
     return true;
   });
   const totalFiltrado  = receitasFiltradas.length;
-  const totalPaginas   = Math.ceil(totalFiltrado / PAGE_SIZE) || 1;
-  const receitasPagina = receitasFiltradas.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
-
+  const totalPaginas   = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
+  const receitasPagina = receitasFiltradas.slice(
+    currentPage * PAGE_SIZE,
+    (currentPage + 1) * PAGE_SIZE
+  );
 
   const checkConnection = useCallback(async () => {
     try {
@@ -506,7 +511,7 @@ export default function ContaAzulPage() {
               ].map(f => {
                 const isActive = statusFiltro === f.value;
                 return (
-                  <button key={f.value} onClick={() => setStatusFiltro(f.value)} style={{
+                  <button key={f.value} onClick={() => applyStatusFiltro(f.value)} style={{
                     padding: '6px 14px', borderRadius: 8, border: `1px solid ${isActive ? f.color + '60' : 'rgba(255,255,255,0.08)'}`,
                     cursor: 'pointer', fontSize: 10, fontWeight: 900,
                     letterSpacing: '0.1em', textTransform: 'uppercase',
@@ -530,7 +535,7 @@ export default function ContaAzulPage() {
                 type="text"
                 placeholder="Buscar cliente, email, descrição..."
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => applySearchQuery(e.target.value)}
                 style={{
                   width: '100%', boxSizing: 'border-box' as any,
                   padding: '7px 12px 7px 32px', borderRadius: 8,
@@ -626,8 +631,8 @@ export default function ContaAzulPage() {
                 emptyMsg={searchQuery ? 'Nenhum resultado para a busca' : 'Nenhuma receita encontrada'}
               />
 
-              {/* Paginação */}
-              {totalPaginas > 1 && (
+              {/* Paginação — sempre visível quando há dados */}
+              {allReceitas.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                   <span style={{ color: SILVER, fontSize: 11 }}>
                     Página {currentPage + 1} de {totalPaginas}
