@@ -1,5 +1,6 @@
 /**
- * Debug endpoint - testa paginação real da CA API
+ * Debug: descobre o parâmetro correto de paginação da CA API.
+ * Testa: pagina, offset, cursor, etc.
  */
 import { NextResponse } from 'next/server';
 import { getContaAzulToken, CA_API_BASE } from '@/app/lib/contaAzulAuth';
@@ -9,64 +10,49 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   try {
-    const token = await getContaAzulToken();
-    const ep    = `${CA_API_BASE}/financeiro/eventos-financeiros/contas-a-receber/buscar`;
+    const token  = await getContaAzulToken();
+    const ep     = `${CA_API_BASE}/financeiro/eventos-financeiros/contas-a-receber/buscar`;
+    const hoje   = new Date();
+    const ini    = new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0];
+    const fim    = new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0];
+    const dates  = `data_vencimento_de=${ini}&data_vencimento_ate=${fim}`;
 
-    // Testa páginas 0, 1 e 2 SEM filtro de data - para ver se paginação funciona
-    const tests: Record<string, any> = {};
-
-    for (const pg of [0, 1, 2]) {
+    async function test(label: string, qs: string) {
       try {
-        const r = await fetch(`${ep}?page=${pg}`, {
+        const r = await fetch(`${ep}?${qs}`, {
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(10_000),
         });
         const j = await r.json();
-        tests[`page=${pg}_nodate`] = {
-          status: r.status,
-          itens_count: j?.itens?.length ?? 0,
-          itens_totais: j?.itens_totais,
-          sample: j?.itens?.slice(0, 2).map((i: any) => ({ id: i.id, vencimento: i.data_vencimento, status: i.status })),
-        };
-      } catch (e: any) { tests[`page=${pg}_nodate`] = { error: e.message }; }
+        const ids = (j?.itens ?? []).slice(0,2).map((i:any) => i.id?.slice(0,8));
+        return { status: r.status, count: j?.itens?.length ?? 0, totais: j?.itens_totais, ids };
+      } catch (e: any) { return { error: e.message }; }
     }
 
-    // Testa WITH data filter (1 year)
-    const hoje = new Date();
-    const ini  = new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0];
-    const fim  = new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0];
+    const results: Record<string,any> = {};
 
-    for (const pg of [0, 1]) {
-      try {
-        const r = await fetch(`${ep}?page=${pg}&data_vencimento_de=${ini}&data_vencimento_ate=${fim}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(10_000),
-        });
-        const j = await r.json();
-        tests[`page=${pg}_withdate(${ini}→${fim})`] = {
-          status: r.status,
-          itens_count: j?.itens?.length ?? 0,
-          itens_totais: j?.itens_totais,
-          sample: j?.itens?.slice(0, 2).map((i: any) => ({ id: i.id, vencimento: i.data_vencimento, status: i.status })),
-        };
-      } catch (e: any) { tests[`page=${pg}_withdate`] = { error: e.message }; }
-    }
+    // Testar diferentes nomes de parâmetro para página 2
+    results['page=0']         = await test('p0',  `${dates}&page=0`);
+    results['page=1']         = await test('p1',  `${dates}&page=1`);
+    results['page=2']         = await test('p2',  `${dates}&page=2`);
+    results['pagina=1']       = await test('pag1',`${dates}&pagina=1`);
+    results['pagina=2']       = await test('pag2',`${dates}&pagina=2`);
+    results['pagina=3']       = await test('pag3',`${dates}&pagina=3`);
+    results['offset=0']       = await test('off0',`${dates}&offset=0`);
+    results['offset=10']      = await test('off10',`${dates}&offset=10`);
+    results['offset=20']      = await test('off20',`${dates}&offset=20`);
+    results['size=50&page=0'] = await test('s50p0',`${dates}&size=50&page=0`);
+    results['size=50&pagina=1'] = await test('s50pag1',`${dates}&size=50&pagina=1`);
+    results['itensPorPagina=50&pagina=1'] = await test('ipp50pag1',`${dates}&itensPorPagina=50&pagina=1`);
+    results['itensPorPagina=50&pagina=2'] = await test('ipp50pag2',`${dates}&itensPorPagina=50&pagina=2`);
+    results['per_page=50&page=0'] = await test('pp50p0',`${dates}&per_page=50&page=0`);
+    results['limit=50&skip=0']   = await test('l50s0',`${dates}&limit=50&skip=0`);
+    results['limit=50&skip=10']  = await test('l50s10',`${dates}&limit=50&skip=10`);
 
-    // Testa com data_emissao em vez de data_vencimento
-    try {
-      const r = await fetch(`${ep}?page=0&data_emissao_de=${ini}&data_emissao_ate=${fim}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-      });
-      const j = await r.json();
-      tests['page=0_data_emissao'] = {
-        status: r.status,
-        itens_count: j?.itens?.length ?? 0,
-        itens_totais: j?.itens_totais,
-      };
-    } catch (e: any) { tests['page=0_data_emissao'] = { error: e.message }; }
+    // IDs de referência (page=0 para comparar)
+    results['_note'] = 'Se ids forem iguais ao page=0, o param é ignorado. IDs diferentes = paginação funciona!';
 
-    return NextResponse.json(tests, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json(results, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
