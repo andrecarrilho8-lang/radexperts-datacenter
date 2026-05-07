@@ -180,7 +180,8 @@ export default function ComissoesPage() {
   const [vendedor,   setVendedor]   = useState('');
   const [dateFrom,   setDateFrom]   = useState(ctxFrom || new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0]);
   const [dateTo,     setDateTo]     = useState(ctxTo   || new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).toISOString().split('T')[0]);
-  const [produto,    setProduto]    = useState('');
+  const [produtos,   setProdutos]   = useState<Set<string>>(new Set());
+  const [prodOpen,   setProdOpen]   = useState(false);
   const [report,     setReport]     = useState<any|null>(null);
   const [generating, setGenerating] = useState(false);
   const [error,      setError]      = useState('');
@@ -189,13 +190,15 @@ export default function ComissoesPage() {
   const [allData,    setAllData]    = useState<any[]>([]);
   const [loadingMeta,setLoadingMeta]= useState(true);
 
-  // Fetch metadata (vendor + product lists) on mount
+  // Fetch metadata with wide range to populate vendor+product lists
   useEffect(() => {
-    fetch(`/api/financeiro/comissoes?dateFrom=${dateFrom}&dateTo=${dateTo}`)
-      .then(r=>r.json())
-      .then(j=>{ setAllData(j.vendedores||[]); setLoadingMeta(false); })
-      .catch(()=>setLoadingMeta(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const h = new Date();
+    const wide_from = new Date(h.getFullYear() - 1, h.getMonth(), 1).toISOString().split('T')[0];
+    const wide_to   = h.toISOString().split('T')[0];
+    fetch(`/api/financeiro/comissoes?dateFrom=${wide_from}&dateTo=${wide_to}`)
+      .then(r => r.json())
+      .then(j => { setAllData(j.vendedores || []); setLoadingMeta(false); })
+      .catch(() => setLoadingMeta(false));
   }, []);
 
   const vendedorList = useMemo(()=> allData.map((v:any)=>v.nome as string).filter(Boolean).sort(), [allData]);
@@ -214,11 +217,11 @@ export default function ComissoesPage() {
       if (!res.ok) throw new Error(json.error || 'Erro ao carregar');
       const vdata = (json.vendedores||[]).find((v:any)=>v.nome===vendedor);
       let itens: any[] = vdata?.itens || [];
-      if (produto) itens = itens.filter((it:any)=>it.produto===produto);
-      setReport({ vendedor, itens, dateFrom, dateTo });
+      if (produtos.size > 0) itens = itens.filter((it:any)=>produtos.has(it.produto));
+      setReport({ vendedor, itens, dateFrom, dateTo, produtosFiltro: produtos.size > 0 ? [...produtos] : [] });
     } catch(e:any) { setError(e.message); }
     finally { setGenerating(false); }
-  }, [vendedor, dateFrom, dateTo, produto]);
+  }, [vendedor, dateFrom, dateTo, produtos]);
 
   const inputStyle: React.CSSProperties = {
     width:'100%', padding:'12px 16px', borderRadius:12, fontSize:13, fontWeight:700,
@@ -316,15 +319,39 @@ export default function ComissoesPage() {
               {/* Divider */}
               <div style={{height:1,background:'rgba(255,255,255,0.06)'}}/>
 
-              {/* Step 3 – Produtos */}
+              {/* Step 3 – Produtos (multi-select) */}
               <div>
-                <Step n={3} label="Produto" icon="school"/>
+                <Step n={3} label={`Produtos${produtos.size > 0 ? ` · ${produtos.size} selecionado${produtos.size>1?'s':''}` : ''}`} icon="school"/>
                 <div style={{position:'relative'}}>
-                  <select value={produto} onChange={e=>setProduto(e.target.value)} style={{...selectStyle,paddingRight:36}}>
-                    <option value="" style={{background:NAVY}}>Todos os produtos</option>
-                    {produtoList.map(p=><option key={p} value={p} style={{background:NAVY}}>{p}</option>)}
-                  </select>
-                  <span className="material-symbols-outlined" style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',fontSize:16,color:SILVER,pointerEvents:'none'}}>expand_more</span>
+                  {/* Trigger */}
+                  <button onClick={()=>setProdOpen(o=>!o)} style={{...selectStyle,textAlign:'left',display:'flex',alignItems:'center',justifyContent:'space-between',paddingRight:16}}>
+                    <span style={{color: produtos.size>0?'#fff':SILVER}}>
+                      {produtos.size===0 ? 'Todos os produtos' : [...produtos].slice(0,2).join(', ')+(produtos.size>2?` +${produtos.size-2}`:'')}
+                    </span>
+                    <span className="material-symbols-outlined" style={{fontSize:16,color:SILVER,flexShrink:0}}>{prodOpen?'expand_less':'expand_more'}</span>
+                  </button>
+                  {/* Dropdown */}
+                  {prodOpen && (
+                    <div style={{position:'absolute',top:'calc(100% + 6px)',left:0,right:0,zIndex:100,background:'#0a1628',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,overflow:'hidden',boxShadow:'0 16px 40px rgba(0,0,0,0.6)',maxHeight:260,overflowY:'auto'}}>
+                      {/* Clear all */}
+                      <button onClick={()=>{setProdutos(new Set());}} style={{width:'100%',padding:'10px 16px',textAlign:'left',background:'transparent',border:'none',borderBottom:'1px solid rgba(255,255,255,0.06)',color:SILVER,fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:8}}>
+                        <span className="material-symbols-outlined" style={{fontSize:13}}>close</span>
+                        Todos os produtos (limpar seleção)
+                      </button>
+                      {produtoList.map(p => {
+                        const sel = produtos.has(p);
+                        return (
+                          <button key={p} onClick={()=>{ const s=new Set(produtos); sel?s.delete(p):s.add(p); setProdutos(s); }}
+                            style={{width:'100%',padding:'10px 16px',textAlign:'left',background:sel?'rgba(232,177,79,0.08)':'transparent',border:'none',borderBottom:'1px solid rgba(255,255,255,0.04)',color:sel?GOLD:'#fff',fontSize:12,fontWeight:sel?900:400,cursor:'pointer',display:'flex',alignItems:'center',gap:10,transition:'all 0.1s'}}>
+                            <div style={{width:16,height:16,borderRadius:5,border:`2px solid ${sel?GOLD:'rgba(255,255,255,0.2)'}`,background:sel?`${GOLD}20`:'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                              {sel && <span className="material-symbols-outlined" style={{fontSize:11,color:GOLD}}>check</span>}
+                            </div>
+                            {p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
