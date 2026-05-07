@@ -186,7 +186,7 @@ export default function ContaAzulPage() {
     }
   }, [checkingAuth, userRole, router]);
 
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 25;
   const [activeTab,     setActiveTab]     = useState<'financeiro' | 'vendas' | 'pessoas' | 'contratos'>('financeiro');
   const [connected,     setConnected]     = useState<boolean | null>(null);
   const [loading,       setLoading]       = useState(false);
@@ -238,7 +238,7 @@ export default function ContaAzulPage() {
     return true;
   });
   const totalFiltrado  = receitasFiltradas.length;
-  const totalPaginas   = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
+  const totalPaginas   = Math.ceil(totalFiltrado / PAGE_SIZE) || 1;
   const receitasPagina = receitasFiltradas.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
 
 
