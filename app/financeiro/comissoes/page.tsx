@@ -187,26 +187,24 @@ export default function ComissoesPage() {
   const [error,      setError]      = useState('');
 
   // Background data for populating selects
-  const [allData,    setAllData]    = useState<any[]>([]);
-  const [loadingMeta,setLoadingMeta]= useState(true);
+  const [vendedorListState, setVendedorList] = useState<string[]>([]);
+  const [produtoListState,  setProdutoList]  = useState<string[]>([]);
+  const [loadingMeta, setLoadingMeta] = useState(true);
 
-  // Fetch metadata with wide range to populate vendor+product lists
+  // Fetch vendor+product lists from lightweight endpoint (no date filter)
   useEffect(() => {
-    const h = new Date();
-    const wide_from = new Date(h.getFullYear() - 1, h.getMonth(), 1).toISOString().split('T')[0];
-    const wide_to   = h.toISOString().split('T')[0];
-    fetch(`/api/financeiro/comissoes?dateFrom=${wide_from}&dateTo=${wide_to}`)
+    fetch('/api/financeiro/vendedores')
       .then(r => r.json())
-      .then(j => { setAllData(j.vendedores || []); setLoadingMeta(false); })
+      .then(j => {
+        setVendedorList(j.vendedores || []);
+        setProdutoList(j.produtos   || []);
+        setLoadingMeta(false);
+      })
       .catch(() => setLoadingMeta(false));
   }, []);
 
-  const vendedorList = useMemo(()=> allData.map((v:any)=>v.nome as string).filter(Boolean).sort(), [allData]);
-  const produtoList  = useMemo(()=>{
-    const s = new Set<string>();
-    allData.forEach(v=>(v.itens||[]).forEach((it:any)=>{ if(it.produto) s.add(it.produto); }));
-    return Array.from(s).sort();
-  }, [allData]);
+  const vendedorList = vendedorListState;
+  const produtoList  = produtoListState;
 
   const handleGerar = useCallback(async () => {
     if (!vendedor) { setError('Selecione um vendedor'); return; }
