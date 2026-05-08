@@ -57,7 +57,8 @@ export default function ComissoesPage() {
   const openDropdown = () => {
     if (!prodOpen && triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect();
-      setDropRect({ top: r.bottom + 6 + window.scrollY, left: r.left + window.scrollX, width: r.width });
+      // position:fixed is viewport-relative — do NOT add scrollY/scrollX
+      setDropRect({ top: r.bottom + 6, left: r.left, width: r.width });
     }
     setProdOpen(o => !o);
   };
