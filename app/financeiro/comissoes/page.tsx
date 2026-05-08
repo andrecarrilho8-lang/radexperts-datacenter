@@ -29,7 +29,10 @@ export default function ComissoesPage() {
   const [produtoList,  setProdutoList]  = useState<string[]>([]);
   const [loadingMeta,  setLoadingMeta]  = useState(true);
 
-  const reportRef = useRef<HTMLDivElement>(null);
+  const reportRef  = useRef<HTMLDivElement>(null);
+  const triggerRef  = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropRect, setDropRect] = useState<{top:number;left:number;width:number}|null>(null);
 
   useEffect(() => {
     fetch('/api/financeiro/vendedores')
@@ -37,6 +40,27 @@ export default function ComissoesPage() {
       .then(j => { setVendedorList(j.vendedores || []); setProdutoList(j.produtos || []); setLoadingMeta(false); })
       .catch(() => setLoadingMeta(false));
   }, []);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!prodOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) setProdOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [prodOpen]);
+
+  const openDropdown = () => {
+    if (!prodOpen && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropRect({ top: r.bottom + 6 + window.scrollY, left: r.left + window.scrollX, width: r.width });
+    }
+    setProdOpen(o => !o);
+  };
 
   const handleGerar = useCallback(async () => {
     if (!vendedor) { setError('Selecione um vendedor'); return; }
@@ -315,34 +339,43 @@ export default function ComissoesPage() {
               <div>
                 <Step n={3} label={`Produtos${produtos.size > 0 ? ` · ${produtos.size} selecionado${produtos.size>1?'s':''}` : ''}`} icon="school"/>
                 <div style={{ position:'relative' }}>
-                  <button onClick={() => setProdOpen(o => !o)} style={{ ...selectStyle, textAlign:'left', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <button ref={triggerRef} onClick={openDropdown}
+                    style={{ ...selectStyle, textAlign:'left', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
                     <span style={{ color: produtos.size>0?'#fff':SILVER }}>
                       {produtos.size===0 ? 'Todos os produtos' : [...produtos].slice(0,2).join(', ')+(produtos.size>2?` +${produtos.size-2}`:'')}
                     </span>
                     <span className="material-symbols-outlined" style={{ fontSize:16, color:SILVER }}>{prodOpen?'expand_less':'expand_more'}</span>
                   </button>
-                  {prodOpen && (
-                    <div style={{ position:'absolute', top:'calc(100% + 6px)', left:0, right:0, zIndex:100, background:'#0a1628', border:'1px solid rgba(255,255,255,0.12)', borderRadius:12, overflow:'hidden', boxShadow:'0 16px 40px rgba(0,0,0,0.6)', maxHeight:260, overflowY:'auto' }}>
-                      <button onClick={() => setProdutos(new Set())} style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.06)', color:SILVER, fontSize:11, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize:13 }}>close</span>
-                        Todos os produtos (limpar)
-                      </button>
-                      {produtoList.map(p => {
-                        const sel = produtos.has(p);
-                        return (
-                          <button key={p} onClick={() => { const s = new Set(produtos); sel ? s.delete(p) : s.add(p); setProdutos(s); }}
-                            style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:sel?'rgba(232,177,79,0.08)':'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.04)', color:sel?GOLD:'#fff', fontSize:12, fontWeight:sel?900:400, cursor:'pointer', display:'flex', alignItems:'center', gap:10, transition:'all 0.1s' }}>
-                            <div style={{ width:16, height:16, borderRadius:5, border:`2px solid ${sel?GOLD:'rgba(255,255,255,0.2)'}`, background:sel?`${GOLD}20`:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                              {sel && <span className="material-symbols-outlined" style={{ fontSize:11, color:GOLD }}>check</span>}
-                            </div>
-                            {p}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               </div>
+
+              {/* Dropdown rendered via fixed position to escape overflow:hidden */}
+              {prodOpen && dropRect && (
+                <div ref={dropdownRef} style={{
+                  position:'fixed', top:dropRect.top, left:dropRect.left, width:dropRect.width,
+                  zIndex:9999, background:'#0a1628', border:'1px solid rgba(255,255,255,0.14)',
+                  borderRadius:14, overflow:'hidden', boxShadow:'0 20px 50px rgba(0,0,0,0.75)',
+                  maxHeight:280, overflowY:'auto',
+                }}>
+                  <button onClick={() => setProdutos(new Set())}
+                    style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.06)', color:SILVER, fontSize:11, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize:13 }}>close</span>
+                    Todos os produtos (limpar)
+                  </button>
+                  {produtoList.map(p => {
+                    const sel = produtos.has(p);
+                    return (
+                      <button key={p} onClick={() => { const s = new Set(produtos); sel ? s.delete(p) : s.add(p); setProdutos(s); }}
+                        style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:sel?'rgba(232,177,79,0.08)':'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.04)', color:sel?GOLD:'#fff', fontSize:12, fontWeight:sel?900:400, cursor:'pointer', display:'flex', alignItems:'center', gap:10, transition:'all 0.1s' }}>
+                        <div style={{ width:16, height:16, borderRadius:5, border:`2px solid ${sel?GOLD:'rgba(255,255,255,0.2)'}`, background:sel?`${GOLD}20`:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          {sel && <span className="material-symbols-outlined" style={{ fontSize:11, color:GOLD }}>check</span>}
+                        </div>
+                        {p}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {error && (
                 <div style={{ padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#f87171', fontSize:12, fontWeight:700 }}>
