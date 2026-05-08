@@ -25,33 +25,45 @@ export async function GET(request: Request) {
     await boot();
     const sql = getDb();
 
-    // ── 1. Alunos manuais com vendedor e valor no período ─────────────────────
-    // bp_primeira_parcela = epoch ms da 1ª parcela/compra manual
-    const fromMs = new Date(dateFrom).getTime();
-    const toMs   = new Date(dateTo + 'T23:59:59').getTime();
 
+    // Expande parcelas com generate_series: cada parcela = data_primeira + N meses.
+    // Filtra apenas parcelas cujo vencimento caiu no período selecionado.
     const manualRows = await sql`
       SELECT
         bp.email,
-        COALESCE(bp.name, ms.student_name, bp.email) AS nome,
+        COALESCE(bp.name, ms.student_name, bp.email)         AS nome,
         bp.vendedor,
-        bp.bp_valor       AS valor,
-        bp.bp_pagamento   AS pagamento,
         ms.course_name,
-        bp.bp_primeira_parcela::bigint AS data_ms
+        n.parcelas,
+        ROUND((bp.bp_valor / n.parcelas)::numeric, 2)        AS valor_parcela,
+        (
+          to_timestamp(bp.bp_primeira_parcela::bigint / 1000.0)
+          + (gs.mes || ' months')::interval
+        )::date                                               AS data_parcela,
+        gs.mes + 1                                            AS parcela_num
       FROM buyer_profiles bp
+      CROSS JOIN LATERAL (
+        SELECT GREATEST(1,
+          CASE WHEN bp.bp_pagamento ~ '^\d+'
+               THEN (regexp_match(bp.bp_pagamento, '(\d+)'))[1]::int
+               ELSE 1 END
+        ) AS parcelas
+      ) n
+      CROSS JOIN generate_series(0, n.parcelas - 1) gs(mes)
       LEFT JOIN LATERAL (
-        SELECT course_name, name AS student_name FROM manual_students
+        SELECT course_name, name AS student_name
+        FROM manual_students
         WHERE email = bp.email
         ORDER BY entry_date DESC
         LIMIT 1
       ) ms ON TRUE
       WHERE bp.vendedor IS NOT NULL
-        AND bp.bp_valor  IS NOT NULL
-        AND bp.bp_valor  > 0
+        AND bp.bp_valor        > 0
         AND bp.bp_primeira_parcela IS NOT NULL
-        AND bp.bp_primeira_parcela::bigint >= ${fromMs}
-        AND bp.bp_primeira_parcela::bigint <= ${toMs}
+        AND (
+          to_timestamp(bp.bp_primeira_parcela::bigint / 1000.0)
+          + (gs.mes || ' months')::interval
+        )::date BETWEEN ${dateFrom}::date AND ${dateTo}::date
     ` as any[];
 
     // ── 2. Hotmart sales no período ──────────────────────────────────────────
@@ -152,16 +164,19 @@ export async function GET(request: Request) {
     // Manuais
     manualRows.forEach((row: any) => {
       const entry = getOrCreate(row.vendedor);
-      const data  = row.data_ms ? new Date(Number(row.data_ms)).toISOString().slice(0, 10) : '—';
+      const data  = row.data_parcela ? String(row.data_parcela) : '—';
+      const valor = Number(row.valor_parcela) || 0;
+      const nParcelas = Number(row.parcelas) || 1;
+      const nParcela  = Number(row.parcela_num) || 1;
       entry.manualVendas++;
-      entry.manualValor += Number(row.valor) || 0;
+      entry.manualValor += valor;
       entry.itens.push({
         fonte:   'manual',
         nome:    row.nome || row.email,
         email:   row.email,
-        produto: row.course_name || 'Manual',
-        valor:   Number(row.valor) || 0,
-        bruto:   Number(row.valor) || 0,
+        produto: `${row.course_name || 'Manual'}${nParcelas > 1 ? ` (${nParcela}/${nParcelas})` : ''}`,
+        valor,
+        bruto:   valor,
         data,
       });
     });
