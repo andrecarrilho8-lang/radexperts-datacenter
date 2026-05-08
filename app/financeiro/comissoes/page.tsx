@@ -171,11 +171,19 @@ export default function ComissoesPage() {
                   <div style={{ width:3, height:20, borderRadius:2, background:ORANGE }}/>
                   <p style={{ fontSize:10, fontWeight:900, textTransform:'uppercase', letterSpacing:'0.14em', color:ORANGE }}>Hotmart · Valor Líquido ao Produtor</p>
                 </div>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, tableLayout:'fixed' }}>
+                  <colgroup>
+                    <col style={{ width:'3%' }}/>
+                    <col style={{ width:'20%' }}/>
+                    <col style={{ width:'24%' }}/>
+                    <col style={{ width:'30%' }}/>
+                    <col style={{ width:'10%' }}/>
+                    <col style={{ width:'13%' }}/>
+                  </colgroup>
                   <thead>
                     <tr style={{ borderBottom:'2px solid #e8e6de' }}>
                       {['#','Aluno','E-mail','Produto','Data','Valor Líq.'].map(h => (
-                        <th key={h} style={{ padding:'6px 8px', textAlign:'left', fontWeight:900, fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'#888' }}>{h}</th>
+                        <th key={h} style={{ padding:'6px 8px', textAlign:'left', fontWeight:900, fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'#888', overflow:'hidden' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -183,16 +191,16 @@ export default function ComissoesPage() {
                     {perH.map((it: any, i: number) => (
                       <tr key={i} style={{ borderBottom:'1px solid #edeae0', background:i%2===0?'#fff':'#faf9f5' }}>
                         <td style={{ padding:'8px', color:'#aaa', fontSize:11 }}>{i+1}</td>
-                        <td style={{ padding:'8px', fontWeight:700, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.nome}>{it.nome}</td>
-                        <td style={{ padding:'8px', color:'#666', fontSize:11, maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.email}>{it.email}</td>
-                        <td style={{ padding:'8px', color:'#444', maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.produto}>{it.produto}</td>
-                        <td style={{ padding:'8px', whiteSpace:'nowrap', color:'#666' }}>{it.data!=='—'?D(it.data):'—'}</td>
-                        <td style={{ padding:'8px', fontWeight:900, color:'#b45309' }}>{R(it.valor)}</td>
+                        <td style={{ padding:'8px', fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.nome}>{it.nome}</td>
+                        <td style={{ padding:'8px', color:'#666', fontSize:11, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.email}>{it.email}</td>
+                        <td style={{ padding:'8px', color:'#444', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.produto}>{it.produto}</td>
+                        <td style={{ padding:'8px', whiteSpace:'nowrap', color:'#666', fontSize:11 }}>{it.data!=='—'?D(it.data):'—'}</td>
+                        <td style={{ padding:'8px', fontWeight:900, color:'#b45309', whiteSpace:'nowrap', textAlign:'right' }}>{R(it.valor)}</td>
                       </tr>
                     ))}
                     <tr style={{ borderTop:'2px solid #e8e6de', background:'#fff7ed' }}>
                       <td colSpan={5} style={{ padding:'10px 8px', fontWeight:900, fontSize:10, textAlign:'right', textTransform:'uppercase', letterSpacing:'0.1em', color:'#999' }}>Subtotal Hotmart</td>
-                      <td style={{ padding:'10px 8px', fontWeight:900, fontSize:16, color:'#b45309' }}>{R(totalH)}</td>
+                      <td style={{ padding:'10px 8px', fontWeight:900, fontSize:15, color:'#b45309', textAlign:'right' }}>{R(totalH)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -206,11 +214,19 @@ export default function ComissoesPage() {
                   <div style={{ width:3, height:20, borderRadius:2, background:'#2563eb' }}/>
                   <p style={{ fontSize:10, fontWeight:900, textTransform:'uppercase', letterSpacing:'0.14em', color:'#2563eb' }}>Parcelas Manuais · Vencimentos no Período</p>
                 </div>
-                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, tableLayout:'fixed' }}>
+                  <colgroup>
+                    <col style={{ width:'3%' }}/>
+                    <col style={{ width:'20%' }}/>
+                    <col style={{ width:'24%' }}/>
+                    <col style={{ width:'30%' }}/>
+                    <col style={{ width:'10%' }}/>
+                    <col style={{ width:'13%' }}/>
+                  </colgroup>
                   <thead>
                     <tr style={{ borderBottom:'2px solid #e8e6de' }}>
                       {['#','Aluno','E-mail','Produto / Parcela','Data Venc.','Valor'].map(h => (
-                        <th key={h} style={{ padding:'6px 8px', textAlign:'left', fontWeight:900, fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'#888' }}>{h}</th>
+                        <th key={h} style={{ padding:'6px 8px', textAlign:'left', fontWeight:900, fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'#888', overflow:'hidden' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -218,16 +234,16 @@ export default function ComissoesPage() {
                     {perM.map((it: any, i: number) => (
                       <tr key={i} style={{ borderBottom:'1px solid #edeae0', background:i%2===0?'#fff':'#faf9f5' }}>
                         <td style={{ padding:'8px', color:'#aaa', fontSize:11 }}>{i+1}</td>
-                        <td style={{ padding:'8px', fontWeight:700, maxWidth:130, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.nome}>{it.nome}</td>
-                        <td style={{ padding:'8px', color:'#666', fontSize:11, maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.email}>{it.email}</td>
-                        <td style={{ padding:'8px', color:'#444', maxWidth:150, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.produto}>{it.produto}</td>
-                        <td style={{ padding:'8px', whiteSpace:'nowrap', color:'#666' }}>{it.data!=='—'?D(it.data):'—'}</td>
-                        <td style={{ padding:'8px', fontWeight:900, color:'#1d4ed8' }}>{R(it.valor)}</td>
+                        <td style={{ padding:'8px', fontWeight:700, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.nome}>{it.nome}</td>
+                        <td style={{ padding:'8px', color:'#666', fontSize:11, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.email}>{it.email}</td>
+                        <td style={{ padding:'8px', color:'#444', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it.produto}>{it.produto}</td>
+                        <td style={{ padding:'8px', whiteSpace:'nowrap', color:'#666', fontSize:11 }}>{it.data!=='—'?D(it.data):'—'}</td>
+                        <td style={{ padding:'8px', fontWeight:900, color:'#1d4ed8', whiteSpace:'nowrap', textAlign:'right' }}>{R(it.valor)}</td>
                       </tr>
                     ))}
                     <tr style={{ borderTop:'2px solid #e8e6de', background:'#eff6ff' }}>
                       <td colSpan={5} style={{ padding:'10px 8px', fontWeight:900, fontSize:10, textAlign:'right', textTransform:'uppercase', letterSpacing:'0.1em', color:'#999' }}>Subtotal Manual</td>
-                      <td style={{ padding:'10px 8px', fontWeight:900, fontSize:16, color:'#1d4ed8' }}>{R(totalM)}</td>
+                      <td style={{ padding:'10px 8px', fontWeight:900, fontSize:15, color:'#1d4ed8', textAlign:'right' }}>{R(totalM)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -262,7 +278,9 @@ export default function ComissoesPage() {
       <div style={{ position:'fixed', inset:0, zIndex:0, pointerEvents:'none', background:'linear-gradient(160deg,rgba(8,8,12,0.72) 0%,rgba(18,18,24,0.65) 100%)' }}/>
       <div className="min-h-screen pb-24" style={{ position:'relative', zIndex:1 }}>
         <div className="h-[146px]"/>
-        <main className="px-3 sm:px-6 max-w-[720px] mx-auto pt-4 sm:pt-10">
+
+        {/* Wizard form — narrow */}
+        <div className="no-print px-3 sm:px-6 max-w-[720px] mx-auto pt-4 sm:pt-10">
 
           {/* Header */}
           <div className="no-print" style={{ display:'flex', alignItems:'center', gap:16, marginBottom:40 }}>
@@ -376,21 +394,45 @@ export default function ComissoesPage() {
             </div>
           </div>
 
-          {/* Inline Report */}
-          <ReportSection />
+        </div>{/* end wizard form */}
 
-        </main>
+        {/* Report section — wide container */}
+        {report && (
+          <div className="px-3 sm:px-6 max-w-[1100px] mx-auto pb-16 mt-2">
+            <ReportSection />
+          </div>
+        )}
+
       </div>
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         select option { background: ${NAVY}; color: #fff; }
         input[type=date]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.4); }
+
+        @page { size: A4 landscape; margin: 10mm; }
+
         @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; }
-          #report-section { margin-top: 0 !important; }
-          #report-doc { box-shadow: none !important; border-radius: 0 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body > * { display: none !important; }
+          body { background: #fff !important; margin: 0 !important; }
+          #report-section {
+            display: block !important;
+            position: fixed !important;
+            top: 0 !important; left: 0 !important;
+            width: 100vw !important;
+            z-index: 99999 !important;
+            margin: 0 !important;
+          }
+          #report-doc {
+            display: block !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            width: 100% !important;
+          }
+          table { page-break-inside: auto !important; }
+          tr { page-break-inside: avoid !important; page-break-after: auto !important; }
+          thead { display: table-header-group !important; }
         }
       `}</style>
 
