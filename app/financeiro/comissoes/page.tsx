@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { R, D } from '@/app/lib/utils';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
 
@@ -350,34 +351,6 @@ export default function ComissoesPage() {
                 </div>
               </div>
 
-              {/* Dropdown rendered via fixed position to escape overflow:hidden */}
-              {prodOpen && dropRect && (
-                <div ref={dropdownRef} style={{
-                  position:'fixed', top:dropRect.top, left:dropRect.left, width:dropRect.width,
-                  zIndex:9999, background:'#0a1628', border:'1px solid rgba(255,255,255,0.14)',
-                  borderRadius:14, overflow:'hidden', boxShadow:'0 20px 50px rgba(0,0,0,0.75)',
-                  maxHeight:280, overflowY:'auto',
-                }}>
-                  <button onClick={() => setProdutos(new Set())}
-                    style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.06)', color:SILVER, fontSize:11, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize:13 }}>close</span>
-                    Todos os produtos (limpar)
-                  </button>
-                  {produtoList.map(p => {
-                    const sel = produtos.has(p);
-                    return (
-                      <button key={p} onClick={() => { const s = new Set(produtos); sel ? s.delete(p) : s.add(p); setProdutos(s); }}
-                        style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:sel?'rgba(232,177,79,0.08)':'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.04)', color:sel?GOLD:'#fff', fontSize:12, fontWeight:sel?900:400, cursor:'pointer', display:'flex', alignItems:'center', gap:10, transition:'all 0.1s' }}>
-                        <div style={{ width:16, height:16, borderRadius:5, border:`2px solid ${sel?GOLD:'rgba(255,255,255,0.2)'}`, background:sel?`${GOLD}20`:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                          {sel && <span className="material-symbols-outlined" style={{ fontSize:11, color:GOLD }}>check</span>}
-                        </div>
-                        {p}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
               {error && (
                 <div style={{ padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#f87171', fontSize:12, fontWeight:700 }}>
                   {error}
@@ -420,6 +393,35 @@ export default function ComissoesPage() {
           #report-doc { box-shadow: none !important; border-radius: 0 !important; }
         }
       `}</style>
+
+      {/* Portal: renders dropdown to document.body — outside ANY backdrop-filter ancestor */}
+      {typeof window !== 'undefined' && prodOpen && dropRect && createPortal(
+        <div ref={dropdownRef} style={{
+          position:'fixed', top:dropRect.top, left:dropRect.left, width:dropRect.width,
+          zIndex:99999, background:'#0a1628', border:'1px solid rgba(255,255,255,0.2)',
+          borderRadius:14, overflow:'hidden', boxShadow:'0 20px 60px rgba(0,0,0,0.85)',
+          maxHeight:280, overflowY:'auto',
+        }}>
+          <button onClick={() => setProdutos(new Set())}
+            style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', color:SILVER, fontSize:11, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:8 }}>
+            <span className="material-symbols-outlined" style={{ fontSize:13 }}>close</span>
+            Todos os produtos (limpar)
+          </button>
+          {produtoList.map(p => {
+            const sel = produtos.has(p);
+            return (
+              <button key={p} onClick={() => { const s = new Set(produtos); sel ? s.delete(p) : s.add(p); setProdutos(s); }}
+                style={{ width:'100%', padding:'10px 16px', textAlign:'left', background:sel?'rgba(232,177,79,0.10)':'transparent', border:'none', borderBottom:'1px solid rgba(255,255,255,0.04)', color:sel?GOLD:'#fff', fontSize:12, fontWeight:sel?900:400, cursor:'pointer', display:'flex', alignItems:'center', gap:10, transition:'all 0.1s' }}>
+                <div style={{ width:16, height:16, borderRadius:5, border:`2px solid ${sel?GOLD:'rgba(255,255,255,0.25)'}`, background:sel?`${GOLD}20`:'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  {sel && <span className="material-symbols-outlined" style={{ fontSize:11, color:GOLD }}>check</span>}
+                </div>
+                {p}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
     </LoginWrapper>
   );
 }
