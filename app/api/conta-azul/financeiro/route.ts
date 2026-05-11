@@ -141,10 +141,30 @@ export async function GET(req: Request) {
     const qR  = new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim });
     const qD  = new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim });
 
-    const [rRes, dRes] = await Promise.all([
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, qR, token) : Promise.resolve({ items: [], totais: {} }),
+    // Fetch each situacao bucket separately so the 1000-record cap doesn't
+    // bias toward the most-recent (usually RECEBIDO) records.
+
+    const [rPago, rPendente, rVencido, dRes] = await Promise.all([
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ ...Object.fromEntries(qR), situacao: 'RECEBIDO' }), token) : Promise.resolve({ items: [], totais: {} }),
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ ...Object.fromEntries(qR), situacao: 'PENDENTE' }), token) : Promise.resolve({ items: [], totais: {} }),
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ ...Object.fromEntries(qR), situacao: 'VENCIDO'  }), token) : Promise.resolve({ items: [], totais: {} }),
       (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token) : Promise.resolve({ items: [], totais: {} }),
     ]);
+
+    // Use totais from the unrestricted first page (RECEBIDO bucket has the aggregate totais)
+    const rRes = {
+      items: [...rPago.items, ...rPendente.items, ...rVencido.items],
+      totais: rPago.totais ?? rPendente.totais ?? rVencido.totais ?? {},
+    };
+
+    // Deduplicate merged list by id
+    const seen = new Set<string>();
+    const deduped = rRes.items.filter((i: any) => {
+      const k = String(i?.id ?? '');
+      if (!k || seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+    rRes.items = deduped;
 
     const names = rRes.items.map((i: any) => (i.cliente?.nome ?? '').trim()).filter(Boolean);
     const em    = await enrichEmails(names);
