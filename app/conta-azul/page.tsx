@@ -229,11 +229,9 @@ export default function ContaAzulPage() {
       const st = (e.status_traduzido || '').toUpperCase();
       if (!valid.includes(s) && !valid.includes(st)) return false;
     }
-    // ── Month filter — skip for VENCIDO (show all overdue regardless of date) ──
-    const isVencido = statusFiltro === 'VENCIDO' ||
-      (e.status || '').toUpperCase() === 'OVERDUE' ||
-      (e.status_traduzido || '').toUpperCase() === 'ATRASADO';
-    if (!isVencido && e.data_vencimento) {
+    // ── Month filter — only bypass when "Vencido" badge is explicitly selected ──
+    // When viewing "Todos", ALL records (including overdue) must match the month.
+    if (statusFiltro !== 'VENCIDO' && e.data_vencimento) {
       const parts = e.data_vencimento.split('-');
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10) - 1; // 0-indexed
