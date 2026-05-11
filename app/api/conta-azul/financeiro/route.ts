@@ -33,27 +33,28 @@ async function fetchAll(
   endpoint: string,
   qs: URLSearchParams,
   token: string,
-  maxPaginas = 100,  // cap: 100×10 = 1000 registros
-  batchSize  = 20,   // páginas paralelas por lote
+  maxPaginas = 50,   // cap pages
+  batchSize  = 10,   // parallel pages per batch
 ): Promise<{ items: any[]; totais: any }> {
-  const PER_PAGE = 10;
+  // Use tamanho_pagina from QS or default 200 — API supports up to 1000
+  const PER_PAGE = parseInt(qs.get('tamanho_pagina') || '200', 10) || 200;
+  qs.set('tamanho_pagina', String(PER_PAGE));
 
-  // pagina=1 (primeira página, 1-indexed)
+  // pagina=1 (1-indexed)
   const q1 = new URLSearchParams(qs);
   q1.set('pagina', '1');
   let first: any;
   try   { first = await caGet(`${endpoint}?${q1}`, token); }
   catch (e: any) { console.error('[CA] pagina=1:', e.message); return { items: [], totais: {} }; }
 
-  const items1  = (first?.itens ?? []) as any[];
-  const total   = (first?.itens_totais ?? 0) as number;
-  const nPaginas = Math.min(Math.ceil(total / PER_PAGE), maxPaginas); // ex: min(153,100)=100
+  const items1   = (first?.itens ?? []) as any[];
+  const total    = (first?.itens_totais ?? 0) as number;
+  const nPaginas = Math.min(Math.ceil(total / PER_PAGE), maxPaginas);
 
-  console.log(`[CA] ${endpoint.split('/').pop()}: total=${total} pages=${nPaginas}`);
+  console.log(`[CA] ${endpoint.split('/').pop()}: total=${total} pages=${nPaginas} perPage=${PER_PAGE}`);
 
   if (nPaginas <= 1) return { items: items1, totais: first?.totais ?? {} };
 
-  // Busca paginas=2..nPaginas em lotes paralelos
   const allItems: any[] = [...items1];
   let done = false;
 
@@ -71,12 +72,9 @@ async function fetchAll(
 
     let batchCount = 0;
     for (const arr of results) { allItems.push(...(arr as any[])); batchCount += (arr as any[]).length; }
-
-    // Parada automática: lote incompleto = fim real dos dados
     if (batchCount < pages.length * PER_PAGE) done = true;
   }
 
-  // Deduplica por id
   const seen = new Set<string>();
   const items = allItems.filter((i: any) => {
     const k = String(i?.id ?? '');
@@ -141,24 +139,27 @@ export async function GET(req: Request) {
     const qR  = new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim });
     const qD  = new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim });
 
-    // Fetch each situacao bucket separately so the 1000-record cap doesn't
-    // bias toward the most-recent (usually RECEBIDO) records.
+    // ── Fetch per status bucket ────────────────────────────────────────────
+    // Docs: parameter is `status` (not `situacao`); values are EM_ABERTO / ATRASADO / RECEBIDO.
+    // EM_ABERTO (pending) has FUTURE due dates; ATRASADO (overdue) has PAST due dates.
+    // Use wide date ranges so no record is excluded by the date filter.
+    const farPast   = '2010-01-01';
+    const farFuture = '2035-12-31';
 
     const [rPago, rPendente, rVencido, dRes] = await Promise.all([
-      // RECEBIDO: filter by the user's selected date range
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim, situacao: 'RECEBIDO' }), token) : Promise.resolve({ items: [], totais: {} }),
-      // PENDENTE: no date restriction — pending records often have far-future due dates
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ situacao: 'PENDENTE' }), token) : Promise.resolve({ items: [], totais: {} }),
-      // VENCIDO: no date restriction — overdue records often have due dates from years ago
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ situacao: 'VENCIDO' }), token) : Promise.resolve({ items: [], totais: {} }),
-      (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token) : Promise.resolve({ items: [], totais: {} }),
+      // RECEBIDO — user's selected date range
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: ini,      data_vencimento_ate: fim,        status: 'RECEBIDO'  }), token) : Promise.resolve({ items: [], totais: {} }),
+      // EM_ABERTO (pending) — from user start to far future
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: ini,      data_vencimento_ate: farFuture,  status: 'EM_ABERTO' }), token) : Promise.resolve({ items: [], totais: {} }),
+      // ATRASADO (overdue) — from far past to today
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: farPast,  data_vencimento_ate: hoje,        status: 'ATRASADO'  }), token) : Promise.resolve({ items: [], totais: {} }),
+      (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token)                                                                                                       : Promise.resolve({ items: [], totais: {} }),
     ]);
 
-    // Normalise status from the bucket source — CA API may omit or vary the
-    // status field for unpaid records. Force a known value so client filter works.
-    rPago.items.forEach((i: any)    => { i.status = i.status || 'ACQUITTED'; });
-    rPendente.items.forEach((i: any) => { i.status = 'PENDING'; });
-    rVencido.items.forEach((i: any)  => { i.status = 'OVERDUE';  });
+    // Force-set English status from bucket so client-side filter always works
+    rPago.items.forEach((i: any)    => { i.status = 'ACQUITTED'; });
+    rPendente.items.forEach((i: any) => { i.status = 'PENDING';   });
+    rVencido.items.forEach((i: any)  => { i.status = 'OVERDUE';   });
 
     // Use totais from the unrestricted first page (RECEBIDO bucket has the aggregate totais)
     const rRes = {
