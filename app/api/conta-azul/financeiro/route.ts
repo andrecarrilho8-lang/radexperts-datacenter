@@ -154,6 +154,12 @@ export async function GET(req: Request) {
       (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token) : Promise.resolve({ items: [], totais: {} }),
     ]);
 
+    // Normalise status from the bucket source — CA API may omit or vary the
+    // status field for unpaid records. Force a known value so client filter works.
+    rPago.items.forEach((i: any)    => { i.status = i.status || 'ACQUITTED'; });
+    rPendente.items.forEach((i: any) => { i.status = 'PENDING'; });
+    rVencido.items.forEach((i: any)  => { i.status = 'OVERDUE';  });
+
     // Use totais from the unrestricted first page (RECEBIDO bucket has the aggregate totais)
     const rRes = {
       items: [...rPago.items, ...rPendente.items, ...rVencido.items],
