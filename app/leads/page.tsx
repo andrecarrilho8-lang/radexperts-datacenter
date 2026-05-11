@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LoginWrapper } from '@/components/dashboard/login-wrapper';
@@ -202,17 +202,46 @@ function LeadsPage() {
   const [sortField, setSortField] = useState<'tagCount' | 'createdAt' | null>(null);
   const [sortDir,   setSortDir]   = useState<'asc' | 'desc'>('desc');
 
-  const fetchPage = useCallback(async (pageIndex: number) => {
+  // ── Advanced filters ────────────────────────────────────────────────────────
+  const [showAdvFilter,  setShowAdvFilter]  = useState(false);
+  const [allTags,        setAllTags]        = useState<{ id: string; name: string }[]>([]);
+  const [filterTags,     setFilterTags]     = useState<{ id: string; name: string }[]>([]); // selected tags
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo,   setFilterDateTo]   = useState('');
+  const [filterIsAluno,  setFilterIsAluno]  = useState<'' | 'aluno' | 'lead'>('');
+  const [tagSearch,      setTagSearch]      = useState(''); // search within tag list dropdown
+  const [showTagDrop,    setShowTagDrop]    = useState(false);
+
+  const activeFilterCount =
+    filterTags.length +
+    (filterDateFrom ? 1 : 0) +
+    (filterDateTo   ? 1 : 0) +
+    (filterIsAluno  ? 1 : 0);
+
+  const clearFilters = () => {
+    setFilterTags([]); setFilterDateFrom(''); setFilterDateTo(''); setFilterIsAluno('');
+    setTagSearch(''); setPage(0);
+  };
+
+  const fetchPage = useCallback(async (pageIndex: number, tagIds?: string[]) => {
     setLoading(true); setError('');
     try {
-      const res  = await fetch(`/api/leads/contacts?offset=${pageIndex * PAGE}&limit=${PAGE}`);
+      // If multiple tags selected, use the first for server-side filter,
+      // the rest are applied client-side (AC API supports one tag param).
+      const primaryTag = (tagIds ?? filterTags.map(t => t.id))[0] || '';
+      const params = new URLSearchParams({
+        offset: String(pageIndex * PAGE),
+        limit:  String(PAGE),
+      });
+      if (primaryTag) params.set('tagId', primaryTag);
+      const res  = await fetch(`/api/leads/contacts?${params}`);
       const data = await res.json();
       if (!res.ok) { setError(data.error || `Erro ${res.status}`); setLoading(false); return; }
       setContacts(data.contacts || []);
       setTotal(data.total || 0);
     } catch (e: any) { setError(e.message); }
     setLoading(false);
-  }, []);
+  }, [filterTags]);
 
   const fetchBest = useCallback(async () => {
     if (bestLeads.length > 0) return;
@@ -230,6 +259,15 @@ function LeadsPage() {
 
   useEffect(() => { fetchPage(0); }, [fetchPage]);
 
+  // Load all tags once for the filter dropdown
+  useEffect(() => {
+    fetch('/api/leads/tags')
+      .then(r => r.json())
+      .then(d => setAllTags(d.tags || []))
+      .catch(() => {});
+  }, []);
+
+
   const handleTab = (t: typeof tab) => {
     setTab(t);
     setSearch('');
@@ -244,9 +282,31 @@ function LeadsPage() {
   const totalPages = Math.ceil(total / PAGE);
   const currentContacts = tab === 'geral' ? contacts : bestLeads;
 
-  // Client-side search filter
+  // Client-side filter: search + date range + isAluno + additional tags (beyond first)
   const filtered = useMemo(() => {
     let result = currentContacts;
+
+    // Additional tag filter (tags beyond the first, which was server-side)
+    if (filterTags.length > 1) {
+      const extraTagNames = filterTags.slice(1).map(t => t.name);
+      result = result.filter(c => extraTagNames.every(tn => c.tags.includes(tn)));
+    }
+
+    // Date range filter (by createdAt)
+    if (filterDateFrom) {
+      const from = new Date(filterDateFrom).getTime();
+      result = result.filter(c => new Date(c.createdAt).getTime() >= from);
+    }
+    if (filterDateTo) {
+      const to = new Date(filterDateTo + 'T23:59:59').getTime();
+      result = result.filter(c => new Date(c.createdAt).getTime() <= to);
+    }
+
+    // Aluno / lead filter
+    if (filterIsAluno === 'aluno') result = result.filter(c => c.isAluno);
+    if (filterIsAluno === 'lead')  result = result.filter(c => !c.isAluno);
+
+    // Search
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter(c =>
@@ -257,6 +317,7 @@ function LeadsPage() {
         c.tags.some(t => t.toLowerCase().includes(q))
       );
     }
+
     if (sortField && tab === 'geral') {
       result = [...result].sort((a, b) => {
         if (sortField === 'tagCount') return sortDir === 'desc' ? b.tagCount - a.tagCount : a.tagCount - b.tagCount;
@@ -268,7 +329,8 @@ function LeadsPage() {
       });
     }
     return result;
-  }, [currentContacts, search, sortField, sortDir, tab]);
+  }, [currentContacts, search, sortField, sortDir, tab, filterTags, filterDateFrom, filterDateTo, filterIsAluno]);
+
 
   const toggleSort = (field: 'tagCount' | 'createdAt') => {
     if (sortField === field) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
@@ -376,29 +438,205 @@ function LeadsPage() {
                 )}
               </div>
 
-              {/* Search */}
-              <div style={{ position: 'relative', minWidth: 240 }}>
-                <span className="material-symbols-outlined" style={{
-                  position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                  color: SILVER, fontSize: 18, pointerEvents: 'none',
-                }}>search</span>
-                <input
-                  type="text" value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar por nome, email, tag..."
+              {/* Search + Filter button */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ position: 'relative', minWidth: 220 }}>
+                  <span className="material-symbols-outlined" style={{
+                    position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                    color: SILVER, fontSize: 18, pointerEvents: 'none',
+                  }}>search</span>
+                  <input
+                    type="text" value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Buscar por nome, email, tag..."
+                    style={{
+                      background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+                      borderRadius: 12, padding: '9px 12px 9px 38px', color: '#fff', fontSize: 12,
+                      fontWeight: 600, width: '100%', outline: 'none',
+                    }}
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')} style={{
+                      position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', color: SILVER, cursor: 'pointer', fontSize: 18,
+                    }}>×</button>
+                  )}
+                </div>
+                {/* Advanced filter toggle */}
+                <button
+                  onClick={() => setShowAdvFilter(v => !v)}
                   style={{
-                    background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: 12, padding: '9px 12px 9px 38px', color: '#fff', fontSize: 12,
-                    fontWeight: 600, width: '100%', outline: 'none',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '9px 14px', borderRadius: 12, cursor: 'pointer',
+                    border: `1px solid ${showAdvFilter || activeFilterCount > 0 ? GOLD + '60' : 'rgba(255,255,255,0.12)'}`,
+                    background: showAdvFilter || activeFilterCount > 0 ? `rgba(232,177,79,0.12)` : 'rgba(255,255,255,0.07)',
+                    color: showAdvFilter || activeFilterCount > 0 ? GOLD : SILVER,
+                    fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', transition: 'all 0.2s',
                   }}
-                />
-                {search && (
-                  <button onClick={() => setSearch('')} style={{
-                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', color: SILVER, cursor: 'pointer', fontSize: 18,
-                  }}>×</button>
-                )}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>tune</span>
+                  Filtros
+                  {activeFilterCount > 0 && (
+                    <span style={{
+                      background: GOLD, color: NAVY, borderRadius: 999,
+                      fontSize: 9, fontWeight: 900, padding: '1px 6px', minWidth: 16, textAlign: 'center',
+                    }}>{activeFilterCount}</span>
+                  )}
+                </button>
               </div>
             </div>
+            {/* Advanced filter panel */}
+            {showAdvFilter && (
+              <div style={{
+                margin: '0 0 12px',
+                padding: '16px 20px',
+                background: 'rgba(232,177,79,0.04)',
+                border: '1px solid rgba(232,177,79,0.15)',
+                borderRadius: 14,
+                display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start',
+              }}>
+                {/* Tag multi-select */}
+                <div style={{ flex: '1 1 260px' }}>
+                  <p style={{ fontSize: 9, fontWeight: 900, color: GOLD, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 8px' }}>Tags</p>
+                  {/* Selected tag chips */}
+                  {filterTags.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 8 }}>
+                      {filterTags.map(t => (
+                        <span key={t.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          background: 'rgba(232,177,79,0.15)', border: '1px solid rgba(232,177,79,0.3)',
+                          borderRadius: 8, padding: '3px 8px',
+                          fontSize: 10, fontWeight: 800, color: GOLD,
+                        }}>
+                          {t.name}
+                          <button onClick={() => {
+                            const next = filterTags.filter(x => x.id !== t.id);
+                            setFilterTags(next);
+                            setPage(0);
+                            fetchPage(0, next.map(x => x.id));
+                          }} style={{ background: 'none', border: 'none', color: GOLD, cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* Tag search input + dropdown */}
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      value={tagSearch}
+                      placeholder="Buscar tag..."
+                      onFocus={() => setShowTagDrop(true)}
+                      onBlur={() => setTimeout(() => setShowTagDrop(false), 150)}
+                      onChange={e => { setTagSearch(e.target.value); setShowTagDrop(true); }}
+                      style={{
+                        width: '100%', boxSizing: 'border-box' as any,
+                        padding: '7px 10px', borderRadius: 8,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11, outline: 'none',
+                      }}
+                    />
+                    {showTagDrop && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                        marginTop: 4, maxHeight: 200, overflowY: 'auto',
+                        background: '#0d1829', border: '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                      }}>
+                        {allTags
+                          .filter(t =>
+                            t.name.toLowerCase().includes(tagSearch.toLowerCase()) &&
+                            !filterTags.some(ft => ft.id === t.id)
+                          )
+                          .slice(0, 50)
+                          .map(t => (
+                            <button key={t.id}
+                              onMouseDown={() => {
+                                const next = [...filterTags, t];
+                                setFilterTags(next);
+                                setTagSearch('');
+                                setPage(0);
+                                fetchPage(0, next.map(x => x.id));
+                              }}
+                              style={{
+                                width: '100%', textAlign: 'left', padding: '8px 12px',
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: '#fff', fontSize: 11, fontWeight: 700,
+                                borderBottom: '1px solid rgba(255,255,255,0.05)',
+                                transition: 'background 0.1s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,177,79,0.1)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                            >{t.name}</button>
+                          ))
+                        }
+                        {allTags.filter(t => t.name.toLowerCase().includes(tagSearch.toLowerCase()) && !filterTags.some(ft => ft.id === t.id)).length === 0 && (
+                          <p style={{ padding: '10px 12px', color: SILVER, fontSize: 10, margin: 0 }}>Nenhuma tag encontrada</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Date range */}
+                <div style={{ flex: '1 1 200px' }}>
+                  <p style={{ fontSize: 9, fontWeight: 900, color: GOLD, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 8px' }}>Cadastrado entre</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 9, color: SILVER, fontWeight: 700, minWidth: 20 }}>De</span>
+                      <input type="date" value={filterDateFrom}
+                        onChange={e => { setFilterDateFrom(e.target.value); setPage(0); }}
+                        style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
+                          background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11, outline: 'none', colorScheme: 'dark' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 9, color: SILVER, fontWeight: 700, minWidth: 20 }}>Até</span>
+                      <input type="date" value={filterDateTo}
+                        onChange={e => { setFilterDateTo(e.target.value); setPage(0); }}
+                        style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
+                          background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11, outline: 'none', colorScheme: 'dark' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Aluno / lead toggle */}
+                <div style={{ flex: '0 0 auto' }}>
+                  <p style={{ fontSize: 9, fontWeight: 900, color: GOLD, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 8px' }}>Tipo</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {([['', 'Todos'], ['aluno', '🎓 Apenas Alunos'], ['lead', '👤 Apenas Leads']] as const).map(([val, label]) => (
+                      <button key={val}
+                        onClick={() => { setFilterIsAluno(val); setPage(0); }}
+                        style={{
+                          padding: '5px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',
+                          border: `1px solid ${filterIsAluno === val ? GOLD + '50' : 'rgba(255,255,255,0.1)'}`,
+                          background: filterIsAluno === val ? 'rgba(232,177,79,0.12)' : 'transparent',
+                          color: filterIsAluno === val ? GOLD : SILVER,
+                          fontSize: 11, fontWeight: 700, transition: 'all 0.15s',
+                        }}
+                      >{label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clear filters */}
+                {activeFilterCount > 0 && (
+                  <div style={{ flex: '0 0 auto', alignSelf: 'flex-end' }}>
+                    <button
+                      onClick={() => { clearFilters(); fetchPage(0, []); }}
+                      style={{
+                        padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+                        border: '1px solid rgba(239,68,68,0.3)',
+                        background: 'rgba(239,68,68,0.08)', color: '#f87171',
+                        fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 14 }}>filter_alt_off</span>
+                      Limpar filtros
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 0 }}>

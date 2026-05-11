@@ -43,18 +43,19 @@ async function acFetch(path: string) {
  * 2. Contact pages (1-2 calls)     → GET /api/3/contacts?include=contactTags
  * Returns contacts already enriched with tag names.
  */
-async function fetchContactsWithTags(offset: number, limit: number): Promise<{
+async function fetchContactsWithTags(offset: number, limit: number, tagId = ''): Promise<{
   contacts: any[];
   total: number;
 }> {
   const AC_MAX = 100; // AC hard limit per request
 
-  // Build contact page calls
+  // Build contact page calls — add &tag=ID when filtering by tag
+  const tagParam = tagId ? `&tag=${encodeURIComponent(tagId)}` : '';
   const contactCalls: Promise<any>[] = [];
   for (let o = offset; o < offset + limit; o += AC_MAX) {
     const batchLimit = Math.min(AC_MAX, offset + limit - o);
     contactCalls.push(
-      acFetch(`/api/3/contacts?limit=${batchLimit}&offset=${o}&include=contactTags`)
+      acFetch(`/api/3/contacts?limit=${batchLimit}&offset=${o}&include=contactTags${tagParam}`)
     );
   }
 
@@ -106,6 +107,7 @@ async function fetchContactsWithTags(offset: number, limit: number): Promise<{
   return { contacts, total };
 }
 
+
 /** One DB query to get all known student emails */
 async function getStudentEmails(): Promise<Set<string>> {
   try {
@@ -128,11 +130,12 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const offset = parseInt(searchParams.get('offset') || '0', 10);
   const limit  = Math.min(parseInt(searchParams.get('limit') || '200', 10), 200);
+  const tagId  = searchParams.get('tagId') || '';  // AC tag ID for server-side filter
 
   try {
     // Parallel: fetch contacts+tags from AC, student emails from DB
     const [{ contacts: raw, total }, studentEmails] = await Promise.all([
-      fetchContactsWithTags(offset, limit),
+      fetchContactsWithTags(offset, limit, tagId),
       getStudentEmails(),
     ]);
 
