@@ -49,14 +49,14 @@ async function fetchContactsWithTags(offset: number, limit: number, tagId = ''):
 }> {
   const AC_MAX = 100; // AC hard limit per request
 
-  // Build contact page calls — add &tag=ID when filtering by tag
-  const tagParam = tagId ? `&tag=${encodeURIComponent(tagId)}` : '';
+  // AC API v3 supports two tag filter formats — use filters[tag] which is more reliable
+  const tagParam = tagId ? `&filters[tag]=${encodeURIComponent(tagId)}` : '';
   const contactCalls: Promise<any>[] = [];
   for (let o = offset; o < offset + limit; o += AC_MAX) {
     const batchLimit = Math.min(AC_MAX, offset + limit - o);
-    contactCalls.push(
-      acFetch(`/api/3/contacts?limit=${batchLimit}&offset=${o}&include=contactTags${tagParam}`)
-    );
+    const url = `/api/3/contacts?limit=${batchLimit}&offset=${o}&include=contactTags${tagParam}`;
+    console.log('[AC contacts] GET', url, { tagId, offset: o });
+    contactCalls.push(acFetch(url));
   }
 
   // Run all calls in parallel (contacts pages + tags list)

@@ -223,25 +223,24 @@ function LeadsPage() {
     setTagSearch(''); setPage(0);
   };
 
-  const fetchPage = useCallback(async (pageIndex: number, tagIds?: string[]) => {
+  // ── Fetch function — explicit tagId avoids closure race conditions ────────────────────
+  const doFetch = useCallback(async (pageIndex: number, tagId = '') => {
     setLoading(true); setError('');
     try {
-      // If multiple tags selected, use the first for server-side filter,
-      // the rest are applied client-side (AC API supports one tag param).
-      const primaryTag = (tagIds ?? filterTags.map(t => t.id))[0] || '';
-      const params = new URLSearchParams({
-        offset: String(pageIndex * PAGE),
-        limit:  String(PAGE),
-      });
-      if (primaryTag) params.set('tagId', primaryTag);
+      const params = new URLSearchParams({ offset: String(pageIndex * PAGE), limit: String(PAGE) });
+      if (tagId) params.set('tagId', tagId);
       const res  = await fetch(`/api/leads/contacts?${params}`);
       const data = await res.json();
-      if (!res.ok) { setError(data.error || `Erro ${res.status}`); setLoading(false); return; }
+      if (!res.ok) { setError(data.error || `Erro ${res.status}`); return; }
       setContacts(data.contacts || []);
       setTotal(data.total || 0);
     } catch (e: any) { setError(e.message); }
-    setLoading(false);
-  }, [filterTags]);
+    finally { setLoading(false); }
+  }, []); // stable — no deps needed
+
+  // Alias kept for pagination
+  const fetchPage = (pageIndex: number) => doFetch(pageIndex, filterTags[0]?.id || '');
+
 
   const fetchBest = useCallback(async () => {
     if (bestLeads.length > 0) return;
@@ -257,7 +256,11 @@ function LeadsPage() {
     setLoading(false);
   }, [bestLeads.length]);
 
-  useEffect(() => { fetchPage(0); }, [fetchPage]);
+  // Initial load + refetch whenever filterTags changes
+  useEffect(() => {
+    setPage(0);
+    doFetch(0, filterTags[0]?.id || '');
+  }, [filterTags, doFetch]);
 
   // Load all tags once for the filter dropdown
   useEffect(() => {
@@ -510,9 +513,7 @@ function LeadsPage() {
                           {t.name}
                           <button onClick={() => {
                             const next = filterTags.filter(x => x.id !== t.id);
-                            setFilterTags(next);
-                            setPage(0);
-                            fetchPage(0, next.map(x => x.id));
+                            setFilterTags(next); // useEffect will refetch
                           }} style={{ background: 'none', border: 'none', color: GOLD, cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
                         </span>
                       ))}
@@ -551,10 +552,8 @@ function LeadsPage() {
                             <button key={t.id}
                               onMouseDown={() => {
                                 const next = [...filterTags, t];
-                                setFilterTags(next);
+                                setFilterTags(next); // useEffect will refetch
                                 setTagSearch('');
-                                setPage(0);
-                                fetchPage(0, next.map(x => x.id));
                               }}
                               style={{
                                 width: '100%', textAlign: 'left', padding: '8px 12px',
@@ -622,7 +621,7 @@ function LeadsPage() {
                 {activeFilterCount > 0 && (
                   <div style={{ flex: '0 0 auto', alignSelf: 'flex-end' }}>
                     <button
-                      onClick={() => { clearFilters(); fetchPage(0, []); }}
+                      onClick={() => clearFilters()} // filterTags change → useEffect refetches
                       style={{
                         padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
                         border: '1px solid rgba(239,68,68,0.3)',
