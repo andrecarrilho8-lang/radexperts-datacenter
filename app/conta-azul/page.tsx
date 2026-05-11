@@ -201,14 +201,12 @@ export default function ContaAzulPage() {
   const [statusFiltro,  setStatusFiltro]  = useState('');
   const [searchQuery,   setSearchQuery]   = useState('');
   const [searchPessoa,  setSearchPessoa]  = useState('');
-  // Date range — default: 12 months back → 6 months forward
+  // Month reference — client-side filter by data_vencimento month/year
   const hoje = new Date();
-  const [dataInicio, setDataInicio] = useState(
-    new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0]
-  );
-  const [dataFim, setDataFim] = useState(
-    new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0]
-  );
+  const [mesRef, setMesRef] = useState({ year: hoje.getFullYear(), month: hoje.getMonth() }); // month 0-indexed
+  const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const prevMes = () => setMesRef(m => m.month === 0  ? { year: m.year - 1, month: 11 } : { year: m.year, month: m.month - 1 });
+  const nextMes = () => setMesRef(m => m.month === 11 ? { year: m.year + 1, month: 0  } : { year: m.year, month: m.month + 1 });
 
   // ── Client-side filter + pagination ─────────────────────────────────────
   // Wrappers that reset page to 0 on every filter/search change
@@ -224,12 +222,24 @@ export default function ContaAzulPage() {
   };
 
   const receitasFiltradas = allReceitas.filter(e => {
+    // ── Status filter ────────────────────────────────────────────────────
     if (statusFiltro) {
       const valid = STATUS_ACCEPT[statusFiltro] || [statusFiltro];
       const s  = (e.status          || '').toUpperCase();
       const st = (e.status_traduzido || '').toUpperCase();
       if (!valid.includes(s) && !valid.includes(st)) return false;
     }
+    // ── Month filter — skip for VENCIDO (show all overdue regardless of date) ──
+    const isVencido = statusFiltro === 'VENCIDO' ||
+      (e.status || '').toUpperCase() === 'OVERDUE' ||
+      (e.status_traduzido || '').toUpperCase() === 'ATRASADO';
+    if (!isVencido && e.data_vencimento) {
+      const parts = e.data_vencimento.split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1; // 0-indexed
+      if (y !== mesRef.year || m !== mesRef.month) return false;
+    }
+    // ── Search filter ────────────────────────────────────────────────────
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const match =
@@ -261,7 +271,9 @@ export default function ContaAzulPage() {
     setLoading(true);
     setTabError(null);
     try {
-      const params = new URLSearchParams({ tipo: 'RECEITA', dataInicio, dataFim });
+      // Backend uses fixed wide date range (2010-2035) and no status filter
+      // so all records and global totais are always returned.
+      const params = new URLSearchParams({ tipo: 'RECEITA' });
       if (forceRefresh) params.set('force', '1');
       const res  = await fetch(`/api/conta-azul/financeiro?${params}`);
       const data = await res.json();
@@ -269,15 +281,10 @@ export default function ContaAzulPage() {
       if (data.error) throw new Error(data.error);
 
       const items: Evento[] = data.receitas || [];
-      const meta = data.meta ?? {};
       if (typeof window !== 'undefined') {
-        console.log(`[CA fin] ${items.length} receitas fetched=${meta.fetchedReceitas} totalCA=${meta.totalCAReceitas} capped=${meta.cappedReceitas}`);
+        console.log(`[CA fin] ${items.length} receitas loaded`);
       }
-      if (meta.cappedReceitas) {
-        setTabWarning(`Exibindo os ${items.length} lançamentos mais recentes de ${meta.totalCAReceitas} totais. Ajuste o período para ver mais.`);
-      } else {
-        setTabWarning(null);
-      }
+      setTabWarning(null);
       setAllReceitas(items);
       setTotais(data.totais || null);
     } catch (e: any) {
@@ -285,7 +292,7 @@ export default function ContaAzulPage() {
     } finally {
       setLoading(false);
     }
-  }, [dataInicio, dataFim]);
+  }, []);
 
 
 
@@ -359,7 +366,7 @@ export default function ContaAzulPage() {
     if (activeTab === 'pessoas')    loadPessoas();
     if (activeTab === 'contratos')  loadContratos();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, connected, dataInicio, dataFim]);
+  }, [activeTab, connected]);
 
 
   const cardStyle: React.CSSProperties = {
@@ -525,7 +532,7 @@ export default function ContaAzulPage() {
             </div>
           </div>
 
-          {/* Busca + Período */}
+          {/* Busca + Navegador de Mês */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* Campo de busca */}
             <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 160 }}>
@@ -546,37 +553,42 @@ export default function ContaAzulPage() {
                 }}
               />
             </div>
-            {/* Período */}
-            <span style={{ color: SILVER, fontSize: 10, fontWeight: 700 }}>De</span>
-              <input
-                type="date"
-                value={dataInicio}
-                onChange={e => setDataInicio(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)',
-                  background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11,
-                  outline: 'none', colorScheme: 'dark' }}
-              />
-              <span style={{ color: SILVER, fontSize: 10, fontWeight: 700 }}>Até</span>
-              <input
-                type="date"
-                value={dataFim}
-                onChange={e => setDataFim(e.target.value)}
-              style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)',
-                  background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 11,
-                  outline: 'none', colorScheme: 'dark' }}
-              />
-            <button
-              onClick={() => {
-                const h = new Date();
-                setDataInicio(new Date(h.getFullYear(), h.getMonth() - 12, 1).toISOString().split('T')[0]);
-                setDataFim(new Date(h.getFullYear(), h.getMonth() + 6, 0).toISOString().split('T')[0]);
-              }}
-              style={{
-                padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)',
-                background: 'rgba(255,255,255,0.03)', color: SILVER, cursor: 'pointer',
-                fontSize: 10, fontWeight: 700,
-              }}
-            >Resetar</button>
+            {/* Navegador de Mês */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: 'rgba(255,255,255,0.06)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <button onClick={() => { prevMes(); setCurrentPage(0); }} style={{
+                padding: '7px 12px', background: 'transparent', border: 'none',
+                color: SILVER, cursor: 'pointer', fontSize: 16, lineHeight: 1,
+                transition: 'color 0.15s',
+              }} title="Mês anterior">‹</button>
+              <span style={{
+                color: '#fff', fontSize: 11, fontWeight: 700,
+                minWidth: 110, textAlign: 'center', padding: '0 4px',
+              }}>
+                {MONTHS_PT[mesRef.month]} {mesRef.year}
+              </span>
+              <button onClick={() => { nextMes(); setCurrentPage(0); }} style={{
+                padding: '7px 12px', background: 'transparent', border: 'none',
+                color: SILVER, cursor: 'pointer', fontSize: 16, lineHeight: 1,
+                transition: 'color 0.15s',
+              }} title="Próximo mês">›</button>
+            </div>
+            {/* Botão voltar ao mês atual */}
+            {(mesRef.year !== hoje.getFullYear() || mesRef.month !== hoje.getMonth()) && (
+              <button
+                onClick={() => { setMesRef({ year: hoje.getFullYear(), month: hoje.getMonth() }); setCurrentPage(0); }}
+                style={{
+                  padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'rgba(255,255,255,0.03)', color: SILVER, cursor: 'pointer',
+                  fontSize: 10, fontWeight: 700,
+                }}
+              >Hoje</button>
+            )}
+            {/* Nota para Vencidos */}
+            {statusFiltro === 'VENCIDO' && (
+              <span style={{ color: RED, fontSize: 10, fontWeight: 700, opacity: 0.8 }}>
+                ⚠ Vencidos: todos os períodos
+              </span>
+            )}
           </div>
 
           {loading ? (
