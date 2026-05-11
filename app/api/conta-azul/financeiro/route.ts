@@ -145,9 +145,12 @@ export async function GET(req: Request) {
     // bias toward the most-recent (usually RECEBIDO) records.
 
     const [rPago, rPendente, rVencido, dRes] = await Promise.all([
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ ...Object.fromEntries(qR), situacao: 'RECEBIDO' }), token) : Promise.resolve({ items: [], totais: {} }),
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ ...Object.fromEntries(qR), situacao: 'PENDENTE' }), token) : Promise.resolve({ items: [], totais: {} }),
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ ...Object.fromEntries(qR), situacao: 'VENCIDO'  }), token) : Promise.resolve({ items: [], totais: {} }),
+      // RECEBIDO: filter by the user's selected date range
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim, situacao: 'RECEBIDO' }), token) : Promise.resolve({ items: [], totais: {} }),
+      // PENDENTE: no date restriction — pending records often have far-future due dates
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ situacao: 'PENDENTE' }), token) : Promise.resolve({ items: [], totais: {} }),
+      // VENCIDO: no date restriction — overdue records often have due dates from years ago
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ situacao: 'VENCIDO' }), token) : Promise.resolve({ items: [], totais: {} }),
       (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token) : Promise.resolve({ items: [], totais: {} }),
     ]);
 
