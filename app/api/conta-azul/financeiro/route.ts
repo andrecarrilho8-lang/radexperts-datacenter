@@ -120,61 +120,31 @@ async function enrichEmails(names: string[]) {
 
 export async function GET(req: Request) {
   const sp    = new URL(req.url).searchParams;
-  const tipo  = sp.get('tipo')       || '';
-  const dI    = sp.get('dataInicio') || '';
-  const dF    = sp.get('dataFim')    || '';
+  const tipo  = sp.get('tipo')  || '';
   const force = sp.get('force') === '1';
 
-  const key = `fin8|${tipo}|${dI}|${dF}`;
+  // Wide date range — captures overdue (very old) + pending (far future) + paid records.
+  // No status filter = global totais + all statuses in items array.
+  const INI = '2010-01-01';
+  const FIM = '2035-12-31';
+
+  const key = `fin10|${tipo}`;
   if (!force) { const c = getCache(key); if (c) return NextResponse.json({ ...c, fromCache: true }); }
 
   try {
     const token = await getContaAzulToken();
-    const hoje  = new Date();
-    const ini   = dI || new Date(hoje.getFullYear() - 1, hoje.getMonth(), 1).toISOString().split('T')[0];
-    const fim   = dF || new Date(hoje.getFullYear(), hoje.getMonth() + 6, 0).toISOString().split('T')[0];
 
     const epR = '/financeiro/eventos-financeiros/contas-a-receber/buscar';
     const epD = '/financeiro/eventos-financeiros/contas-a-pagar/buscar';
-    const qR  = new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim });
-    const qD  = new URLSearchParams({ data_vencimento_de: ini, data_vencimento_ate: fim });
 
-    // ── Fetch per status bucket ────────────────────────────────────────────
-    // Docs: parameter is `status` (not `situacao`); values are EM_ABERTO / ATRASADO / RECEBIDO.
-    // EM_ABERTO (pending) has FUTURE due dates; ATRASADO (overdue) has PAST due dates.
-    // Use wide date ranges so no record is excluded by the date filter.
-    const farPast   = '2010-01-01';
-    const farFuture = '2035-12-31';
+    // tamanho_pagina=1000: with 1521 total records → only 2 pages needed
+    const qR = new URLSearchParams({ data_vencimento_de: INI, data_vencimento_ate: FIM, tamanho_pagina: '1000' });
+    const qD = new URLSearchParams({ data_vencimento_de: INI, data_vencimento_ate: FIM, tamanho_pagina: '1000' });
 
-    const [rPago, rPendente, rVencido, dRes] = await Promise.all([
-      // RECEBIDO — user's selected date range
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: ini,      data_vencimento_ate: fim,        status: 'RECEBIDO'  }), token) : Promise.resolve({ items: [], totais: {} }),
-      // EM_ABERTO (pending) — from user start to far future
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: ini,      data_vencimento_ate: farFuture,  status: 'EM_ABERTO' }), token) : Promise.resolve({ items: [], totais: {} }),
-      // ATRASADO (overdue) — from far past to today
-      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, new URLSearchParams({ data_vencimento_de: farPast,  data_vencimento_ate: hoje,        status: 'ATRASADO'  }), token) : Promise.resolve({ items: [], totais: {} }),
-      (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token)                                                                                                       : Promise.resolve({ items: [], totais: {} }),
+    const [rRes, dRes] = await Promise.all([
+      (!tipo || tipo === 'RECEITA') ? fetchAll(epR, qR, token, 10, 5) : Promise.resolve({ items: [], totais: {} }),
+      (!tipo || tipo === 'DESPESA') ? fetchAll(epD, qD, token, 10, 5) : Promise.resolve({ items: [], totais: {} }),
     ]);
-
-    // Force-set English status from bucket so client-side filter always works
-    rPago.items.forEach((i: any)    => { i.status = 'ACQUITTED'; });
-    rPendente.items.forEach((i: any) => { i.status = 'PENDING';   });
-    rVencido.items.forEach((i: any)  => { i.status = 'OVERDUE';   });
-
-    // Use totais from the unrestricted first page (RECEBIDO bucket has the aggregate totais)
-    const rRes = {
-      items: [...rPago.items, ...rPendente.items, ...rVencido.items],
-      totais: rPago.totais ?? rPendente.totais ?? rVencido.totais ?? {},
-    };
-
-    // Deduplicate merged list by id
-    const seen = new Set<string>();
-    const deduped = rRes.items.filter((i: any) => {
-      const k = String(i?.id ?? '');
-      if (!k || seen.has(k)) return false;
-      seen.add(k); return true;
-    });
-    rRes.items = deduped;
 
     const names = rRes.items.map((i: any) => (i.cliente?.nome ?? '').trim()).filter(Boolean);
     const em    = await enrichEmails(names);
@@ -190,20 +160,27 @@ export async function GET(req: Request) {
     const rT = rRes.totais ?? {};
     const dT = dRes.totais ?? {};
 
+    // KPI totals: prefer API-provided totais fields; fall back to summing items
+    const sumBy = (arr: any[], field: string) => arr.reduce((s: number, i: any) => s + (i[field] ?? 0), 0);
+
+    const recPagas     = rT.pago?.valor       ?? sumBy(receitas.filter((r: any) => ['ACQUITTED','RECEBIDO'].includes((r.status||'').toUpperCase()) || ['RECEBIDO','RECEBIDO_PARCIAL'].includes((r.status_traduzido||'').toUpperCase())), 'pago');
+    const recPendentes = rT.pendente?.valor   ?? sumBy(receitas.filter((r: any) => ['PENDING','OPEN'].includes((r.status||'').toUpperCase()) || (r.status_traduzido||'').toUpperCase() === 'EM_ABERTO'), 'nao_pago');
+    const recVencidas  = rT.vencido?.valor    ?? sumBy(receitas.filter((r: any) => (r.status||'').toUpperCase() === 'OVERDUE' || (r.status_traduzido||'').toUpperCase() === 'ATRASADO'), 'nao_pago');
+
     const result = {
       receitas, despesas,
-      meta: { fetchedReceitas: receitas.length, fetchedDespesas: despesas.length, periodo: { ini, fim } },
+      meta: { fetchedReceitas: receitas.length, fetchedDespesas: despesas.length, periodo: { ini: INI, fim: FIM } },
       totais: {
-        totalReceitas:     rT.todos            ?? 0,
-        totalDespesas:     dT.todos             ?? 0,
-        receitasPagas:     rT.pago?.valor       ?? 0,
-        receitasPendentes: rT.pendente?.valor   ?? 0,
-        receitasVencidas:  rT.vencido?.valor    ?? 0,
+        totalReceitas:     rT.todos?.valor      ?? (recPagas + recPendentes + recVencidas),
+        totalDespesas:     dT.todos?.valor       ?? 0,
+        receitasPagas:     recPagas,
+        receitasPendentes: recPendentes,
+        receitasVencidas:  recVencidas,
         receitasHoje:      rT.vence_hoje?.valor ?? 0,
         despesasPagas:     dT.pago?.valor       ?? 0,
         despesasPendentes: dT.pendente?.valor   ?? 0,
         despesasVencidas:  dT.vencido?.valor    ?? 0,
-        saldoProjetado:    (rT.pendente?.valor ?? 0) - (dT.pendente?.valor ?? 0),
+        saldoProjetado:    (rT.pendente?.valor  ?? recPendentes) - (dT.pendente?.valor ?? 0),
       },
     };
 
@@ -216,3 +193,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+

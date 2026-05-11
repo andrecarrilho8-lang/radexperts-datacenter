@@ -215,11 +215,11 @@ export default function ContaAzulPage() {
   const applyStatusFiltro = (v: string) => { setStatusFiltro(v); setCurrentPage(0); };
   const applySearchQuery  = (v: string) => { setSearchQuery(v);  setCurrentPage(0); };
 
-  // CA API pode retornar status em inglês (ACQUITTED/PENDING/OVERDUE)
-  // OU em português via status_traduzido (RECEBIDO/PENDENTE/VENCIDO).
+  // CA API retorna status em inglês (ACQUITTED/PENDING/OVERDUE) no campo `status`
+  // e em português no campo `status_traduzido` (RECEBIDO/EM_ABERTO/ATRASADO).
   const STATUS_ACCEPT: Record<string, string[]> = {
-    PAGO:     ['ACQUITTED', 'RECEBIDO', 'PAGO'],
-    PENDENTE: ['PENDING',   'PENDENTE'],
+    PAGO:     ['ACQUITTED', 'RECEBIDO', 'PAGO', 'RECEBIDO_PARCIAL'],
+    PENDENTE: ['PENDING',   'PENDENTE', 'OPEN', 'EM_ABERTO'],
     VENCIDO:  ['OVERDUE',   'VENCIDO',  'ATRASADO'],
   };
 
