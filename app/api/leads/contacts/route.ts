@@ -49,8 +49,9 @@ async function fetchContactsWithTags(offset: number, limit: number, tagId = ''):
 }> {
   const AC_MAX = 100; // AC hard limit per request
 
-  // AC API v3 supports two tag filter formats — use filters[tag] which is more reliable
-  const tagParam = tagId ? `&filters[tag]=${encodeURIComponent(tagId)}` : '';
+  // AC API v3 correct parameter for filtering contacts by tag: &tagid=ID (integer)
+  // Docs: GET /api/3/contacts?tagid=123
+  const tagParam = tagId ? `&tagid=${encodeURIComponent(tagId)}` : '';
   const contactCalls: Promise<any>[] = [];
   for (let o = offset; o < offset + limit; o += AC_MAX) {
     const batchLimit = Math.min(AC_MAX, offset + limit - o);
