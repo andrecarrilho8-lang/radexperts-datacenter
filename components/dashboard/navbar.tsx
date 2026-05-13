@@ -120,23 +120,29 @@ export function Navbar() {
 
   const topNavItems = [
     { label: 'Resumo',  href: '/resumo',  roles: ['TOTAL', 'NORMAL', 'TRAFEGO'] },
-    { label: 'Vendas',  href: '/vendas',  roles: ['TOTAL', 'COMERCIAL'] },
+    { label: 'Vendas',  href: '/vendas',  roles: ['TOTAL', 'NORMAL', 'COMERCIAL'] },
   ];
   const navItems = topNavItems.filter(i => i.roles.includes(userRole));
 
+  // ── Access control per section ────────────────────────────────────────────
+  // TRAFEGO   → Resumo + Tráfego (campanhas/análise/histórico)
+  // NORMAL    → tudo exceto Financeiro e ERP
+  // COMERCIAL → Vendas + Financeiro + ERP + Cursos + Alunos + Leads
+  // TOTAL     → tudo
   const showTrafego    = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'TRAFEGO';
   const showCursos     = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'COMERCIAL';
   const showAlunos     = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'COMERCIAL';
-  const showLeads      = userRole === 'TOTAL' || userRole === 'COMERCIAL';
-  const showFinanceiro = userRole === 'TOTAL';
+  const showLeads      = userRole === 'TOTAL' || userRole === 'NORMAL' || userRole === 'COMERCIAL';
+  const showFinanceiro = userRole === 'TOTAL' || userRole === 'COMERCIAL';
+  const showErp        = userRole === 'TOTAL' || userRole === 'COMERCIAL';
   const showAdmin      = userRole === 'TOTAL';
+
+  const homePage =
+    userRole === 'TRAFEGO'   ? '/resumo'  :
+    userRole === 'COMERCIAL' ? '/vendas'  : '/resumo';
 
   const isCursosActive = pathname.startsWith('/cursos');
   const isAlunosActive = pathname === '/alunos';
-
-  const homePage =
-    userRole === 'TRAFEGO'   ? '/campanhas' :
-    userRole === 'COMERCIAL' ? '/vendas'    : '/resumo';
 
   // ── Shared link style helpers ────────────────────────────
   const menuLinkStyle = (active: boolean): React.CSSProperties => ({
@@ -435,8 +441,8 @@ export function Navbar() {
             </div>
           )}
 
-          {/* ERP (Conta Azul) dropdown — só TOTAL */}
-          {showAdmin && (
+          {/* ERP (Conta Azul) dropdown — TOTAL + COMERCIAL */}
+          {showErp && (
             <div className="relative h-full flex items-center" ref={erpRef} onMouseLeave={() => setErpOpen(false)}>
               <button
                 onMouseEnter={() => setErpOpen(true)}
@@ -563,6 +569,23 @@ export function Navbar() {
                           <NotifBadge count={badge} color={item.href.includes('inadimplentes') ? '#ef4444' : '#15803d'} />
                         </span>
                       )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
+            {showErp && (
+              <div style={{ background: 'rgba(0,0,0,0.2)' }}>
+                <p className="px-6 pt-3 pb-1 text-[9px] font-black uppercase tracking-widest" style={{ color: GOLD }}>ERP</p>
+                {ERP_ITEMS.map(item => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Link key={`${item.href}-${item.label}`} href={item.href}
+                      className="px-8 py-3 text-sm font-black uppercase tracking-widest flex items-center gap-3"
+                      style={{ color: isActive ? GOLD : SILVER, background: isActive ? 'rgba(232,177,79,0.06)' : 'transparent' }}>
+                      <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+                      {item.label}
                     </Link>
                   );
                 })}
