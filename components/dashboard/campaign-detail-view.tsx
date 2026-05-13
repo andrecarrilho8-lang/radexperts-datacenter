@@ -227,7 +227,7 @@ export function CampaignDetailView({ id }: { id: string }) {
   return (
     <div className="animate-in fade-in duration-300" style={{ minHeight: '100vh' }}>
       {/* Top bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-8 gap-4 print:hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-8 gap-4 print:hidden" style={{ paddingTop: 30 }}>
         <div className="flex items-center gap-3">
           <Link href="/campanhas"
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all"
