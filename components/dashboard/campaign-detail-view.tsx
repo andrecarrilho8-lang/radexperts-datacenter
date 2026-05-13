@@ -11,6 +11,7 @@ import { SkeletonAdCard } from '@/components/ui/skeletons';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { TopAdCard, AdsInsights, CampaignPagesSection, CampaignAdsTable } from '@/components/dashboard/campaign-details';
 import { LifetimeCampaignChart } from '@/components/dashboard/LifetimeCampaignChart';
+import { CampaignActiveLeadsBox } from '@/components/dashboard/campaign-active-leads-box';
 import Link from 'next/link';
 
 const GOLD   = '#E8B14F';
@@ -218,6 +219,11 @@ export function CampaignDetailView({ id }: { id: string }) {
 
   const objAccent = isVendas ? '#22c55e' : GOLD;
 
+  // Show LEADS NO ACTIVE box when: Meta objective is LEADS, or campaign name
+  // contains lead-related keywords (LEAD, LEADS, CAPTACAO)
+  const isLeadsCampaign = campDetail.objective === 'LEADS' ||
+    /\b(leads?|capta[cç][aã]o)\b/i.test(campDetail.name || '');
+
   return (
     <div className="animate-in fade-in duration-300" style={{ minHeight: '100vh' }}>
       {/* Top bar */}
@@ -375,6 +381,15 @@ export function CampaignDetailView({ id }: { id: string }) {
           <StatCard icon="trending_up" label="Taxa Conv" value={P(m.leadsRate || 0)} color="orange" />
         </>)}
       </div>
+
+      {/* LEADS NO ACTIVE — shown for LEADS campaigns and captacao campaigns */}
+      {isLeadsCampaign && (
+        <CampaignActiveLeadsBox
+          campaignId={id}
+          metaLeads={m.leads || 0}
+          metaSpend={m.spend || 0}
+        />
+      )}
 
       {/* Hotmart */}
       {isVendas && userRole === 'TOTAL' && (

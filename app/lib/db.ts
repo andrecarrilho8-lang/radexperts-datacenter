@@ -265,6 +265,23 @@ export async function ensureWebhookSchema() {
   `;
 }
 
+/**
+ * Ensures the campaign_ac_tags table exists.
+ * Maps a Meta campaign ID → an Active Campaign tag (id + name).
+ * Call from any API route that needs the table before using it.
+ */
+export async function ensureCampaignTagsSchema() {
+  const sql = getDb();
+  await sql`
+    CREATE TABLE IF NOT EXISTS campaign_ac_tags (
+      campaign_id   TEXT    PRIMARY KEY,
+      tag_id        TEXT    NOT NULL,
+      tag_name      TEXT    NOT NULL,
+      updated_at    BIGINT  NOT NULL
+    )
+  `;
+}
+
 /** Adds buyer-persona columns to buyer_profiles if they don't exist yet (idempotent). */
 export async function ensureBuyerPersonaColumns() {
   const sql = getDb();
