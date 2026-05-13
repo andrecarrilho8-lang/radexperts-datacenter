@@ -13,15 +13,30 @@ interface UserRow {
   createdAt: string;
 }
 
+const ROLE_COLORS: Record<string, string> = {
+  TOTAL:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+  NORMAL:   'bg-blue-50 text-blue-700 border-blue-100',
+  TRAFEGO:  'bg-violet-50 text-violet-700 border-violet-200',
+  COMERCIAL:'bg-orange-50 text-orange-700 border-orange-200',
+};
+const ROLE_LABELS: Record<string, string> = {
+  TOTAL: 'Total', NORMAL: 'Normal', TRAFEGO: 'Tráfego', COMERCIAL: 'Comercial',
+};
+
 function AdminPanel() {
   const { authToken, userRole } = useDashboard();
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ username: '', password: '', name: '', role: 'NORMAL' });
+  const [users, setUsers]       = useState<UserRow[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [form, setForm]         = useState({ username: '', password: '', name: '', role: 'NORMAL' });
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [resetPwd, setResetPwd] = useState<{ id: string; pwd: string } | null>(null);
+  const [error, setError]       = useState('');
+  const [success, setSuccess]   = useState('');
+
+  // Edit modal state (senha + role)
+  const [editUser, setEditUser] = useState<UserRow | null>(null);
+  const [editPwd,  setEditPwd]  = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [saving,   setSaving]   = useState(false);
 
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` };
 
@@ -42,7 +57,6 @@ function AdminPanel() {
       const res = await fetch('/api/admin/users', { method: 'POST', headers, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || `Erro ${res.status}`); setCreating(false); return; }
-      // Optimistic update — add directly to list without relying on GET from another instance
       setUsers(prev => [...prev, data.user]);
       setSuccess(`Usuário "${form.username}" criado com sucesso!`);
       setForm({ username: '', password: '', name: '', role: 'NORMAL' });
@@ -55,20 +69,51 @@ function AdminPanel() {
 
   const remove = async (id: string, name: string) => {
     if (!confirm(`Remover usuário "${name}"?`)) return;
-    // Optimistic removal
     setUsers(prev => prev.filter(u => u.id !== id));
     const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers });
-    if (!res.ok) {
-      // Rollback on failure
-      load();
-    }
+    if (!res.ok) load();
   };
 
-  const resetPassword = async () => {
-    if (!resetPwd || !resetPwd.pwd) return;
-    await fetch(`/api/admin/users/${resetPwd.id}`, { method: 'PATCH', headers, body: JSON.stringify({ password: resetPwd.pwd }) });
-    setResetPwd(null);
-    setSuccess('Senha alterada com sucesso!');
+  const openEdit = (u: UserRow) => {
+    setEditUser(u);
+    setEditPwd('');
+    setEditRole(u.role);
+  };
+
+  const saveEdit = async () => {
+    if (!editUser) return;
+    setSaving(true);
+    setError(''); setSuccess('');
+
+    const body: any = {};
+    if (editPwd)              body.password = editPwd;
+    if (editRole !== editUser.role) body.role = editRole;
+
+    if (!body.password && !body.role) {
+      // nothing changed
+      setEditUser(null);
+      setSaving(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${editUser.id}`, {
+        method: 'PATCH', headers, body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || `Erro ${res.status}`); setSaving(false); return; }
+
+      // Update local list
+      setUsers(prev => prev.map(u =>
+        u.id === editUser.id ? { ...u, role: (body.role || u.role) as UserRow['role'] } : u
+      ));
+      setSuccess('Usuário atualizado com sucesso!');
+      setEditUser(null);
+    } catch (err: any) {
+      setError(`Erro: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (userRole !== 'TOTAL') {
@@ -93,34 +138,20 @@ function AdminPanel() {
 
       {/* Permissões info */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="w-3 h-3 rounded-full bg-emerald-500" />
-            <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Total</p>
+        {[
+          { color: 'bg-emerald-500', label: 'Acesso Total',     desc: 'Tudo — Meta, Hotmart, Cursos, Financeiro, ERP, Admin' },
+          { color: 'bg-blue-500',    label: 'Acesso Normal',    desc: 'Resumo + Vendas + Tráfego + Cursos + Alunos + Leads (sem Financeiro/ERP)' },
+          { color: 'bg-violet-500',  label: 'Acesso Tráfego',   desc: 'Resumo + área de Tráfego Pago apenas' },
+          { color: 'bg-orange-500',  label: 'Acesso Comercial', desc: 'Vendas + Financeiro + ERP + Cursos + Alunos + Leads' },
+        ].map(item => (
+          <div key={item.label} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <span className={`w-3 h-3 rounded-full ${item.color}`} />
+              <p className="font-black text-sm text-slate-900 uppercase tracking-wider">{item.label}</p>
+            </div>
+            <p className="text-xs text-slate-500 font-bold">{item.desc}</p>
           </div>
-          <p className="text-xs text-slate-500 font-bold">Meta Ads + Hotmart + Cursos + Financeiro + Admin</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="w-3 h-3 rounded-full bg-blue-500" />
-            <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Normal</p>
-          </div>
-          <p className="text-xs text-slate-500 font-bold">Resumo + Tráfego + Cursos (sem Hotmart/Financeiro)</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="w-3 h-3 rounded-full bg-violet-500" />
-            <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Tráfego</p>
-          </div>
-          <p className="text-xs text-slate-500 font-bold">Somente área de Tráfego Pago (Campanhas + Análise + Histórico)</p>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="w-3 h-3 rounded-full bg-orange-500" />
-            <p className="font-black text-sm text-slate-900 uppercase tracking-wider">Acesso Comercial</p>
-          </div>
-          <p className="text-xs text-slate-500 font-bold">Hotmart + Cursos + Alunos (sem Resumo/Tráfego/Financeiro)</p>
-        </div>
+        ))}
       </div>
 
       {/* Create form */}
@@ -149,15 +180,15 @@ function AdminPanel() {
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">Permissão</label>
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
               className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm text-slate-900 outline-none focus:border-violet-400 transition-all">
-              <option value="COMERCIAL" className="text-slate-900">Acesso Comercial (Hotmart + Cursos + Alunos)</option>
-              <option value="TRAFEGO"   className="text-slate-900">Acesso Tráfego (somente Tráfego Pago)</option>
-              <option value="NORMAL"    className="text-slate-900">Acesso Normal (Resumo + Tráfego + Cursos)</option>
-              <option value="TOTAL"     className="text-slate-900">Acesso Total (tudo)</option>
+              <option value="COMERCIAL">Acesso Comercial</option>
+              <option value="TRAFEGO">Acesso Tráfego</option>
+              <option value="NORMAL">Acesso Normal</option>
+              <option value="TOTAL">Acesso Total</option>
             </select>
           </div>
           <div className="col-span-2 flex items-center justify-between">
             <div>
-              {error && <p className="text-red-500 text-xs font-black">{error}</p>}
+              {error   && <p className="text-red-500 text-xs font-black">{error}</p>}
               {success && <p className="text-emerald-600 text-xs font-black">{success}</p>}
             </div>
             <button type="submit" disabled={creating}
@@ -193,23 +224,19 @@ function AdminPanel() {
                     <td className="px-6 py-4 font-black text-sm text-slate-900">{u.name}</td>
                     <td className="px-6 py-4 font-bold text-sm text-slate-500 font-mono">{u.username}</td>
                     <td className="px-6 py-4">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
-                          u.role === 'TOTAL'     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : u.role === 'TRAFEGO' ? 'bg-violet-50 text-violet-700 border-violet-200'
-                          : u.role === 'COMERCIAL' ? 'bg-orange-50 text-orange-700 border-orange-200'
-                          : 'bg-blue-50 text-blue-700 border-blue-100'
-                        }`}>
-                          {u.role === 'TOTAL' ? 'Total' : u.role === 'TRAFEGO' ? 'Tráfego' : u.role === 'COMERCIAL' ? 'Comercial' : 'Normal'}
-                        </span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${ROLE_COLORS[u.role] || ROLE_COLORS.NORMAL}`}>
+                        {ROLE_LABELS[u.role] || u.role}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-400 font-bold">
                       {new Date(u.createdAt).toLocaleDateString('pt-BR')}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        <button onClick={() => setResetPwd({ id: u.id, pwd: '' })}
-                          className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200 transition-all">
-                          Senha
+                        <button onClick={() => openEdit(u)}
+                          className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-100 transition-all flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px]">edit</span>
+                          Editar
                         </button>
                         {u.username !== 'adv10x' && (
                           <button onClick={() => remove(u.id, u.name)}
@@ -227,19 +254,103 @@ function AdminPanel() {
         </div>
       </div>
 
-      {/* Reset password modal */}
-      {resetPwd && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 shadow-2xl w-[360px]">
-            <h3 className="font-black text-lg text-slate-900 mb-4">Alterar Senha</h3>
-            <input type="password" placeholder="Nova senha" value={resetPwd.pwd}
-              onChange={e => setResetPwd(r => r ? { ...r, pwd: e.target.value } : null)}
-              className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm outline-none mb-4" />
-            <div className="flex gap-3">
-              <button onClick={() => setResetPwd(null)} className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-500 font-black text-xs uppercase">Cancelar</button>
-              <button onClick={resetPassword} className="flex-1 py-3 rounded-xl bg-slate-900 text-white font-black text-xs uppercase">Salvar</button>
+      {/* Edit modal (senha + role) */}
+      {editUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[420px]">
+
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-lg text-slate-900">Editar Usuário</h3>
+                <p className="text-xs text-slate-500 font-bold mt-0.5">{editUser.name} · <span className="font-mono">{editUser.username}</span></p>
+              </div>
+              <button onClick={() => setEditUser(null)}
+                className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 hover:bg-slate-200 transition-all">
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="px-6 py-5 flex flex-col gap-4">
+              {/* Role selector */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
+                  Tipo de Acesso
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['TOTAL', 'NORMAL', 'TRAFEGO', 'COMERCIAL'] as const).map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setEditRole(r)}
+                      className={`px-4 py-3 rounded-xl border text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        editRole === r
+                          ? r === 'TOTAL'     ? 'bg-emerald-500 text-white border-emerald-500'
+                          : r === 'NORMAL'    ? 'bg-blue-500 text-white border-blue-500'
+                          : r === 'TRAFEGO'   ? 'bg-violet-500 text-white border-violet-500'
+                          : 'bg-orange-500 text-white border-orange-500'
+                          : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        editRole === r ? 'bg-white'
+                        : r === 'TOTAL' ? 'bg-emerald-500'
+                        : r === 'NORMAL' ? 'bg-blue-500'
+                        : r === 'TRAFEGO' ? 'bg-violet-500'
+                        : 'bg-orange-500'
+                      }`} />
+                      {ROLE_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
+                {editRole !== editUser.role && (
+                  <p className="text-[10px] font-bold text-orange-500 mt-2 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[12px]">info</span>
+                    Alterando de <strong>{ROLE_LABELS[editUser.role]}</strong> para <strong>{ROLE_LABELS[editRole]}</strong>
+                  </p>
+                )}
+              </div>
+
+              {/* New password (optional) */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">
+                  Nova Senha <span className="text-slate-300 normal-case">(deixe vazio para manter a atual)</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={editPwd}
+                  onChange={e => setEditPwd(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm outline-none focus:border-violet-400 transition-all"
+                />
+              </div>
+
+              {error && <p className="text-red-500 text-xs font-black">{error}</p>}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+              <button onClick={() => setEditUser(null)}
+                className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-500 font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all">
+                Cancelar
+              </button>
+              <button onClick={saveEdit} disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-black transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving
+                  ? <span className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin" />
+                  : <span className="material-symbols-outlined text-[14px]">save</span>
+                }
+                {saving ? 'Salvando...' : 'Salvar'}
+              </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Success toast */}
+      {success && !editUser && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl font-black text-sm flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <span className="material-symbols-outlined text-[18px]">check_circle</span>
+          {success}
         </div>
       )}
     </div>

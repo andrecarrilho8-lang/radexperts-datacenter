@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserById, deleteUserById, updateUserPassword, hashPassword, parseToken } from '@/app/lib/users';
+import { getDb } from '@/app/lib/db';
 import { logActivity, extractActor, extractIp } from '@/app/lib/activityLog';
 
 export const dynamic = 'force-dynamic';
@@ -40,23 +41,46 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!isAdmin(request)) return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 });
 
   const { id } = await params;
-  const { password } = await request.json();
-  if (!password) return NextResponse.json({ error: 'Senha obrigatória.' }, { status: 400 });
+  const body = await request.json();
+  const { password, role } = body || {};
+
+  if (!password && !role) {
+    return NextResponse.json({ error: 'Informe senha ou role para atualizar.' }, { status: 400 });
+  }
 
   const target = await getUserById(id);
   if (!target) return NextResponse.json({ error: 'Usuário não encontrado.' }, { status: 404 });
 
-  await updateUserPassword(id, hashPassword(password));
+  const VALID_ROLES = ['TOTAL', 'NORMAL', 'TRAFEGO', 'COMERCIAL'];
 
-  logActivity({
-    ...extractActor(request),
-    action:      'USER_PASSWORD_CHANGED',
-    entity_type: 'dashboard_user',
-    entity_id:   id,
-    entity_name: target.name || target.username,
-    metadata:    { username: target.username },
-    ip:          extractIp(request),
-  });
+  // Update password
+  if (password) {
+    await updateUserPassword(id, hashPassword(password));
+    logActivity({
+      ...extractActor(request),
+      action:      'USER_PASSWORD_CHANGED',
+      entity_type: 'dashboard_user',
+      entity_id:   id,
+      entity_name: target.name || target.username,
+      metadata:    { username: target.username },
+      ip:          extractIp(request),
+    });
+  }
+
+  // Update role
+  if (role && VALID_ROLES.includes(role)) {
+    const sql = getDb();
+    await sql`UPDATE dashboard_users SET role = ${role} WHERE id = ${id}`;
+    logActivity({
+      ...extractActor(request),
+      action:      'USER_ROLE_CHANGED',
+      entity_type: 'dashboard_user',
+      entity_id:   id,
+      entity_name: target.name || target.username,
+      metadata:    { username: target.username, oldRole: target.role, newRole: role },
+      ip:          extractIp(request),
+    });
+  }
 
   return NextResponse.json({ success: true });
 }
