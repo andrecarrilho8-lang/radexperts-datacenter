@@ -174,7 +174,10 @@ export function Navbar() {
     background: 'linear-gradient(160deg, rgba(0,16,40,0.99) 0%, rgba(0,10,28,0.99) 100%)',
     border: '1px solid rgba(232,177,79,0.15)',
     backdropFilter: 'blur(24px)',
+    zIndex: 99999,
+    position: 'absolute',
   };
+
 
   return (
     <>
@@ -309,7 +312,7 @@ export function Navbar() {
       {/* ════════════════════════════════════════════════════
           MENU BAR  —  Navigation links (desktop)
           ════════════════════════════════════════════════════ */}
-      <div className="fixed top-[62px] w-full z-40 h-[44px] hidden md:flex items-stretch" style={menubarStyle}>
+      <div className="fixed top-[62px] w-full z-[9990] h-[44px] hidden md:flex items-stretch" style={menubarStyle}>
 
         {/* Nav links */}
         <div className="flex items-stretch gap-0 px-6 lg:px-8 h-full">
